@@ -1,0 +1,3 @@
+[selfcheck] disjointness layer consistent? YES
+checked 7 mappings · 7 type-testable · 0 type-crossing flagged (with disjointness layer)
+correct exit=0

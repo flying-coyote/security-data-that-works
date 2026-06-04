@@ -1,0 +1,6 @@
+[selfcheck] disjointness layer consistent? YES
+checked 3 mappings · 3 type-testable · 3 type-crossing flagged (with disjointness layer)
+  ✗ username  →  process.name   (source is UserAccount, target is Process — disjoint)
+  ✗ file_path  →  src_endpoint.ip   (source is File, target is NetworkNode — disjoint)
+  ✗ process_name  →  actor.user.name   (source is Process, target is UserAccount — disjoint)
+wrong exit=1

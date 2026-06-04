@@ -1,0 +1,4 @@
+source_field,ocsf_path
+username,process.name
+file_path,src_endpoint.ip
+process_name,actor.user.name

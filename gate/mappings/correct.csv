@@ -1,0 +1,8 @@
+source_field,ocsf_path
+username,actor.user.name
+process_name,process.name
+image,process.file.path
+src_ip,src_endpoint.ip
+dst_ip,dst_endpoint.ip
+group,actor.group.name
+url,url
