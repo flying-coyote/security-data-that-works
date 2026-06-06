@@ -91,7 +91,10 @@ Net-new, prioritized (all gated on "the answer is identical"):
    writer's output round-trips through every reader, including DuckDB's deprecated PLAIN_DICTIONARY strings.
    The contrast with #1 (same libs decoded *corruption* silently) is the finding: failure mode is per-layer.
 3. **Bloom/stats/encoding × pruning correctness** — the exact layer the chDB bug lived in; needle-in-haystack
-   detection queries are the security case.
+   detection queries are the security case. **Built + tested** (`sdw-lab-benchmarks/ocsf-pruning-correctness`):
+   a sorted-vs-shuffled A/B (identical 1M-key data, only row order differs, so any disagreement isolates a
+   pruning bug) plus a chDB-written bloom file, across 5 engines. All sound on current versions — the chDB-bug
+   class does not reproduce, so the bench's value is as a standing regression guard for the pushdown paths.
 4. **Vortex vs Parquet** — the one real new sub-Parquet format with a shipped DuckDB extension (Jan 2026);
    footprint+read, correctness-gated. Not yet readable *inside* Iceberg, so a parallel-store experiment.
 5. **SIMD-dispatch determinism** (force NONE/AVX2/AVX512, byte-identical results) and **Parquet modular
