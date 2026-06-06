@@ -76,9 +76,13 @@ wrong), Parquet **writer/encoder** as a read-lever, **codec** (zstd/snappy + sch
 **catalog DB** (sqlite vs postgres under concurrency), **spill medium** (ext4 vs drvfs).
 
 Net-new, prioritized (all gated on "the answer is identical"):
-1. **Parquet page-checksum (CRC32) write-vs-verify asymmetry** — most readers don't verify CRCs by default;
-   a bit-flip in a page returns a confident wrong value rather than an error. The strongest extension of the
-   reader-correctness thesis; integrity backstop for evidence-grade logs. *(building first.)*
+1. **Parquet page-checksum (CRC32) write-vs-verify asymmetry** — most readers don't verify CRCs by default,
+   so a bit-flip in a checksummed page returns a confident wrong value rather than an error. **Built + tested**
+   (`sdw-lab-benchmarks/parquet-checksum-integrity`): a three-way split — chDB verifies by default and catches
+   it, pyarrow/Polars are capable but off by default (one keyword arg away), DuckDB/DataFusion expose no
+   read-side verification at all; with no checksum *all five* return the wrong sum. The strongest extension of
+   the reader-correctness thesis, and the integrity backstop for evidence-grade logs: "verify the answer" has
+   to include verifying the bytes, not just cross-checking engines.
 2. **Parquet-library correctness matrix** — encoding × library grid (PLAIN/RLE_DICTIONARY/DELTA/BYTE_STREAM_SPLIT
    × arrow-cpp/arrow-rs/parquet-java/DuckDB/Polars/fastparquet), the home for the bug-class, against the
    Apache implementation-status matrix (updated 2026-02).
