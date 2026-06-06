@@ -95,8 +95,11 @@ Net-new, prioritized (all gated on "the answer is identical"):
    a sorted-vs-shuffled A/B (identical 1M-key data, only row order differs, so any disagreement isolates a
    pruning bug) plus a chDB-written bloom file, across 5 engines. All sound on current versions — the chDB-bug
    class does not reproduce, so the bench's value is as a standing regression guard for the pushdown paths.
-4. **Vortex vs Parquet** — the one real new sub-Parquet format with a shipped DuckDB extension (Jan 2026);
-   footprint+read, correctness-gated. Not yet readable *inside* Iceberg, so a parallel-store experiment.
+4. **Vortex vs Parquet** — the one real new sub-Parquet format; footprint+read, correctness-gated. *Still
+   install-blocked* (re-checked 2026-06-06): the Python `vortex-array` is yanked on PyPI and the DuckDB
+   community `vortex` extension has no build for DuckDB 1.5.3 (download 404). Design recorded in
+   `sdw-lab-benchmarks/ocsf-vortex-format`; builds when either path ships. Not yet readable inside Iceberg, so
+   it stays a parallel-store experiment.
 5. **SIMD-dispatch determinism** (force NONE/AVX2/AVX512, byte-identical results) and **Parquet modular
    encryption interop**. **Built + tested** (`sdw-lab-benchmarks/parquet-determinism-encryption`): SIMD is
    byte-identical across vector widths (not a risk), but the cross-engine *float* aggregate splits 3 ways
@@ -106,8 +109,13 @@ Net-new, prioritized (all gated on "the answer is identical"):
    *inside* the file revokes the open read contract the swap story rests on (keep encryption at the volume/SSE
    layer for regulated data, or standardize on one PME engine + KMS).
 
-Also mapped, lower priority: FileIO/S3-client (S3FileIO vs pyarrow vs s3fs against MinIO/SeaweedFS), engine↔client
-transport (Arrow Flight/ADBC vs JDBC), native-vs-JVM footprint/cold-start, persistent-store filesystem.
+Net-new #1, #2, #3, and #5 are built, tested, and pushed (`sdw-lab-benchmarks`); #4 is blocked upstream. So the
+prioritized lower-level set is complete except for Vortex's availability.
+
+Also mapped, lower priority: FileIO/S3-client (S3FileIO vs pyarrow vs s3fs against MinIO/SeaweedFS),
+native-vs-JVM footprint/cold-start, persistent-store filesystem (ext4 vs drvfs spill — already measured in
+`ocsf-read-scan`/`ocsf-storage-endurance`). Engine↔client transport (Arrow Flight/ADBC vs JDBC) is already its
+own benchmark (`sdw-lab-benchmarks/ocsf-arrow-transport`), so it's done, not pending.
 
 ## Status — all tiers built + tested
 
