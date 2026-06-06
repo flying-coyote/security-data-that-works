@@ -1,0 +1,38 @@
+# R-tier swap: Fluent Bit (CNCF, C, lightweight) — raw Okta auth -> OCSF Authentication (class_uid 3002).
+# The third router alongside Vector/VRL (../vector/vector.yaml) and Tenzir (../tenzir/okta-ocsf.tql). All three
+# normalize the SAME raw Okta event to the SAME OCSF Authentication contract, which is the point of the swap:
+# the route tier is replaceable as long as the OCSF on the other side is identical. Proven by `./moar
+# swap-router` (and standalone: `docker compose run --rm route-fluentbit`).
+#
+# One-shot by design: tail reads the static file from the top and exits on EOF, so the container prints the
+# two OCSF rows to stdout and terminates like the Vector/Tenzir one-shots. The OCSF restructuring (nested
+# access, SUCCESS/FAILURE -> activity_id, ISO-8601 -> epoch-ms) is done in Lua (ocsf.lua), exactly parallel to
+# what VRL and TQL do, so the conversion is explicit and not dependent on a parser's internal time handling.
+service:
+  flush: 1
+  grace: 1
+  log_level: error          # keep stdout clean so swap-router greps only the OCSF JSON
+
+parsers:
+  - name: okta_json
+    format: json             # turn each NDJSON line into a record; all OCSF mapping happens in Lua
+
+pipeline:
+  inputs:
+    - name: tail
+      tag: okta
+      path: /data/sample.ndjson
+      parser: okta_json
+      read_from_head: true   # read the whole static file from the top
+      exit_on_eof: true      # one-shot: exit the process at EOF (single concrete path, so EOF == complete)
+
+  filters:
+    - name: lua
+      match: okta
+      script: /fluent-bit/etc/ocsf.lua
+      call: to_ocsf
+
+  outputs:
+    - name: stdout
+      match: '*'
+      format: json_lines     # one bare {record} per line (no [ts,{record}] envelope) for a clean compare

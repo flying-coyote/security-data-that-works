@@ -4,10 +4,10 @@
 # extensions this kit adds (an agentic/air-gap tier and a Sigma/marimo detection cross-cut), plus an opt-in
 # Traditional-SIEM "foil" tier for head-to-head benchmarks. Pick tiers with --profile; size with scale/.
 #
-#   L akehouse  — object store + table format          (minio, iceberg-rest)        [core]
-#   I ndex      — metadata catalog / governance        (iceberg-rest; swap: nessie/polaris/ducklake)
-#   E ngine     — query engines matched to workloads   (duckdb in core; trino/starrocks/clickhouse/dremio)
-#   R oute      — pipelines + OCSF normalization        (vector + ocsf)              [route]
+#   L akehouse  — object store + table format          (minio; swap: seaweedfs)     [core]
+#   I ndex      — metadata catalog / governance        (iceberg-rest; swap: nessie, lakekeeper; ducklake = format swap)
+#   E ngine     — query engines matched to workloads   (duckdb in core; add: trino, clickhouse, starrocks; dremio opt-in)
+#   R oute      — pipelines + OCSF normalization        (vector; swap: tenzir, fluent-bit)   [route]
 #   G raph      — visualization / query interface       (grafana)                    [graph]
 #   + Agentic   — practitioner-owned local AI            (ollama + mcp)               [ai]
 #   + Detection — detection-as-code                      (marimo + sigma)             [detection]
@@ -142,6 +142,79 @@ services:
       nessie.catalog.secrets.access-key.secret: ${MINIO_PASSWORD:-moar-dev-secret}
     ports: ["19121:19120"]   # 19120 is the legacy benchmark stack's Nessie; MOAR Nessie host-maps to 19121
 
+  # ---- I (swap): Lakekeeper — the Iceberg REST catalog spec implemented in Rust (no JVM), Postgres-backed.
+  # Swap reason: a THIRD independent catalog codebase. iceberg-rest (Java fixture) and Nessie (Java/Quarkus)
+  # already prove the spec is portable; Lakekeeper is a different language and team implementing the same REST
+  # contract, so an identical answer across all three is a strong portability signal (`./moar swap-catalog`).
+  # Static MinIO creds, STS off (the client uses its own keys), s3-compat flavor, path-style. Client connects
+  # at uri=http://lakekeeper:8181/catalog with warehouse="warehouse". Needs migrate -> serve -> bootstrap ->
+  # create-warehouse, wired as ordered one-shots below.
+  lakekeeper-db:
+    image: postgres:17
+    profiles: ["index-lakekeeper"]
+    networks: [moar]
+    environment:
+      POSTGRES_USER: lakekeeper
+      POSTGRES_PASSWORD: lakekeeper
+      POSTGRES_DB: lakekeeper
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U lakekeeper -d lakekeeper"]
+      interval: 3s
+      timeout: 10s
+      retries: 10
+      start_period: 10s
+
+  lakekeeper-migrate:
+    image: quay.io/lakekeeper/catalog:v0.12.3
+    profiles: ["index-lakekeeper"]
+    networks: [moar]
+    restart: "no"
+    command: ["migrate"]
+    environment: &lakekeeper-env
+      LAKEKEEPER__PG_ENCRYPTION_KEY: CHANGE_ME_local_dev_only
+      LAKEKEEPER__PG_DATABASE_URL_READ: postgresql://lakekeeper:lakekeeper@lakekeeper-db:5432/lakekeeper
+      LAKEKEEPER__PG_DATABASE_URL_WRITE: postgresql://lakekeeper:lakekeeper@lakekeeper-db:5432/lakekeeper
+      RUST_LOG: info
+    depends_on:
+      lakekeeper-db: {condition: service_healthy}
+
+  lakekeeper:
+    image: quay.io/lakekeeper/catalog:v0.12.3
+    profiles: ["index-lakekeeper"]
+    networks: [moar]
+    command: ["serve"]
+    environment: *lakekeeper-env
+    healthcheck:
+      test: ["CMD", "/home/nonroot/lakekeeper", "healthcheck"]
+      interval: 3s
+      timeout: 10s
+      retries: 10
+      start_period: 5s
+    depends_on:
+      lakekeeper-db: {condition: service_healthy}
+      lakekeeper-migrate: {condition: service_completed_successfully}
+    ports: ["8182:8181"]   # host 8182 -> container 8181 (8181 host is taken by iceberg-rest)
+
+  # one-shot: accept terms (bootstrap) then create the "warehouse" pointing at the SAME MinIO bucket. Targets
+  # the CONTAINER port 8181 (in-network), not the host 8182 mapping. Idempotent enough for a demo (re-bootstrap
+  # is a no-op error that's tolerated; warehouse create is skipped if it already exists).
+  lakekeeper-init:
+    image: curlimages/curl:8.11.0
+    profiles: ["index-lakekeeper"]
+    networks: [moar]
+    restart: "no"
+    depends_on:
+      lakekeeper: {condition: service_healthy}
+    volumes: ["./lakekeeper-warehouse.json:/work/warehouse.json:ro"]
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - >
+        curl -sS -X POST http://lakekeeper:8181/management/v1/bootstrap
+        -H 'Content-Type: application/json' --data '{"accept-terms-of-use": true}' || true;
+        curl -sS -X POST http://lakekeeper:8181/management/v1/warehouse
+        -H 'Content-Type: application/json' --data @/work/warehouse.json;
+        echo ' lakekeeper warehouse init done'
+
   # ---- E (embedded): DuckDB lab — the reference engine + the write/read tool over the lakehouse --------
   # Write path here is pyiceberg/DuckDB (cf. SoloLakehouse ADR-17 write/read split); distributed read
   # engines come from the engine-* profiles. Self-contained so `core` alone is a queryable lakehouse.
@@ -199,6 +272,45 @@ services:
       timeout: 10s
       retries: 24
 
+  # ---- E (MPP OLAP): StarRocks over the SAME Iceberg table via an external REST catalog. The FOURTH reader
+  # codebase in the answer-equality gate (DuckDB embedded, Trino MPP-JVM, ClickHouse C++, StarRocks C++/MPP).
+  # All-in-one image (FE+BE in one container). The catalog is created at verify time via SQL (StarRocks has no
+  # boot-time properties file like Trino) — see `./moar verify`. count_if is native; root has no password.
+  starrocks:
+    image: starrocks/allin1-ubuntu:4.1-latest
+    profiles: ["engine-starrocks"]
+    networks: [moar]
+    depends_on:
+      iceberg-rest: {condition: service_healthy}
+    ports:
+      - "9031:9030"   # FE MySQL query protocol (host 9031; legacy StarRocks holds 9030)
+      - "8031:8030"   # FE HTTP
+    mem_limit: 8g     # 4g is the documented floor; 8g gives an Iceberg scan headroom
+    healthcheck:
+      # gate on BE registration, not just FE up: SELECT 1 passes before a BE can serve an Iceberg scan
+      test: ["CMD-SHELL", "mysql -P 9030 -h 127.0.0.1 -u root -N -B -e 'SHOW BACKENDS' 2>/dev/null | grep -q true || exit 1"]
+      interval: 10s
+      timeout: 10s
+      retries: 30
+      start_period: 90s
+
+  # ---- E (opt-in, NOT in `./moar verify`): Dremio OSS. OSS lacks the Iceberg REST catalog source (Enterprise
+  # only), so Dremio can't read the iceberg-rest catalog the others read; the viable OSS path is a Nessie
+  # source set up via an imperative REST choreography (config/dremio/setup-dremio.sh), which proves equality
+  # only on the Nessie-written copy. Shipped as a documented manual overlay rather than a gate participant —
+  # four engines already cover the automated check. Bring up with --profile index-nessie + --profile engine-dremio.
+  dremio:
+    image: dremio/dremio-oss:26.0
+    profiles: ["engine-dremio"]
+    networks: [moar]
+    environment:
+      DREMIO_MAX_MEMORY_SIZE_MB: "4096"
+    ports:
+      - "9147:9047"     # UI + REST (host 9147; legacy Dremio holds 9047)
+      - "31110:31010"   # JDBC/ODBC
+      - "32110:32010"   # Arrow Flight
+    mem_limit: 6g
+
   # ---- Detection (cross-cut): detection-as-code over the lakehouse — SigmaHQ -> SQL + marimo hunting ---
   detection:
     build: ./detection
@@ -255,6 +367,23 @@ services:
       - ./config/tenzir/okta-ocsf.tql:/etc/tenzir/okta-ocsf.tql:ro
       - ./config/vector/sample.ndjson:/etc/tenzir/sample.ndjson:ro
     command: ["-f", "/etc/tenzir/okta-ocsf.tql"]
+
+  # ---- R (swap): Fluent Bit — CNCF, C, lightweight log processor. The third router: the SAME raw Okta event
+  # to the SAME OCSF Authentication output as Vector and Tenzir, proving the route tier is replaceable across
+  # three independent codebases (Rust/Vector, C++/Tenzir, C/Fluent Bit). One-shot: tail reads the file from the
+  # head and exits on EOF, printing the OCSF rows to stdout (run `./moar swap-router`). OCSF mapping is in a Lua
+  # filter (config/fluentbit/ocsf.lua); TZ=UTC so the epoch-ms conversion has no hidden timezone dependence.
+  route-fluentbit:
+    image: fluent/fluent-bit:5.0.7
+    profiles: ["route-fluentbit"]
+    networks: [moar]
+    environment:
+      TZ: UTC
+    volumes:
+      - ./config/fluentbit/fluent-bit.yaml:/fluent-bit/etc/fluent-bit.yaml:ro
+      - ./config/fluentbit/ocsf.lua:/fluent-bit/etc/ocsf.lua:ro
+      - ./config/vector/sample.ndjson:/data/sample.ndjson:ro
+    command: ["/fluent-bit/bin/fluent-bit", "-c", "/fluent-bit/etc/fluent-bit.yaml"]
 
   # ---- G: graph/visualization + observability of the stack (and a home for benchmark dashboards) --------
   prometheus:

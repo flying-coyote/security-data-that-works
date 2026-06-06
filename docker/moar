@@ -9,8 +9,9 @@
 #   ./moar up laptop|workstation|server|compare      bring up a scale preset (staggered)
 #   ./moar up core engine-trino detection            bring up explicit tiers
 #   ./moar verify                                     cross-engine answer-equality over the lakehouse
-#   ./moar swap-catalog                               I-tier swap: identical answer via iceberg-rest AND nessie
-#   ./moar swap-router                                 R-tier swap: identical OCSF out from Vector AND Tenzir
+#   ./moar swap-catalog                               I-tier swap: identical answer via iceberg-rest, nessie AND lakekeeper
+#   ./moar swap-format                                 I-tier format swap: identical answer via Iceberg AND DuckLake
+#   ./moar swap-router                                 R-tier swap: identical OCSF out from Vector, Tenzir AND Fluent Bit
 #   ./moar status | down | logs <svc>
 #
 # Presets (approx working RAM; see README for the per-tier budget table):
@@ -31,7 +32,7 @@ declare -A PRESETS=(
   [compare]="core engine-trino engine-clickhouse route detection graph ai baselines"
 )
 # tiers started LAST and slowly (heavy JVM/MPP cold-starts that OOM if launched simultaneously)
-HEAVY="engine-clickhouse graph baselines"
+HEAVY="engine-clickhouse engine-starrocks engine-dremio graph baselines"
 
 profiles_for() {  # expand preset name OR pass-through explicit tier list
   local key="$1"
@@ -62,7 +63,10 @@ cmd_up() {
   echo "  run ./moar verify to cross-check engine answers."
 }
 
-cmd_down()   { $DC --profile core --profile engine-trino --profile engine-clickhouse --profile route \
+cmd_down()   { $DC --profile core --profile store-minio --profile store-seaweedfs \
+                  --profile index-nessie --profile index-lakekeeper \
+                  --profile engine-trino --profile engine-clickhouse --profile engine-starrocks \
+                  --profile engine-dremio --profile route --profile route-tenzir --profile route-fluentbit \
                   --profile detection --profile graph --profile ai --profile baselines down "$@"; }
 cmd_status() { $DC ps; echo; free -h | awk 'NR==1||/Mem/'; }
 cmd_logs()   { $DC logs --tail 50 "$@"; }
@@ -99,40 +103,93 @@ print(t.num_rows, t.filter(pc.equal(t['dst_port'],3389)).num_rows)
     echo "  clickhouse       total,rdp = $ch"
     [[ "$duck" == "$ch" ]] || { echo "  ✗ DIVERGENCE: clickhouse != duckdb"; ok=0; }
   fi
+  # StarRocks, if running — reads the SAME table via an Iceberg REST external catalog (created idempotently here,
+  # since StarRocks has no boot-time catalog file). The fourth independent reader codebase in the gate.
+  if $DC ps --status running --services 2>/dev/null | grep -qx starrocks; then
+    local sr
+    $DC exec -T starrocks mysql -P 9030 -h 127.0.0.1 -u root -e "
+      CREATE EXTERNAL CATALOG IF NOT EXISTS iceberg PROPERTIES (
+        'type'='iceberg','iceberg.catalog.type'='rest',
+        'iceberg.catalog.uri'='http://iceberg-rest:8181','iceberg.catalog.warehouse'='warehouse',
+        'aws.s3.endpoint'='http://minio:9000','aws.s3.enable_path_style_access'='true',
+        'aws.s3.enable_ssl'='false','aws.s3.access_key'='moar','aws.s3.secret_key'='moar-dev-secret',
+        'aws.s3.region'='us-east-1');" >/dev/null 2>&1 || true
+    sr=$($DC exec -T starrocks mysql -N -B -P 9030 -h 127.0.0.1 -u root -e \
+      "SELECT count(*), count_if(dst_port=3389) FROM iceberg.$table;" 2>/dev/null | tr '\t' ' ')
+    echo "  starrocks        total,rdp = $sr"
+    [[ "$duck" == "$sr" ]] || { echo "  ✗ DIVERGENCE: starrocks != duckdb"; ok=0; }
+  fi
   [[ $ok == 1 ]] && echo "  ✓ all running engines agree" || { echo "  ✗ engines disagree — investigate"; return 1; }
 }
 
 cmd_swap_catalog() {
-  # Prove the I-tier (catalog) is swappable: write+read the SAME OCSF table through BOTH the iceberg-rest
-  # catalog and Nessie over the SAME object store, and assert an identical answer. This is verify-the-answer
-  # applied to a component swap — the open table format means one read contract; the catalog behind it is
-  # replaceable, and the swap is only trustworthy if the answer doesn't move.
-  echo "I-tier catalog swap check (iceberg-rest vs nessie), same MinIO store:"
-  $DC --profile store-minio --profile index-nessie up -d nessie >/dev/null 2>&1 || true
+  # Prove the I-tier (catalog) is swappable: write+read the SAME OCSF table through THREE catalog
+  # implementations over the SAME object store, and assert an identical answer. The open table format means one
+  # read contract; the catalog behind it is replaceable, and the swap is only trustworthy if the answer doesn't
+  # move. Three independent codebases implement the same Iceberg REST spec — iceberg-rest (Java reference
+  # fixture), Nessie (Java/Quarkus, git-style branching), Lakekeeper (Rust, Postgres-backed) — so agreement
+  # across all three is a strong portability signal, not a single-implementation coincidence.
+  echo "I-tier catalog swap check (iceberg-rest vs nessie vs lakekeeper), same MinIO store:"
+  $DC --profile store-minio --profile index-nessie --profile index-lakekeeper up -d >/dev/null 2>&1 || true
+  echo "  waiting for nessie + lakekeeper (lakekeeper migrates, serves, bootstraps, creates the warehouse) ..."
   for i in $(seq 1 20); do curl -fsS http://localhost:19121/iceberg/v1/config >/dev/null 2>&1 && break; sleep 3; done
-  local a b
+  # lakekeeper is ready once its Iceberg REST config resolves the bootstrapped warehouse (init one-shot done)
+  for i in $(seq 1 40); do curl -fsS "http://localhost:8182/catalog/v1/config?warehouse=warehouse" >/dev/null 2>&1 && break; sleep 3; done
+  local a b c
   a=$($DC exec -T lab python /lab/smoke_core.py 2>/dev/null | grep -oE 'dst_port=3389 -> [0-9]+' | grep -oE '[0-9]+$')
   b=$($DC exec -T -e ICEBERG_REST_URI=http://nessie:19120/iceberg/ -e WAREHOUSE=warehouse lab \
         python /lab/smoke_core.py 2>/dev/null | grep -oE 'dst_port=3389 -> [0-9]+' | grep -oE '[0-9]+$')
-  echo "  iceberg-rest: rdp=${a:-?}   nessie: rdp=${b:-?}"
-  if [[ -n "$a" && "$a" == "$b" ]]; then echo "  ✓ catalog swap clean — identical answer across two catalog implementations"
-  else echo "  ✗ catalog swap DIVERGENCE (iceberg-rest=$a nessie=$b)"; return 1; fi
+  c=$($DC exec -T -e ICEBERG_REST_URI=http://lakekeeper:8181/catalog -e WAREHOUSE=warehouse lab \
+        python /lab/smoke_core.py 2>/dev/null | grep -oE 'dst_port=3389 -> [0-9]+' | grep -oE '[0-9]+$')
+  echo "  iceberg-rest: rdp=${a:-?}   nessie: rdp=${b:-?}   lakekeeper: rdp=${c:-?}"
+  if [[ -n "$a" && "$a" == "$b" && "$a" == "$c" ]]; then
+    echo "  ✓ catalog swap clean — identical answer across three independent catalog implementations"
+  else echo "  ✗ catalog swap DIVERGENCE (iceberg-rest=$a nessie=$b lakekeeper=$c)"; return 1; fi
+}
+
+cmd_swap_format() {
+  # Prove I-tier *format* portability (distinct from the catalog swap above): the SAME logical OCSF batch,
+  # written through a DIFFERENT table format (DuckLake — SQL-database catalog + Parquet on the same MinIO),
+  # returns the identical answer as the Iceberg path. DuckLake is not an Iceberg REST catalog, so this isn't a
+  # drop-in catalog swap; it's "the data and the answer outlive the format." Runs in the existing lab container.
+  echo "I-tier format swap check (Iceberg vs DuckLake), same OCSF batch, same MinIO store:"
+  local ice dl
+  ice=$($DC exec -T lab python /lab/smoke_core.py 2>/dev/null | grep -oE 'dst_port=3389 -> [0-9]+' | grep -oE '[0-9]+$')
+  dl=$($DC exec -T lab python /lab/swap_format_ducklake.py 2>/dev/null | grep -oE 'dst_port=3389 -> [0-9]+' | grep -oE '[0-9]+$')
+  echo "  iceberg: rdp=${ice:-?}   ducklake: rdp=${dl:-?}"
+  if [[ -n "$ice" && "$ice" == "$dl" ]]; then
+    echo "  ✓ format swap clean — identical answer across Iceberg and DuckLake on the same object store"
+  else echo "  ✗ format swap DIVERGENCE (iceberg=$ice ducklake=$dl)"; return 1; fi
 }
 
 cmd_swap_router() {
-  # Prove the R-tier (route/normalization) is swappable: the security-native Tenzir pipeline and the Vector/VRL
-  # transform both turn the SAME raw Okta event into the SAME OCSF Authentication record. verify-the-answer for
-  # the normalization stage (cf. swap-catalog for the catalog, the MinIO/SeaweedFS bake-off for the store).
-  echo "R-tier route swap check (Vector vs Tenzir), same raw Okta sample -> OCSF Authentication:"
-  local tz vok=0 tzok=0
+  # Prove the R-tier (route/normalization) is swappable across THREE independent codebases: Vector/VRL (Rust),
+  # Tenzir/TQL (C++, security-native), and Fluent Bit/Lua (C, CNCF) all turn the SAME raw Okta event into the
+  # SAME OCSF Authentication record. verify-the-answer for the normalization stage (cf. swap-catalog for the
+  # catalog, swap-format for the table format, the MinIO/SeaweedFS bake-off for the store).
+  echo "R-tier route swap check (Vector vs Tenzir vs Fluent Bit), same raw Okta sample -> OCSF Authentication:"
+  local tz fb vok=0 tzok=0 fbok=0
+  # Tenzir + Fluent Bit emit OCSF JSON to stdout; assert both events carry the OCSF contract (key order is not
+  # guaranteed across routers, so match on field/value presence, not byte-identical lines).
   tz=$($DC run --rm -T route-tenzir 2>/dev/null) || true
   if echo "$tz" | grep -q '"class_uid":3002.*"activity_id":1.*jdoe@acme.example.*10\.10\.1\.21' \
      && echo "$tz" | grep -q '"activity_id":2.*svc@acme.example.*203\.0\.113\.7'; then tzok=1; fi
+  fb=$($DC run --rm -T route-fluentbit 2>/dev/null) || true
+  # Fluent Bit serializes keys in a different order, so check each event's line for the required fields
+  # independently rather than in one ordered regex (the order-independent form swap-router's comment calls for).
+  local fbj fbs
+  fbj=$(echo "$fb" | grep 'jdoe@acme.example'); fbs=$(echo "$fb" | grep 'svc@acme.example')
+  if echo "$fbj" | grep -q '"class_uid":3002' && echo "$fbj" | grep -q '"activity_id":1' \
+     && echo "$fbj" | grep -q '"src_ip":"10.10.1.21"' \
+     && echo "$fbs" | grep -q '"activity_id":2' && echo "$fbs" | grep -q '"src_ip":"203.0.113.7"'; then fbok=1; fi
+  # Vector has a native test harness for its transform
   $DC run --rm -T route test /etc/vector/vector.yaml >/dev/null 2>&1 && vok=1
-  echo "  vector (vector test):   $([ $vok = 1 ] && echo 'PASS — okta_auth_to_ocsf' || echo 'FAIL')"
-  echo "  tenzir (okta-ocsf.tql): $([ $tzok = 1 ] && echo 'PASS — class_uid 3002, activity 1/2, user, src_ip' || echo 'FAIL')"
-  if [[ $tzok = 1 && $vok = 1 ]]; then echo "  ✓ router swap clean — both routers emit the identical OCSF Authentication contract"
-  else echo "  ✗ router swap problem (vector=$vok tenzir=$tzok)"; return 1; fi
+  echo "  vector  (vector test):    $([ $vok  = 1 ] && echo 'PASS — okta_auth_to_ocsf' || echo 'FAIL')"
+  echo "  tenzir  (okta-ocsf.tql):  $([ $tzok = 1 ] && echo 'PASS — class_uid 3002, activity 1/2, user, src_ip' || echo 'FAIL')"
+  echo "  fluentbit (ocsf.lua):     $([ $fbok = 1 ] && echo 'PASS — class_uid 3002, activity 1/2, user, src_ip' || echo 'FAIL')"
+  if [[ $vok = 1 && $tzok = 1 && $fbok = 1 ]]; then
+    echo "  ✓ router swap clean — all three routers emit the identical OCSF Authentication contract"
+  else echo "  ✗ router swap problem (vector=$vok tenzir=$tzok fluentbit=$fbok)"; return 1; fi
 }
 
 case "${1:-}" in
@@ -141,6 +198,7 @@ case "${1:-}" in
   status) cmd_status;;
   verify) cmd_verify;;
   swap-catalog) cmd_swap_catalog;;
+  swap-format) cmd_swap_format;;
   swap-router) cmd_swap_router;;
   logs) shift; cmd_logs "$@";;
   *) sed -n '2,30p' "$0" | sed 's/^# \{0,1\}//'; exit 0;;
