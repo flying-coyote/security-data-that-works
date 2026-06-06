@@ -28,6 +28,8 @@ networks:
 
 volumes:
   minio_data:
+  seaweedfs_data:
+  route_data:
 
 x-s3-env: &s3-env
   AWS_ACCESS_KEY_ID: ${MINIO_USER:-moar}
@@ -38,7 +40,7 @@ services:
   # ---- L: object store (the lakehouse storage layer) -------------------------------------------------
   minio:
     image: minio/minio:latest
-    profiles: ["core"]
+    profiles: ["store-minio"]
     networks: [moar]
     command: server /data --console-address ":9001"
     environment:
@@ -55,7 +57,7 @@ services:
   # one-shot: create the warehouse bucket with a bronze/silver/gold medallion layout (peer convention)
   minio-init:
     image: minio/mc:latest
-    profiles: ["core"]
+    profiles: ["store-minio"]
     networks: [moar]
     depends_on:
       minio: {condition: service_healthy}
@@ -65,18 +67,50 @@ services:
       mc mb -p h/warehouse/bronze h/warehouse/silver h/warehouse/gold &&
       echo 'warehouse bucket ready (bronze/silver/gold)'"
 
+  # ---- L (swap): SeaweedFS object store — lighter (~100-300MB vs MinIO ~256-512MB), q3-validated S3 quirks.
+  # Swap reason: smaller footprint for the laptop tier; proves the lakehouse is indifferent to the object
+  # backend (run `./moar verify` after a swap — same Iceberg data, identical answers). Bind to container IP.
+  seaweedfs:
+    image: chrislusf/seaweedfs:latest
+    profiles: ["store-seaweedfs"]
+    networks: [moar]
+    command: "server -s3 -s3.port=8333 -s3.config=/etc/seaweedfs/s3.json -filer -dir=/data"
+    ports: ["8333:8333"]
+    volumes:
+      - seaweedfs_data:/data
+      - ./config/seaweedfs/s3.json:/etc/seaweedfs/s3.json:ro
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8333/ 2>&1 | grep -q . || true; exit 0"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  seaweedfs-init:
+    image: minio/mc:latest
+    profiles: ["store-seaweedfs"]
+    networks: [moar]
+    depends_on:
+      seaweedfs: {condition: service_started}
+    # SeaweedFS rejects MinIO's policy resource format — create the bucket prefixes only, no policy set.
+    entrypoint: >
+      /bin/sh -c "
+      sleep 5;
+      mc alias set h http://seaweedfs:8333 ${MINIO_USER:-moar} ${MINIO_PASSWORD:-moar-dev-secret} &&
+      mc mb -p h/warehouse/bronze h/warehouse/silver h/warehouse/gold &&
+      echo 'seaweedfs warehouse bucket ready (bronze/silver/gold)'"
+
   # ---- I: metadata catalog (Iceberg REST — the low-risk default; nessie/polaris/ducklake are swaps) ---
   iceberg-rest:
     image: apache/iceberg-rest-fixture:latest
     profiles: ["core"]
     networks: [moar]
-    depends_on:
-      minio-init: {condition: service_completed_successfully}
+    # No store-specific depends_on (the object store is a swappable profile); S3 is contacted lazily at
+    # table-create, by when the chosen store + its bucket-init are up. S3_INTERNAL_ENDPOINT selects the store.
     environment:
       <<: *s3-env
       CATALOG_WAREHOUSE: s3://warehouse/
       CATALOG_IO__IMPL: org.apache.iceberg.aws.s3.S3FileIO
-      CATALOG_S3_ENDPOINT: http://minio:9000
+      CATALOG_S3_ENDPOINT: ${S3_INTERNAL_ENDPOINT:-http://minio:9000}
       CATALOG_S3_PATH__STYLE__ACCESS: "true"
     ports: ["8181:8181"]
     healthcheck:
@@ -98,7 +132,7 @@ services:
     environment:
       <<: *s3-env
       ICEBERG_REST_URI: http://iceberg-rest:8181
-      S3_ENDPOINT: http://minio:9000
+      S3_ENDPOINT: ${S3_INTERNAL_ENDPOINT:-http://minio:9000}
     volumes: ["./lab:/lab"]
     command: ["sleep", "infinity"]
 
@@ -119,3 +153,93 @@ services:
       interval: 10s
       timeout: 10s
       retries: 24
+
+  # ---- Detection (cross-cut): detection-as-code over the lakehouse — SigmaHQ -> SQL + marimo hunting ---
+  detection:
+    build: ./detection
+    image: moar/detection:latest
+    profiles: ["detection"]
+    networks: [moar]
+    depends_on:
+      iceberg-rest: {condition: service_healthy}
+    environment:
+      <<: *s3-env
+      ICEBERG_REST_URI: http://iceberg-rest:8181
+      S3_ENDPOINT: ${S3_INTERNAL_ENDPOINT:-http://minio:9000}
+    volumes: ["./detection:/detection"]
+    ports: ["2718:2718"]   # marimo edit/app UI when run interactively
+    command: ["sleep", "infinity"]
+
+  # ---- AI (extension): practitioner-owned, air-gappable agentic hunt — LOCAL model, code-action over the lake
+  ai:
+    build: ./ai
+    image: moar/ai:latest
+    profiles: ["ai"]
+    networks: [moar]
+    depends_on:
+      iceberg-rest: {condition: service_healthy}
+    extra_hosts: ["host.docker.internal:host-gateway"]   # reach the host's local Ollama; no cloud
+    environment:
+      <<: *s3-env
+      ICEBERG_REST_URI: http://iceberg-rest:8181
+      S3_ENDPOINT: ${S3_INTERNAL_ENDPOINT:-http://minio:9000}
+      OLLAMA_URL: ${OLLAMA_URL:-http://host.docker.internal:11434}
+      OLLAMA_MODEL: ${OLLAMA_MODEL:-gemma4:e4b}
+    volumes: ["./ai:/ai"]
+    command: ["sleep", "infinity"]
+
+  # ---- R: route/ingest — normalize raw telemetry to OCSF (Vector/VRL; Tenzir is the security-native swap)
+  route:
+    image: timberio/vector:latest-alpine
+    profiles: ["route"]
+    networks: [moar]
+    volumes:
+      - ./config/vector:/etc/vector:ro
+      - route_data:/vd
+    command: ["--config", "/etc/vector/vector.yaml"]
+
+  # ---- G: graph/visualization + observability of the stack (and a home for benchmark dashboards) --------
+  prometheus:
+    image: prom/prometheus:latest
+    profiles: ["graph"]
+    networks: [moar]
+    volumes: ["./config/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro"]
+    ports: ["9190:9090"]   # 90xx is the legacy stack; MOAR observability on 91xx
+  grafana:
+    image: grafana/grafana:latest
+    profiles: ["graph"]
+    networks: [moar]
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: ${MINIO_PASSWORD:-moar-dev-secret}
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+    volumes: ["./config/grafana/provisioning:/etc/grafana/provisioning:ro"]
+    ports: ["3001:3000"]
+  loki:
+    image: grafana/loki:3.3.0
+    profiles: ["graph"]
+    networks: [moar]
+    command: "-config.file=/etc/loki/local-config.yaml"
+    volumes: ["./config/loki/loki-config.yaml:/etc/loki/local-config.yaml:ro"]
+    ports: ["3101:3100"]
+  pushgateway:
+    image: prom/pushgateway:latest
+    profiles: ["graph"]
+    networks: [moar]
+    ports: ["9191:9091"]
+
+  # ---- Foil (opt-in): the schema-on-read SIEM you benchmark AGAINST, in the same compose (fair-broker).
+  # OpenSearch is the open representative; Graylog is the other open option; a licensed schema-on-read SIEM
+  # (e.g. Splunk) is reference-only (EULA — don't ship the image). Heaviest tier; run one SIEM at a time.
+  opensearch:
+    image: opensearchproject/opensearch:2.18.0
+    profiles: ["baselines"]
+    networks: [moar]
+    environment:
+      - discovery.type=single-node
+      - DISABLE_SECURITY_PLUGIN=true
+      - bootstrap.memory_lock=true
+      - OPENSEARCH_JAVA_OPTS=-Xms1g -Xmx1g
+    ulimits:
+      memlock: {soft: -1, hard: -1}
+    mem_limit: 4g
+    ports: ["9211:9200"]   # 90xx/9201 taken by the legacy stack; MOAR foil on 9211

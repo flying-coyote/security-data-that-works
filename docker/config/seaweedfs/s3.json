@@ -1,0 +1,11 @@
+{
+  "identities": [
+    {
+      "name": "moar",
+      "credentials": [
+        { "accessKey": "moar", "secretKey": "moar-dev-secret" }
+      ],
+      "actions": ["Admin", "Read", "Write", "List", "Tagging"]
+    }
+  ]
+}

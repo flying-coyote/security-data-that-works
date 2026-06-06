@@ -1,0 +1,13 @@
+title: RDP Network Connection (OCSF Network Activity)
+status: experimental
+description: Inbound/lateral RDP (tcp/3389) over the OCSF Network Activity store — a portable Sigma rule
+  compiled to SQL and run over the open lakehouse. Specificity is the analyst's job; this is the broad form.
+logsource:
+  category: network_activity
+detection:
+  sel:
+    dst_port: 3389
+  condition: sel
+tags:
+  - attack.lateral_movement
+  - attack.t1021.001

@@ -1,0 +1,44 @@
+# R tier — normalize raw telemetry to OCSF with Vector/VRL (Tenzir is the security-native swap).
+# Raw Okta-style auth log -> OCSF Authentication (class_uid 3002). The S3->Iceberg promotion (bronze parquet
+# -> ocsf.authentication via the lab/pyiceberg) is the next hop; this proves the normalization stage.
+data_dir: /vd
+sources:
+  raw:
+    type: file
+    include: ["/etc/vector/sample.ndjson"]
+    read_from: beginning
+transforms:
+  ocsf:
+    type: remap
+    inputs: [raw]
+    source: |
+      e = parse_json!(.message)
+      . = {}
+      .class_uid = 3002
+      .class_name = "Authentication"
+      .time = to_unix_timestamp(parse_timestamp!(e.published, "%+"), unit: "milliseconds")
+      .activity_id = if e.outcome.result == "SUCCESS" { 1 } else { 2 }
+      .user = e.actor.alternateId
+      .src_ip = e.client.ipAddress
+      .status = e.outcome.result
+sinks:
+  console:
+    type: console
+    inputs: [ocsf]
+    encoding: {codec: json}
+tests:
+  - name: okta_auth_to_ocsf
+    inputs:
+      - insert_at: ocsf
+        type: log
+        log_fields:
+          message: '{"published":"2026-01-01T00:00:01Z","eventType":"user.session.start","outcome":{"result":"SUCCESS"},"actor":{"alternateId":"jdoe@acme.example"},"client":{"ipAddress":"10.10.1.21"}}'
+    outputs:
+      - extract_from: ocsf
+        conditions:
+          - type: vrl
+            source: |
+              assert_eq!(.class_uid, 3002)
+              assert_eq!(.activity_id, 1)
+              assert_eq!(.user, "jdoe@acme.example")
+              assert_eq!(.src_ip, "10.10.1.21")

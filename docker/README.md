@@ -47,16 +47,66 @@ self-hostable stack. MOAR's reference stack leads with the four gaps:
 Always include `core`; every other tier reads its lakehouse. Catalog and engine are genuinely swappable —
 that's the point of an open table format under one read contract (`SPEC.md` §5).
 
-## Status
+## Component selection & swaps (bake-offs)
 
-- **Built + tested:** `core` (OCSF table round-trips MinIO↔Iceberg-REST↔DuckDB) and `engine-trino` (reads the
-  same table, answers identical to DuckDB — `moar verify` green). This proves the load-bearing claim: write
-  once via pyiceberg, read via any engine, verify the answers agree.
-- **Roadmap (next tiers, components chosen, budgets set):** `route` (Vector/VRL → OCSF, or Tenzir for a
-  security-native router; Zach Schmerber's WASM-transform + LLM-generates-parser/regex-executes pattern as a
-  contrast), `detection` (marimo + SigmaHQ + pySigma-pipeline-ocsf), `ai` (the air-gapped Ollama+MCP hunt
-  from the lab's `ocsf-airgap-agent`), `graph`/observability (the validated Grafana/Prometheus/Loki block),
-  `baselines` (the schema-on-read SIEM foil, staggered, license-gated).
+Because the substrate is open under one read contract, components are genuinely swappable — and a swap is
+*verifiable*: same Iceberg data, different backend, identical answers (`./moar verify`). Tested and roadmapped
+swaps, each with a reason, drawing on the peers' choices (Lisa Cao, Jiahong Que, Zach Schmerber):
+
+| Tier | default | swap candidates | reason to swap | status |
+|---|---|---|---|---|
+| **L** object store | MinIO | **SeaweedFS** (Lisa, q3) · RustFS · Ceph | footprint — SeaweedFS is **~10× lighter** | **tested: identical answers, 34 MiB vs MinIO ~256-512 MB → use for the laptop tier** |
+| **I** catalog | iceberg-rest-fixture | **Lakekeeper** (Rust, ~50-150 MB) · Nessie (git-branching, q3) · Polaris/Unity (governance) · DuckLake (embedded) | production-readiness / footprint / governance | roadmap-test (config templated; `verify` gates the swap) |
+| **E** engine | DuckDB + Trino | ClickHouse · StarRocks · Dremio | workload fit (real-time vs federation vs reflections) | trino tested; others from the legacy engine block |
+| **R** router | Vector | **Tenzir** (security-native: Sigma/OCSF/STIX) · Fluent Bit (lightest) | security-awareness vs footprint | roadmap |
+
+The discipline: **never swap blind — `./moar verify` must stay green across the swap.** The MinIO→SeaweedFS
+bake-off is the worked example; the same gate applies to a catalog or router swap. (Trino's S3 endpoint is a
+static catalog property today, so a full multi-engine SeaweedFS run also needs that templated — a noted
+follow-up; the core/lab/detection path follows `S3_INTERNAL_ENDPOINT` and is swap-clean now.)
+
+### Lower-level (sub-Parquet) bake-offs — where a swap silently changes the *answer*
+
+The horizontal swaps above are about which box; the deeper, correctness-flavored bake-offs are where the
+SDW Lab earns its keep (both silent-wrong-answer findings this year — chDB's Bloom-pushdown undercount and
+fastparquet's `PLAIN_DICTIONARY` mis-decode — lived in the Parquet *library* layer, not the engine).
+
+Already benchmarked in `sdw-lab-benchmarks`: Parquet **reader** answer-equivalence (8 readers, 2 silently
+wrong), Parquet **writer/encoder** as a read-lever, **codec** (zstd/snappy + schema-trained dict),
+**catalog DB** (sqlite vs postgres under concurrency), **spill medium** (ext4 vs drvfs).
+
+Net-new, prioritized (all gated on "the answer is identical"):
+1. **Parquet page-checksum (CRC32) write-vs-verify asymmetry** — most readers don't verify CRCs by default;
+   a bit-flip in a page returns a confident wrong value rather than an error. The strongest extension of the
+   reader-correctness thesis; integrity backstop for evidence-grade logs. *(building first.)*
+2. **Parquet-library correctness matrix** — encoding × library grid (PLAIN/RLE_DICTIONARY/DELTA/BYTE_STREAM_SPLIT
+   × arrow-cpp/arrow-rs/parquet-java/DuckDB/Polars/fastparquet), the home for the bug-class, against the
+   Apache implementation-status matrix (updated 2026-02).
+3. **Bloom/stats/encoding × pruning correctness** — the exact layer the chDB bug lived in; needle-in-haystack
+   detection queries are the security case.
+4. **Vortex vs Parquet** — the one real new sub-Parquet format with a shipped DuckDB extension (Jan 2026);
+   footprint+read, correctness-gated. Not yet readable *inside* Iceberg, so a parallel-store experiment.
+5. **SIMD-dispatch determinism** (force NONE/AVX2/AVX512, byte-identical results) and **Parquet modular
+   encryption interop** (DuckDB only partial — threatens the swappability promise for regulated data).
+
+Also mapped, lower priority: FileIO/S3-client (S3FileIO vs pyarrow vs s3fs against MinIO/SeaweedFS), engine↔client
+transport (Arrow Flight/ADBC vs JDBC), native-vs-JVM footprint/cold-start, persistent-store filesystem.
+
+## Status — all tiers built + tested
+
+| Tier | what was validated |
+|---|---|
+| **core** | OCSF table round-trips MinIO↔Iceberg-REST↔DuckDB/pyiceberg (1000 rows; RDP→125=truth) |
+| **engine-trino** | Trino reads the *same* Iceberg table, answers identical to DuckDB (`moar verify` green) |
+| **detection** | a SigmaHQ rule → pySigma→SQL → run over the OCSF lakehouse, detected 125 RDP (the planted count) |
+| **ai** | a *local* model (Ollama) ran a code-action hunt over the lakehouse, found the 125 RDP conns, fully air-gapped |
+| **graph** | Prometheus + Grafana + Loki + Pushgateway up healthy (prometheus.yml a real file, loki readable) |
+| **route** | Vector/VRL raw→OCSF transform proven by `vector test` (Okta auth → class_uid 3002, activity_id, user, src_ip) |
+| **baselines** | OpenSearch foil stands up as the schema-on-read SIEM to benchmark against (opt-in, staggered) |
+| **swap: L** | **MinIO→SeaweedFS bake-off: identical answers, 34 MiB vs ~256-512 MB → laptop-tier object store** |
+
+The load-bearing claim is proven end-to-end: write once via pyiceberg, read via any engine, **verify the
+answers agree** — across engines *and* across an object-store swap.
 
 ## How it relates to peers (what's borrowed, what's different)
 

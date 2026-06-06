@@ -1,0 +1,2 @@
+{"published":"2026-01-01T00:00:01Z","eventType":"user.session.start","outcome":{"result":"SUCCESS"},"actor":{"alternateId":"jdoe@acme.example"},"client":{"ipAddress":"10.10.1.21"}}
+{"published":"2026-01-01T00:00:02Z","eventType":"user.session.start","outcome":{"result":"FAILURE"},"actor":{"alternateId":"svc@acme.example"},"client":{"ipAddress":"203.0.113.7"}}
