@@ -186,3 +186,15 @@ Ports are on the `91xx`/`80xx`-avoiding range so MOAR coexists with other local 
 `moar` / `moar-dev-secret` (override via `MINIO_USER`/`MINIO_PASSWORD`); rotate for anything real. The
 warehouse bucket uses a bronze/silver/gold medallion layout (peer convention; OCSF normalization slots at
 raw→bronze→silver).
+
+## Read alongside (securitydataworks.com)
+
+The stack is the runnable form of the architecture the essays argue; the [SDW Lab](https://securitydataworks.com/lab)
+is the measured evidence each tier ships with.
+
+- the architecture — [MOAR](https://securitydataworks.com/thesis/moar) · the differentiator — [The query engine returned the wrong answer](https://securitydataworks.com/writing/detection/silent-wrong-answer) (why `./moar verify` exists)
+- **L/I (lakehouse + catalog)** — [Iceberg vs Delta](https://securitydataworks.com/writing/lakehouse/iceberg-vs-delta) · [V4 vs DuckLake](https://securitydataworks.com/writing/lakehouse/v4-vs-ducklake) · [the encoder is the read lever](https://securitydataworks.com/writing/lakehouse/encoder-is-the-read-lever) · catalogs: [decision](https://securitydataworks.com/writing/catalogs/catalog-decision) / [governance](https://securitydataworks.com/writing/catalogs/catalog-governance)
+- **E (engines)** — [ClickHouse at petabyte](https://securitydataworks.com/writing/engines/clickhouse-petabyte) · [DuckDB threat hunting](https://securitydataworks.com/writing/engines/duckdb-threat-hunting) · [push vs pull engines](https://securitydataworks.com/writing/engines/push-pull-engines)
+- **R (route)** — [Vector](https://securitydataworks.com/writing/pipelines/vector-data-router) · [Tenzir](https://securitydataworks.com/writing/pipelines/tenzir-pipe-layer) · [Cribl vs Tenzir](https://securitydataworks.com/writing/pipelines/cribl-vs-tenzir)
+- **detection / Sigma** — [Sigma portability](https://securitydataworks.com/writing/sigma/sigma-portability)
+- **methodology behind the bake-offs** — [How to run a benchmark that doesn't lie](https://securitydataworks.com/writing/economics/how-to-run-a-benchmark-that-doesnt-lie) · [Independent measurement](https://securitydataworks.com/writing/economics/independent-measurement)

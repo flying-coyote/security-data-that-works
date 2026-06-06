@@ -125,6 +125,45 @@ the Capability Matrix, which is paid. So the check is open and runnable, the spe
 per-vendor scores are the paid part. This repo is a front door to the open projects underneath (D3FEND,
 OCSF, Sigma, the ROBOT/ELK toolchain), not a fork of them.
 
+## The runnable demos in this repo
+
+Each demo makes one part of the spec executable, evidence-first:
+
+- **[`gate/`](gate/)** — the OCSF field-mapping type-consistency check (the silent-wrong-mapping catcher
+  above). The data-validation category, made executable.
+- **[`docker/`](docker/)** — the **MOAR reference stack**: an open, tiered, swappable security-data lakehouse
+  you stand up in layers, with a `verify` gate that cross-checks every running engine returns the *same*
+  answer over the same Iceberg table.
+- **[`foundation-healthcheck/`](foundation-healthcheck/)** — a scoped demonstrator of the four-layer
+  data-health gate (source health → flow health → data quality → cross-tool gaps) on synthetic data.
+- **[`build-your-own-mcp/`](build-your-own-mcp/)** — the case plus curated references for building your own
+  security-data MCP server rather than adopting a vendor black box.
+- **[`SPEC.md`](SPEC.md)** — what good looks like across the five categories of security data, the frame the
+  demos above grow into.
+
+## Read it alongside the writing (securitydataworks.com)
+
+The code here is the runnable half of an argument the [essays](https://securitydataworks.com/writing) make in
+full, and the [SDW Lab](https://securitydataworks.com/lab) is the measured evidence behind both. The map:
+
+**The whole repo**
+- [The query engine returned the wrong answer](https://securitydataworks.com/writing/detection/silent-wrong-answer) — the silent-failure thesis these demos embody
+- [Foundation · Data health](https://securitydataworks.com/thesis/foundation) — the gate every downstream project assumes
+- [Independent measurement](https://securitydataworks.com/writing/economics/independent-measurement) · [How to run a benchmark that doesn't lie](https://securitydataworks.com/writing/economics/how-to-run-a-benchmark-that-doesnt-lie) — why the verification, not the speed, is the product
+
+**`gate/` — OCSF field-mapping validation**
+- [The field-mapping anti-pattern](https://securitydataworks.com/writing/ocsf/field-mapping-anti-pattern) · [What your data means](https://securitydataworks.com/writing/detection/what-your-data-means)
+- [Six schemas into OCSF](https://securitydataworks.com/writing/ocsf/six-schemas-into-ocsf) · [OCSF × D3FEND](https://securitydataworks.com/writing/ocsf/ocsf-d3fend) · [LLM OCSF mapping](https://securitydataworks.com/writing/ocsf/llm-ocsf-mapping)
+
+**`docker/` — the MOAR stack**
+- [MOAR](https://securitydataworks.com/thesis/moar) · [Iceberg vs Delta](https://securitydataworks.com/writing/lakehouse/iceberg-vs-delta) · [V4 vs DuckLake](https://securitydataworks.com/writing/lakehouse/v4-vs-ducklake) · [the encoder is the read lever](https://securitydataworks.com/writing/lakehouse/encoder-is-the-read-lever)
+- [ClickHouse at petabyte](https://securitydataworks.com/writing/engines/clickhouse-petabyte) · [DuckDB threat hunting](https://securitydataworks.com/writing/engines/duckdb-threat-hunting) · the route tier: [Vector](https://securitydataworks.com/writing/pipelines/vector-data-router) / [Tenzir](https://securitydataworks.com/writing/pipelines/tenzir-pipe-layer) · catalogs: [decision](https://securitydataworks.com/writing/catalogs/catalog-decision) / [governance](https://securitydataworks.com/writing/catalogs/catalog-governance) · [Sigma portability](https://securitydataworks.com/writing/sigma/sigma-portability)
+
+**`foundation-healthcheck/`** — see [its README](foundation-healthcheck/) for the per-layer essay links (foundation, the downstream MOAR / DetectFlow / MLOps-hunting projects, the lab).
+
+**`build-your-own-mcp/`**
+- [MCP for data engineering](https://securitydataworks.com/writing/ai/mcp-for-data-engineering) · [the MCP-server landscape (research)](https://securitydataworks.com/research)
+
 ## Contribute back
 
 The pieces underneath are all open: D3FEND, OCSF, Sigma and the pySigma OCSF pipeline, and the
