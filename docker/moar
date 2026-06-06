@@ -10,6 +10,7 @@
 #   ./moar up core engine-trino detection            bring up explicit tiers
 #   ./moar verify                                     cross-engine answer-equality over the lakehouse
 #   ./moar swap-catalog                               I-tier swap: identical answer via iceberg-rest AND nessie
+#   ./moar swap-router                                 R-tier swap: identical OCSF out from Vector AND Tenzir
 #   ./moar status | down | logs <svc>
 #
 # Presets (approx working RAM; see README for the per-tier budget table):
@@ -114,12 +115,29 @@ cmd_swap_catalog() {
   else echo "  ✗ catalog swap DIVERGENCE (iceberg-rest=$a nessie=$b)"; return 1; fi
 }
 
+cmd_swap_router() {
+  # Prove the R-tier (route/normalization) is swappable: the security-native Tenzir pipeline and the Vector/VRL
+  # transform both turn the SAME raw Okta event into the SAME OCSF Authentication record. verify-the-answer for
+  # the normalization stage (cf. swap-catalog for the catalog, the MinIO/SeaweedFS bake-off for the store).
+  echo "R-tier route swap check (Vector vs Tenzir), same raw Okta sample -> OCSF Authentication:"
+  local tz vok=0 tzok=0
+  tz=$($DC run --rm -T route-tenzir 2>/dev/null) || true
+  if echo "$tz" | grep -q '"class_uid":3002.*"activity_id":1.*jdoe@acme.example.*10\.10\.1\.21' \
+     && echo "$tz" | grep -q '"activity_id":2.*svc@acme.example.*203\.0\.113\.7'; then tzok=1; fi
+  $DC run --rm -T route test /etc/vector/vector.yaml >/dev/null 2>&1 && vok=1
+  echo "  vector (vector test):   $([ $vok = 1 ] && echo 'PASS — okta_auth_to_ocsf' || echo 'FAIL')"
+  echo "  tenzir (okta-ocsf.tql): $([ $tzok = 1 ] && echo 'PASS — class_uid 3002, activity 1/2, user, src_ip' || echo 'FAIL')"
+  if [[ $tzok = 1 && $vok = 1 ]]; then echo "  ✓ router swap clean — both routers emit the identical OCSF Authentication contract"
+  else echo "  ✗ router swap problem (vector=$vok tenzir=$tzok)"; return 1; fi
+}
+
 case "${1:-}" in
   up) shift; cmd_up "$@";;
   down) shift; cmd_down "$@";;
   status) cmd_status;;
   verify) cmd_verify;;
   swap-catalog) cmd_swap_catalog;;
+  swap-router) cmd_swap_router;;
   logs) shift; cmd_logs "$@";;
   *) sed -n '2,30p' "$0" | sed 's/^# \{0,1\}//'; exit 0;;
 esac

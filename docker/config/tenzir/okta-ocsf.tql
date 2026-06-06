@@ -1,0 +1,17 @@
+// R-tier swap: Tenzir (security-native pipeline) — raw Okta auth -> OCSF Authentication (class_uid 3002).
+// This is the security-native counterpart to the Vector/VRL transform in ../vector/vector.yaml, normalizing
+// the SAME raw Okta event to the SAME OCSF Authentication fields, which is the point of the swap: the route
+// tier is replaceable as long as the OCSF contract on the other side is identical. Proven by `./moar
+// swap-router` (and reproducible standalone: `tenzir -f okta-ocsf.tql`).
+from_file "/etc/tenzir/sample.ndjson" {
+  read_ndjson
+}
+this = {
+  class_uid: 3002,
+  class_name: "Authentication",
+  activity_id: 1 if outcome.result == "SUCCESS" else 2,
+  user: actor.alternateId,
+  src_ip: client.ipAddress,
+  status: outcome.result,
+}
+write_ndjson
