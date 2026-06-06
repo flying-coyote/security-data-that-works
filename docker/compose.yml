@@ -119,6 +119,29 @@ services:
       timeout: 5s
       retries: 20
 
+  # ---- I (swap): Nessie — Iceberg REST catalog with git-style branching, in-memory version store (no extra
+  # DB needed for the demo). Swap reason: catalog portability — the lab + engines speak the same Iceberg REST
+  # contract, so pointing a client at Nessie must yield the IDENTICAL answer as iceberg-rest (./moar verify).
+  # The client does the S3 I/O with its own creds; Nessie holds the commit + the warehouse base location.
+  nessie:
+    image: ghcr.io/projectnessie/nessie:latest
+    profiles: ["index-nessie"]
+    networks: [moar]
+    environment:
+      nessie.version.store.type: IN_MEMORY
+      nessie.catalog.default-warehouse: warehouse
+      nessie.catalog.warehouses.warehouse.location: s3://warehouse/
+      nessie.catalog.service.s3.default-options.region: us-east-1
+      nessie.catalog.service.s3.default-options.endpoint: ${S3_INTERNAL_ENDPOINT:-http://minio:9000}
+      nessie.catalog.service.s3.default-options.path-style-access: "true"
+      # Nessie's catalog service validates the warehouse location, so it needs the S3 creds (STATIC auth).
+      # Secrets are referenced indirectly via a urn pointing at the .name/.secret pair (Nessie convention).
+      nessie.catalog.service.s3.default-options.auth-mode: STATIC
+      nessie.catalog.service.s3.default-options.access-key: urn:nessie-secret:quarkus:nessie.catalog.secrets.access-key
+      nessie.catalog.secrets.access-key.name: ${MINIO_USER:-moar}
+      nessie.catalog.secrets.access-key.secret: ${MINIO_PASSWORD:-moar-dev-secret}
+    ports: ["19121:19120"]   # 19120 is the legacy benchmark stack's Nessie; MOAR Nessie host-maps to 19121
+
   # ---- E (embedded): DuckDB lab — the reference engine + the write/read tool over the lakehouse --------
   # Write path here is pyiceberg/DuckDB (cf. SoloLakehouse ADR-17 write/read split); distributed read
   # engines come from the engine-* profiles. Self-contained so `core` alone is a queryable lakehouse.
@@ -145,6 +168,8 @@ services:
     networks: [moar]
     depends_on:
       iceberg-rest: {condition: service_healthy}
+    environment:
+      S3_INTERNAL_ENDPOINT: ${S3_INTERNAL_ENDPOINT:-http://minio:9000}   # store-swap flows to Trino's catalog
     ports: ["8081:8080"]   # 8080 is the legacy stack's Trino; MOAR Trino on 8081
     volumes: ["./config/trino/iceberg.properties:/etc/trino/catalog/iceberg.properties:ro"]
     mem_limit: 4g

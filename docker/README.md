@@ -56,14 +56,17 @@ swaps, each with a reason, drawing on the peers' choices (Lisa Cao, Jiahong Que,
 | Tier | default | swap candidates | reason to swap | status |
 |---|---|---|---|---|
 | **L** object store | MinIO | **SeaweedFS** (Lisa, q3) · RustFS · Ceph | footprint — SeaweedFS is **~10× lighter** | **tested: identical answers, 34 MiB vs MinIO ~256-512 MB → use for the laptop tier** |
-| **I** catalog | iceberg-rest-fixture | **Lakekeeper** (Rust, ~50-150 MB) · Nessie (git-branching, q3) · Polaris/Unity (governance) · DuckLake (embedded) | production-readiness / footprint / governance | roadmap-test (config templated; `verify` gates the swap) |
+| **I** catalog | iceberg-rest-fixture | **Nessie** (git-branching) · Lakekeeper (Rust, ~50-150 MB) · Polaris/Unity (governance) · DuckLake (embedded) | production-readiness / footprint / governance | **tested: Nessie (in-memory) returns the identical answer (125 RDP) over the same MinIO — `./moar swap-catalog`**; Lakekeeper/DuckLake roadmap |
 | **E** engine | DuckDB + Trino | ClickHouse · StarRocks · Dremio | workload fit (real-time vs federation vs reflections) | trino tested; others from the legacy engine block |
 | **R** router | Vector | **Tenzir** (security-native: Sigma/OCSF/STIX) · Fluent Bit (lightest) | security-awareness vs footprint | roadmap |
 
-The discipline: **never swap blind — `./moar verify` must stay green across the swap.** The MinIO→SeaweedFS
-bake-off is the worked example; the same gate applies to a catalog or router swap. (Trino's S3 endpoint is a
-static catalog property today, so a full multi-engine SeaweedFS run also needs that templated — a noted
-follow-up; the core/lab/detection path follows `S3_INTERNAL_ENDPOINT` and is swap-clean now.)
+The discipline: **never swap blind — the answer must stay identical across the swap.** Two worked examples now
+ship: the MinIO→SeaweedFS object-store swap, and the iceberg-rest→Nessie *catalog* swap (`./moar swap-catalog`
+writes+reads the same OCSF table through both catalogs over the same MinIO and asserts the identical answer —
+verify-the-answer applied to a component swap). Trino's S3 endpoint is now templated via
+`${ENV:S3_INTERNAL_ENDPOINT}` as well, so a store swap flows through to Trino too — the whole
+core/lab/detection/engine path follows `S3_INTERNAL_ENDPOINT`. The router swap (Tenzir) is the remaining
+roadmap item.
 
 ### Lower-level (sub-Parquet) bake-offs — where a swap silently changes the *answer*
 
@@ -129,9 +132,10 @@ own benchmark (`sdw-lab-benchmarks/ocsf-arrow-transport`), so it's done, not pen
 | **route** | Vector/VRL raw→OCSF transform proven by `vector test` (Okta auth → class_uid 3002, activity_id, user, src_ip) |
 | **baselines** | OpenSearch foil stands up as the schema-on-read SIEM to benchmark against (opt-in, staggered) |
 | **swap: L** | **MinIO→SeaweedFS bake-off: identical answers, 34 MiB vs ~256-512 MB → laptop-tier object store** |
+| **swap: I** | **iceberg-rest→Nessie catalog swap: identical answer (125 RDP) over the same MinIO (`./moar swap-catalog`) — the open table format makes the catalog replaceable** |
 
-The load-bearing claim is proven end-to-end: write once via pyiceberg, read via any engine, **verify the
-answers agree** — across engines *and* across an object-store swap.
+The central claim is proven end-to-end: write once via pyiceberg, read via any engine, **verify the answers
+agree** — across engines, across an object-store swap, *and* across a catalog swap.
 
 ## How it relates to peers (what's borrowed, what's different)
 

@@ -9,6 +9,7 @@
 #   ./moar up laptop|workstation|server|compare      bring up a scale preset (staggered)
 #   ./moar up core engine-trino detection            bring up explicit tiers
 #   ./moar verify                                     cross-engine answer-equality over the lakehouse
+#   ./moar swap-catalog                               I-tier swap: identical answer via iceberg-rest AND nessie
 #   ./moar status | down | logs <svc>
 #
 # Presets (approx working RAM; see README for the per-tier budget table):
@@ -96,11 +97,29 @@ print(t.num_rows, t.filter(pc.equal(t['dst_port'],3389)).num_rows)
   [[ $ok == 1 ]] && echo "  ✓ all running engines agree" || { echo "  ✗ engines disagree — investigate"; return 1; }
 }
 
+cmd_swap_catalog() {
+  # Prove the I-tier (catalog) is swappable: write+read the SAME OCSF table through BOTH the iceberg-rest
+  # catalog and Nessie over the SAME object store, and assert an identical answer. This is verify-the-answer
+  # applied to a component swap — the open table format means one read contract; the catalog behind it is
+  # replaceable, and the swap is only trustworthy if the answer doesn't move.
+  echo "I-tier catalog swap check (iceberg-rest vs nessie), same MinIO store:"
+  $DC --profile store-minio --profile index-nessie up -d nessie >/dev/null 2>&1 || true
+  for i in $(seq 1 20); do curl -fsS http://localhost:19121/iceberg/v1/config >/dev/null 2>&1 && break; sleep 3; done
+  local a b
+  a=$($DC exec -T lab python /lab/smoke_core.py 2>/dev/null | grep -oE 'dst_port=3389 -> [0-9]+' | grep -oE '[0-9]+$')
+  b=$($DC exec -T -e ICEBERG_REST_URI=http://nessie:19120/iceberg/ -e WAREHOUSE=warehouse lab \
+        python /lab/smoke_core.py 2>/dev/null | grep -oE 'dst_port=3389 -> [0-9]+' | grep -oE '[0-9]+$')
+  echo "  iceberg-rest: rdp=${a:-?}   nessie: rdp=${b:-?}"
+  if [[ -n "$a" && "$a" == "$b" ]]; then echo "  ✓ catalog swap clean — identical answer across two catalog implementations"
+  else echo "  ✗ catalog swap DIVERGENCE (iceberg-rest=$a nessie=$b)"; return 1; fi
+}
+
 case "${1:-}" in
   up) shift; cmd_up "$@";;
   down) shift; cmd_down "$@";;
   status) cmd_status;;
   verify) cmd_verify;;
+  swap-catalog) cmd_swap_catalog;;
   logs) shift; cmd_logs "$@";;
   *) sed -n '2,30p' "$0" | sed 's/^# \{0,1\}//'; exit 0;;
 esac

@@ -18,7 +18,7 @@ AK = os.environ.get("AWS_ACCESS_KEY_ID", "moar")
 SK = os.environ.get("AWS_SECRET_ACCESS_KEY", "moar-dev-secret")
 
 cat = RestCatalog("moar", **{
-    "uri": REST, "warehouse": "s3://warehouse/",
+    "uri": REST, "warehouse": os.environ.get("WAREHOUSE", "s3://warehouse/"),
     "s3.endpoint": S3, "s3.access-key-id": AK, "s3.secret-access-key": SK,
     "s3.path-style-access": "true", "s3.region": "us-east-1",
 })
