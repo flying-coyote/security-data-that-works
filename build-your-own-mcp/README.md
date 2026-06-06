@@ -89,7 +89,7 @@ forked). The spec it belongs to is in [`../SPEC.md`](../SPEC.md).
 
 ## Read alongside (securitydataworks.com)
 
-- [MCP for data engineering](https://securitydataworks.com/writing/ai/mcp-for-data-engineering) — the case this kit operationalizes
-- [the MCP-server landscape (research)](https://securitydataworks.com/research) — the scored inventory of security-data MCP servers (self-hostable / air-gappable / legibility), the evidence behind "build your own"
-- [Defining what you can own](https://securitydataworks.com/writing/ai/defining-what-you-can-own) — the air-gap-ask-as-buyer-capability position
+- [MCP for data engineering](https://securitydataworks.com/writing/ai/mcp-for-data-engineering/) — the case this kit operationalizes
+- [the MCP-server landscape (research)](https://securitydataworks.com/research/) — the scored inventory of security-data MCP servers (self-hostable / air-gappable / legibility), the evidence behind "build your own"
+- [Defining what you can own](https://securitydataworks.com/writing/ai/defining-what-you-can-own/) — the air-gap-ask-as-buyer-capability position
 - back to the [repo front door](../README.md) and the open [SPEC.md](../SPEC.md)

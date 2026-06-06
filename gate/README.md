@@ -21,8 +21,8 @@ LOCAL=1 python3 validate_ocsf_mapping.py your_mappings.csv   # run it on your ow
 
 ## Read alongside (securitydataworks.com)
 
-- [The field-mapping anti-pattern](https://securitydataworks.com/writing/ocsf/field-mapping-anti-pattern) — the failure mode this check objects to
-- [The query engine returned the wrong answer](https://securitydataworks.com/writing/detection/silent-wrong-answer) · [What your data means](https://securitydataworks.com/writing/detection/what-your-data-means) — the broader silent-failure thesis
-- [Six schemas into OCSF](https://securitydataworks.com/writing/ocsf/six-schemas-into-ocsf) — the crosswalk corpus this was validated on · [OCSF × D3FEND](https://securitydataworks.com/writing/ocsf/ocsf-d3fend) — where the disjointness artifacts come from · [LLM OCSF mapping](https://securitydataworks.com/writing/ocsf/llm-ocsf-mapping)
-- measured evidence: the OCSF-mapping-fidelity and deterministic-mapper benches in the [SDW Lab](https://securitydataworks.com/lab) (`github.com/flying-coyote/sdw-lab-benchmarks`)
-- the per-vendor *scoring* this check deliberately leaves out is the paid [Capability Matrix](https://securitydataworks.com/matrix)
+- [The field-mapping anti-pattern](https://securitydataworks.com/writing/ocsf/field-mapping-anti-pattern/) — the failure mode this check objects to
+- [The query engine returned the wrong answer](https://securitydataworks.com/writing/detection/silent-wrong-answer/) · [What your data means](https://securitydataworks.com/writing/detection/what-your-data-means/) — the broader silent-failure thesis
+- [Six schemas into OCSF](https://securitydataworks.com/writing/ocsf/six-schemas-into-ocsf/) — the crosswalk corpus this was validated on · [OCSF × D3FEND](https://securitydataworks.com/writing/ocsf/ocsf-d3fend/) — where the disjointness artifacts come from · [LLM OCSF mapping](https://securitydataworks.com/writing/ocsf/llm-ocsf-mapping/)
+- measured evidence: the OCSF-mapping-fidelity and deterministic-mapper benches in the [SDW Lab](https://securitydataworks.com/lab/) (`github.com/flying-coyote/sdw-lab-benchmarks`)
+- the per-vendor *scoring* this check deliberately leaves out is the paid [Capability Matrix](https://securitydataworks.com/matrix/)

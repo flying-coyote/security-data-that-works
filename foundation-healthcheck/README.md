@@ -36,8 +36,8 @@ left as `[ENGAGEMENT]` here) and the remediation interpretation. That — on you
 
 ## Read alongside (securitydataworks.com)
 
-- the offering this demonstrates — [Foundation · Data health](https://securitydataworks.com/thesis/foundation)
-- why a fast answer can be silently wrong — [The query engine returned the wrong answer](https://securitydataworks.com/writing/detection/silent-wrong-answer)
-- the measurement discipline behind the thresholds — [How to run a benchmark that doesn't lie](https://securitydataworks.com/writing/economics/how-to-run-a-benchmark-that-doesnt-lie)
-- the downstream projects this gate protects — [MOAR](https://securitydataworks.com/thesis/moar) · [DetectFlow](https://securitydataworks.com/thesis/detectflow) · [MLOps-hunting](https://securitydataworks.com/thesis/mlops-hunting)
-- the evidence behind the verify-the-verifier coda — the [SDW Lab](https://securitydataworks.com/lab) (`github.com/flying-coyote/sdw-lab-benchmarks`)
+- the offering this demonstrates — [Foundation · Data health](https://securitydataworks.com/thesis/foundation/)
+- why a fast answer can be silently wrong — [The query engine returned the wrong answer](https://securitydataworks.com/writing/detection/silent-wrong-answer/)
+- the measurement discipline behind the thresholds — [How to run a benchmark that doesn't lie](https://securitydataworks.com/writing/economics/how-to-run-a-benchmark-that-doesnt-lie/)
+- the downstream projects this gate protects — [MOAR](https://securitydataworks.com/thesis/moar/) · [DetectFlow](https://securitydataworks.com/thesis/detectflow/) · [MLOps-hunting](https://securitydataworks.com/thesis/mlops-hunting/)
+- the evidence behind the verify-the-verifier coda — the [SDW Lab](https://securitydataworks.com/lab/) (`github.com/flying-coyote/sdw-lab-benchmarks`)
