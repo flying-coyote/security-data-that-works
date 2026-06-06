@@ -1,0 +1,121 @@
+# MOAR reference stack — composable, tiered, run-only-what-you-need.
+#
+# The deployment tiers ARE the book's L-I-G-E-R component model made independently deployable, plus two
+# extensions this kit adds (an agentic/air-gap tier and a Sigma/marimo detection cross-cut), plus an opt-in
+# Traditional-SIEM "foil" tier for head-to-head benchmarks. Pick tiers with --profile; size with scale/.
+#
+#   L akehouse  — object store + table format          (minio, iceberg-rest)        [core]
+#   I ndex      — metadata catalog / governance        (iceberg-rest; swap: nessie/polaris/ducklake)
+#   E ngine     — query engines matched to workloads   (duckdb in core; trino/starrocks/clickhouse/dremio)
+#   R oute      — pipelines + OCSF normalization        (vector + ocsf)              [route]
+#   G raph      — visualization / query interface       (grafana)                    [graph]
+#   + Agentic   — practitioner-owned local AI            (ollama + mcp)               [ai]
+#   + Detection — detection-as-code                      (marimo + sigma)             [detection]
+#   Foil        — Traditional-SIEM baselines (opt-in)    (graylog/opensearch/…)       [baselines]
+#
+# Always include --profile core (the L+I+embedded-E foundation everything else reads).
+#   docker compose --profile core up -d
+#   docker compose --profile core --profile engine-trino --profile detection up -d
+# Or use the scale presets:  ./moar up workstation
+#
+# Resource budgets, scale presets, and the air-gap/license matrix are in README.md.
+
+name: moar
+
+networks:
+  moar:
+    driver: bridge
+
+volumes:
+  minio_data:
+
+x-s3-env: &s3-env
+  AWS_ACCESS_KEY_ID: ${MINIO_USER:-moar}
+  AWS_SECRET_ACCESS_KEY: ${MINIO_PASSWORD:-moar-dev-secret}
+  AWS_REGION: us-east-1
+
+services:
+  # ---- L: object store (the lakehouse storage layer) -------------------------------------------------
+  minio:
+    image: minio/minio:latest
+    profiles: ["core"]
+    networks: [moar]
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_USER:-moar}
+      MINIO_ROOT_PASSWORD: ${MINIO_PASSWORD:-moar-dev-secret}
+    ports: ["9100:9000", "9101:9001"]   # 91xx range: MOAR coexists with the legacy benchmark stack on 90xx
+    volumes: [minio_data:/data]
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  # one-shot: create the warehouse bucket with a bronze/silver/gold medallion layout (peer convention)
+  minio-init:
+    image: minio/mc:latest
+    profiles: ["core"]
+    networks: [moar]
+    depends_on:
+      minio: {condition: service_healthy}
+    entrypoint: >
+      /bin/sh -c "
+      mc alias set h http://minio:9000 ${MINIO_USER:-moar} ${MINIO_PASSWORD:-moar-dev-secret} &&
+      mc mb -p h/warehouse/bronze h/warehouse/silver h/warehouse/gold &&
+      echo 'warehouse bucket ready (bronze/silver/gold)'"
+
+  # ---- I: metadata catalog (Iceberg REST — the low-risk default; nessie/polaris/ducklake are swaps) ---
+  iceberg-rest:
+    image: apache/iceberg-rest-fixture:latest
+    profiles: ["core"]
+    networks: [moar]
+    depends_on:
+      minio-init: {condition: service_completed_successfully}
+    environment:
+      <<: *s3-env
+      CATALOG_WAREHOUSE: s3://warehouse/
+      CATALOG_IO__IMPL: org.apache.iceberg.aws.s3.S3FileIO
+      CATALOG_S3_ENDPOINT: http://minio:9000
+      CATALOG_S3_PATH__STYLE__ACCESS: "true"
+    ports: ["8181:8181"]
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8181/v1/config"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  # ---- E (embedded): DuckDB lab — the reference engine + the write/read tool over the lakehouse --------
+  # Write path here is pyiceberg/DuckDB (cf. SoloLakehouse ADR-17 write/read split); distributed read
+  # engines come from the engine-* profiles. Self-contained so `core` alone is a queryable lakehouse.
+  lab:
+    build: ./lab
+    image: moar/lab:latest
+    profiles: ["core"]
+    networks: [moar]
+    depends_on:
+      iceberg-rest: {condition: service_healthy}
+    environment:
+      <<: *s3-env
+      ICEBERG_REST_URI: http://iceberg-rest:8181
+      S3_ENDPOINT: http://minio:9000
+    volumes: ["./lab:/lab"]
+    command: ["sleep", "infinity"]
+
+  # ---- E (distributed): query engines over the SAME lakehouse. Pick per workload; one sub-profile each.
+  # The answer-equivalence differentiator: a distributed engine reads the exact Iceberg table the lab wrote,
+  # and a cross-engine check (lab smoke_verify) asserts identical answers — verify-the-answer, not trust it.
+  trino:
+    image: trinodb/trino:481
+    profiles: ["engine-trino"]
+    networks: [moar]
+    depends_on:
+      iceberg-rest: {condition: service_healthy}
+    ports: ["8081:8080"]   # 8080 is the legacy stack's Trino; MOAR Trino on 8081
+    volumes: ["./config/trino/iceberg.properties:/etc/trino/catalog/iceberg.properties:ro"]
+    mem_limit: 4g
+    healthcheck:
+      test: ["CMD", "trino", "--execute", "SELECT 1"]
+      interval: 10s
+      timeout: 10s
+      retries: 24

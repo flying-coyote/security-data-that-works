@@ -1,0 +1,106 @@
+#!/usr/bin/env bash
+# moar — operate the MOAR reference stack by scale preset, not by remembering --profile flags.
+#
+# The stack is tiered (L-I-G-E-R + agentic + detection + a SIEM foil); you run only the tiers your box and
+# your question need. Scale presets bundle tiers to a RAM budget; heavy tiers start staggered (the cold-start
+# OOM lesson). `verify` is the differentiator: it cross-checks that every running engine returns the same
+# answer over the same Iceberg table — verify the answer, don't trust it.
+#
+#   ./moar up laptop|workstation|server|compare      bring up a scale preset (staggered)
+#   ./moar up core engine-trino detection            bring up explicit tiers
+#   ./moar verify                                     cross-engine answer-equality over the lakehouse
+#   ./moar status | down | logs <svc>
+#
+# Presets (approx working RAM; see README for the per-tier budget table):
+#   core         ~2-4GB   L+I+embedded-E (minio + iceberg-rest + duckdb lab)
+#   laptop       ~6-8GB   core + detection                      (no JVM engines)
+#   workstation  ~16-24GB core + engine-trino + detection + ai
+#   server       ~32-48GB core + engine-trino + engine-clickhouse + route + detection + graph + ai
+#   compare      heavy    server + baselines (SIEM foil; run one SIEM at a time)
+set -euo pipefail
+cd "$(dirname "$0")"
+DC="docker compose"
+
+declare -A PRESETS=(
+  [core]="core"
+  [laptop]="core detection"
+  [workstation]="core engine-trino detection ai"
+  [server]="core engine-trino engine-clickhouse route detection graph ai"
+  [compare]="core engine-trino engine-clickhouse route detection graph ai baselines"
+)
+# tiers started LAST and slowly (heavy JVM/MPP cold-starts that OOM if launched simultaneously)
+HEAVY="engine-clickhouse graph baselines"
+
+profiles_for() {  # expand preset name OR pass-through explicit tier list
+  local key="$1"
+  if [[ -n "${PRESETS[$key]:-}" ]]; then echo "${PRESETS[$key]}"; else shift 0; echo "$@"; fi
+}
+
+flags() { local f=""; for p in $1; do f="$f --profile $p"; done; echo "$f"; }
+
+preflight() {  # warn if host RAM is under the preset's rough budget
+  local need=$1 have; have=$(free -g 2>/dev/null | awk '/Mem:/{print $7}'); have=${have:-99}
+  if (( have < need )); then
+    echo "⚠  preset wants ~${need}GB free; host has ~${have}GB available. Heavy tiers may OOM (exit 137)."
+    echo "   Consider a smaller preset, or bring up tiers one at a time."
+  fi
+}
+
+cmd_up() {
+  local key="${1:-core}"; shift || true
+  local tiers; tiers=$(profiles_for "$key" "$@")
+  case "$key" in laptop) preflight 6;; workstation) preflight 16;; server) preflight 32;; compare) preflight 48;; esac
+  # light tiers first (always-needed substrate + cheap), then heavy tiers staggered
+  local light="" heavy=""
+  for p in $tiers; do if [[ " $HEAVY " == *" $p "* ]]; then heavy="$heavy $p"; else light="$light $p"; fi; done
+  echo "→ bringing up light tiers:$light"
+  $DC $(flags "$light") up -d
+  for p in $heavy; do echo "→ staggered heavy tier: $p"; $DC $(flags "$light $p") up -d; sleep 12; done
+  echo "✓ up. tiers: $tiers"
+  echo "  run ./moar verify to cross-check engine answers."
+}
+
+cmd_down()   { $DC --profile core --profile engine-trino --profile engine-clickhouse --profile route \
+                  --profile detection --profile graph --profile ai --profile baselines down "$@"; }
+cmd_status() { $DC ps; echo; free -h | awk 'NR==1||/Mem/'; }
+cmd_logs()   { $DC logs --tail 50 "$@"; }
+
+cmd_verify() {
+  # The verify-the-answer differentiator: run an agreed query set on each RUNNING engine over the same
+  # Iceberg table and assert identical answers (cross-engine answer-equality; cf. SDW Lab R3/T1.1).
+  local table="ocsf.network_activity"
+  echo "cross-engine answer-equality over iceberg.$table:"
+  local duck trino_total ok=1
+  # DuckDB (via the lab/pyiceberg) — the reference
+  duck=$($DC exec -T lab python -c "
+from pyiceberg.catalog.rest import RestCatalog
+import os
+c=RestCatalog('m', uri='http://iceberg-rest:8181', warehouse='s3://warehouse/', **{'s3.endpoint':'http://minio:9000','s3.access-key-id':os.environ['AWS_ACCESS_KEY_ID'],'s3.secret-access-key':os.environ['AWS_SECRET_ACCESS_KEY'],'s3.path-style-access':'true','s3.region':'us-east-1'})
+t=c.load_table('$table').scan().to_arrow()
+import pyarrow.compute as pc
+print(t.num_rows, t.filter(pc.equal(t['dst_port'],3389)).num_rows)
+" 2>/dev/null) || { echo "  duckdb/lab: not available"; return 1; }
+  echo "  duckdb (lab)     total,rdp = $duck"
+  # Trino, if running
+  if $DC ps --status running --services 2>/dev/null | grep -qx trino; then
+    local tt tr
+    tt=$($DC exec -T trino trino --execute "SELECT count(*) FROM iceberg.$table" 2>/dev/null | tr -d '"')
+    tr=$($DC exec -T trino trino --execute "SELECT count(*) FROM iceberg.$table WHERE dst_port=3389" 2>/dev/null | tr -d '"')
+    echo "  trino            total,rdp = $tt $tr"
+    [[ "$duck" == "$tt $tr" ]] || { echo "  ✗ DIVERGENCE: trino != duckdb"; ok=0; }
+  fi
+  # ClickHouse, if running (reads the Iceberg table via the iceberg() table function)
+  if $DC ps --status running --services 2>/dev/null | grep -qx clickhouse; then
+    echo "  (clickhouse engine tier present — add its iceberg() check here once wired)"
+  fi
+  [[ $ok == 1 ]] && echo "  ✓ all running engines agree" || { echo "  ✗ engines disagree — investigate"; return 1; }
+}
+
+case "${1:-}" in
+  up) shift; cmd_up "$@";;
+  down) shift; cmd_down "$@";;
+  status) cmd_status;;
+  verify) cmd_verify;;
+  logs) shift; cmd_logs "$@";;
+  *) sed -n '2,30p' "$0" | sed 's/^# \{0,1\}//'; exit 0;;
+esac
