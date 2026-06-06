@@ -57,7 +57,7 @@ swaps, each with a reason, drawing on the peers' choices (Lisa Cao, Jiahong Que,
 |---|---|---|---|---|
 | **L** object store | MinIO | **SeaweedFS** (Lisa, q3) · RustFS · Ceph | footprint — SeaweedFS is **~10× lighter** | **tested: identical answers, 34 MiB vs MinIO ~256-512 MB → use for the laptop tier** |
 | **I** catalog | iceberg-rest-fixture | **Nessie** (git-branching) · Lakekeeper (Rust, ~50-150 MB) · Polaris/Unity (governance) · DuckLake (embedded) | production-readiness / footprint / governance | **tested: Nessie (in-memory) returns the identical answer (125 RDP) over the same MinIO — `./moar swap-catalog`**; Lakekeeper/DuckLake roadmap |
-| **E** engine | DuckDB + Trino | ClickHouse · StarRocks · Dremio | workload fit (real-time vs federation vs reflections) | trino tested; others from the legacy engine block |
+| **E** engine | DuckDB + Trino + ClickHouse | StarRocks · Dremio | workload fit (real-time vs federation vs reflections) | **tested: 3-engine `moar verify` green (DuckDB, Trino, ClickHouse all 1000/125 over the same Iceberg table)**; StarRocks/Dremio from the legacy engine block |
 | **R** router | Vector | **Tenzir** (security-native: Sigma/OCSF/STIX) · Fluent Bit (lightest) | security-awareness vs footprint | **tested: Tenzir emits the identical OCSF Authentication mapping as Vector on the same raw Okta event — `./moar swap-router`** |
 
 The discipline: **never swap blind — the answer must stay identical across the swap.** Two worked examples now
@@ -69,6 +69,20 @@ core/lab/detection/engine path follows `S3_INTERNAL_ENDPOINT`. The router swap n
 swap-router` runs the security-native Tenzir pipeline and the Vector transform over the same raw Okta event
 and confirms both produce the identical OCSF Authentication record, so the route tier is swap-clean under one
 OCSF contract.
+
+**Other essay-highlighted components, considered.** Four of the five L-I-G-E-R tiers now have a *tested* swap
+(store, catalog, engine ×3, route); the rest of what the `/writing` essays compare falls into two buckets.
+Some are component swaps still worth wiring but deferred with a reason: **StarRocks / Dremio** (the
+`engines/` essays — present in the legacy engine block, not yet on the answer-equality gate), **DuckLake** as
+an alternative to Iceberg (`lakehouse/v4-vs-ducklake`, `iceberg-vs-delta` — it's a SQL-catalog + read path,
+not an Iceberg-REST drop-in, so it's a larger stack change than a profile swap), **Lakekeeper / Polaris**
+catalogs (footprint / governance), and **Fluent Bit** as the lightest router. Others are not stack-service
+swaps at all but *lab* comparisons already measured: the **codec / encoder** read-lever
+(`lakehouse/encoder-is-the-read-lever`, `same-codec-different-sizes`) is a write-config knob, and **Arrow
+Flight / ADBC vs JDBC** (`lakehouse/arrow-flight-sql`, `arrow-adbc`) is an engine↔client transport concern —
+both live in `sdw-lab-benchmarks` rather than here. So the stack ships the swaps that are genuinely
+profile-swappable-and-verifiable; the format/transport/codec questions the essays raise are answered in the
+lab, where the variable can be isolated.
 
 ### Lower-level (sub-Parquet) bake-offs — where a swap silently changes the *answer*
 
@@ -128,6 +142,7 @@ own benchmark (`sdw-lab-benchmarks/ocsf-arrow-transport`), so it's done, not pen
 |---|---|
 | **core** | OCSF table round-trips MinIO↔Iceberg-REST↔DuckDB/pyiceberg (1000 rows; RDP→125=truth) |
 | **engine-trino** | Trino reads the *same* Iceberg table, answers identical to DuckDB (`moar verify` green) |
+| **engine-clickhouse** | ClickHouse reads the *same* Iceberg table via `icebergS3` (snapshot-correct), answer identical to DuckDB + Trino — `moar verify` now agrees across **three** engines (1000/125) |
 | **detection** | a SigmaHQ rule → pySigma→SQL → run over the OCSF lakehouse, detected 125 RDP (the planted count) |
 | **ai** | a *local* model (Ollama) ran a code-action hunt over the lakehouse, found the 125 RDP conns, fully air-gapped |
 | **graph** | Prometheus + Grafana + Loki + Pushgateway up healthy (prometheus.yml a real file, loki readable) |

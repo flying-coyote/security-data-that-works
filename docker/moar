@@ -91,9 +91,13 @@ print(t.num_rows, t.filter(pc.equal(t['dst_port'],3389)).num_rows)
     echo "  trino            total,rdp = $tt $tr"
     [[ "$duck" == "$tt $tr" ]] || { echo "  ✗ DIVERGENCE: trino != duckdb"; ok=0; }
   fi
-  # ClickHouse, if running (reads the Iceberg table via the iceberg() table function)
+  # ClickHouse, if running — reads the SAME Iceberg table via the icebergS3 table function (snapshot-correct).
   if $DC ps --status running --services 2>/dev/null | grep -qx clickhouse; then
-    echo "  (clickhouse engine tier present — add its iceberg() check here once wired)"
+    local ch
+    ch=$($DC exec -T clickhouse clickhouse local --query \
+      "SELECT toString(count())||' '||toString(countIf(dst_port=3389)) FROM icebergS3('http://minio:9000/warehouse/ocsf/network_activity','moar','moar-dev-secret')" 2>/dev/null | tr -d '"')
+    echo "  clickhouse       total,rdp = $ch"
+    [[ "$duck" == "$ch" ]] || { echo "  ✗ DIVERGENCE: clickhouse != duckdb"; ok=0; }
   fi
   [[ $ok == 1 ]] && echo "  ✓ all running engines agree" || { echo "  ✗ engines disagree — investigate"; return 1; }
 }

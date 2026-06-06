@@ -179,6 +179,26 @@ services:
       timeout: 10s
       retries: 24
 
+  # ---- E (real-time OLAP): ClickHouse over the SAME Iceberg table (the flagship silent-wrong-answer engine).
+  # Reads via the icebergS3 table function (snapshot-correct: it resolves the table's current metadata from S3,
+  # so no orphan-data-file risk and no REST-catalog dependency). `./moar verify` cross-checks its count against
+  # DuckDB + Trino — the answer-equivalence gate now spans three independent reader codebases.
+  clickhouse:
+    image: clickhouse/clickhouse-server:latest
+    profiles: ["engine-clickhouse"]
+    networks: [moar]
+    environment:
+      <<: *s3-env
+    ports: ["8125:8123"]   # HTTP UI on 8125 (8123/8124 taken by other local stacks); native port internal-only
+    ulimits:
+      nofile: {soft: 262144, hard: 262144}
+    mem_limit: 4g
+    healthcheck:
+      test: ["CMD", "clickhouse-client", "--query", "SELECT 1"]
+      interval: 10s
+      timeout: 10s
+      retries: 24
+
   # ---- Detection (cross-cut): detection-as-code over the lakehouse — SigmaHQ -> SQL + marimo hunting ---
   detection:
     build: ./detection
