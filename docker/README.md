@@ -84,8 +84,12 @@ Net-new, prioritized (all gated on "the answer is identical"):
    the reader-correctness thesis, and the integrity backstop for evidence-grade logs: "verify the answer" has
    to include verifying the bytes, not just cross-checking engines.
 2. **Parquet-library correctness matrix** — encoding × library grid (PLAIN/RLE_DICTIONARY/DELTA/BYTE_STREAM_SPLIT
-   × arrow-cpp/arrow-rs/parquet-java/DuckDB/Polars/fastparquet), the home for the bug-class, against the
-   Apache implementation-status matrix (updated 2026-02).
+   × pyarrow/DuckDB/Polars/DataFusion/chDB/fastparquet), the home for the bug-class, against the Apache
+   implementation-status matrix. **Built + tested** (`sdw-lab-benchmarks/parquet-library-matrix`): on current
+   versions there are *no silent-wrong cells* — the exotic encodings fail safe (fastparquet errors on the DELTA
+   byte-array family + BYTE_STREAM_SPLIT, DuckDB on BYTE_STREAM_SPLIT-for-int), and at default settings every
+   writer's output round-trips through every reader, including DuckDB's deprecated PLAIN_DICTIONARY strings.
+   The contrast with #1 (same libs decoded *corruption* silently) is the finding: failure mode is per-layer.
 3. **Bloom/stats/encoding × pruning correctness** — the exact layer the chDB bug lived in; needle-in-haystack
    detection queries are the security case.
 4. **Vortex vs Parquet** — the one real new sub-Parquet format with a shipped DuckDB extension (Jan 2026);
