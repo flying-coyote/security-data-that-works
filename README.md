@@ -20,7 +20,11 @@ address and still be wrong, because it put the *source* address where the schema
 *destination*, or mapped a user account onto a field that means a process. The shape is right and
 the meaning is crossed, and nothing in the normal toolchain objects.
 
-This repo is the check that objects.
+This repo is the check that objects. It is also the flagship runnable example of something larger: a public
+statement of what good looks like across the five categories of security data ([SPEC.md](SPEC.md)), and the
+case plus the curated references for building your own MCP server rather than adopting a vendor's black box
+([build-your-own-mcp/](build-your-own-mcp/)). The check below is the data-health-validation category made
+executable; the rest of the spec grows the same way, evidence first.
 
 ## Quickstart
 
@@ -113,9 +117,13 @@ ontology.
 ## What this is not
 
 This check answers one yes/no question per mapping: *is this type-consistent?* It does not score a
-vendor, rank fidelity, or measure how much of a claimed schema is actually covered. That scoring is
-a separate piece of work and isn't here. The point of this repo is the open, runnable check and the
-disjointness layer underneath it.
+vendor, rank fidelity, or measure how much of a claimed schema is actually covered. The method around it
+is open and lives alongside it — [SPEC.md](SPEC.md) states what good looks like across all five categories,
+and [build-your-own-mcp/](build-your-own-mcp/) makes the build-your-own case with curated references. What
+stays out of this public repo is the per-vendor *scoring*: applying the method to score specific vendors is
+the Capability Matrix, which is paid. So the check is open and runnable, the spec around it is open, and the
+per-vendor scores are the paid part. This repo is a front door to the open projects underneath (D3FEND,
+OCSF, Sigma, the ROBOT/ELK toolchain), not a fork of them.
 
 ## Contribute back
 
