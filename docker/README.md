@@ -98,7 +98,13 @@ Net-new, prioritized (all gated on "the answer is identical"):
 4. **Vortex vs Parquet** — the one real new sub-Parquet format with a shipped DuckDB extension (Jan 2026);
    footprint+read, correctness-gated. Not yet readable *inside* Iceberg, so a parallel-store experiment.
 5. **SIMD-dispatch determinism** (force NONE/AVX2/AVX512, byte-identical results) and **Parquet modular
-   encryption interop** (DuckDB only partial — threatens the swappability promise for regulated data).
+   encryption interop**. **Built + tested** (`sdw-lab-benchmarks/parquet-determinism-encryption`): SIMD is
+   byte-identical across vector widths (not a risk), but the cross-engine *float* aggregate splits 3 ways
+   (DuckDB / pyarrow-Polars-DataFusion / chDB) while int-sum/count/min/max stay bit-identical — so exact-typed
+   answers are hashable for chain-of-custody, float-derived ones need a tolerance. And a PME-encrypted Parquet
+   file is readable only by the implementer-with-key — every other engine is locked out, so at-rest encryption
+   *inside* the file revokes the open read contract the swap story rests on (keep encryption at the volume/SSE
+   layer for regulated data, or standardize on one PME engine + KMS).
 
 Also mapped, lower priority: FileIO/S3-client (S3FileIO vs pyarrow vs s3fs against MinIO/SeaweedFS), engine↔client
 transport (Arrow Flight/ADBC vs JDBC), native-vs-JVM footprint/cold-start, persistent-store filesystem.
