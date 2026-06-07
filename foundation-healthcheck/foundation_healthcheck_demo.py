@@ -150,7 +150,7 @@ def layer3():
     completeness = len(landed) / len(ev)
     key = landed.source + "|" + landed.event_time_us.astype(str) + "|" + landed.user.fillna("∅")
     uniqueness = key.nunique() / len(key)
-    valid = (landed.user.notna() & landed.user.str.contains(r"(@acme\.example$)|(^ACME\\u\d+$)", regex=True, na=False)).mean()
+    valid = (landed.user.notna() & landed.user.str.contains(r"(?:@acme\.example$)|(?:^ACME\\u\d+$)", regex=True, na=False)).mean()
     nonokta = landed[(landed.source != "okta_idp") & landed.user.notna()]
     consistency = 1 - nonokta.user.str.match(r"^u\d+$").mean()
     rows = [("timeliness", fresh, 0.99), ("accuracy", 0.992, 0.99), ("completeness", completeness, 0.98),

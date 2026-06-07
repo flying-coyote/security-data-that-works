@@ -18,6 +18,7 @@
 #   ./moar hunt                                       AI tier: air-gapped agentic hunt over the lakehouse (local Ollama)
 #   ./moar pipeline                                   end-to-end: raw Okta -> route -> Iceberg -> brute-force detection
 #   ./moar observe                                    G-tier check: metrics flow push->pushgateway->prometheus; grafana/loki up
+#   ./moar healthcheck                                data-health gate over the live lakehouse (subset of the Foundation checks)
 #   ./moar status | down | logs <svc>
 #
 # Presets — by SOC ingest scale, 10x steps. The preset picks the architecture that scale calls for; a single
@@ -343,6 +344,23 @@ except Exception: print(0)')
               || { echo "  ✗ observability tier has a problem"; return 1; }
 }
 
+cmd_healthcheck() {
+  # Data-health gate over the LIVE lakehouse: a subset of the Foundation data-health checks (Layer-3 data
+  # quality + the verifier-guard coda that encodes the lab findings) run against the real ocsf.network_activity
+  # table. A standing data-quality regression check to call in CI or after `up` — not the full four-layer
+  # engagement (source/flow/cross-tool health + the remediation interpretation stay in the engagement kit).
+  echo "Data-health gate over the live lakehouse (subset of the Foundation data-health checks):"
+  $DC --profile store-minio --profile core up -d >/dev/null 2>&1 || true
+  local rc=0
+  $DC exec -T lab python /lab/healthcheck.py || rc=$?
+  if [ "$rc" -eq 2 ]; then   # exit 2 = table absent (cold start); seed once and retry. ATTENTION (exit 1) is NOT re-seeded.
+    echo "  (seeding ocsf.network_activity — not found in the catalog)"
+    $DC exec -T lab python /lab/smoke_core.py >/dev/null 2>&1 || true
+    rc=0; $DC exec -T lab python /lab/healthcheck.py || rc=$?
+  fi
+  return "$rc"
+}
+
 case "${1:-}" in
   up) shift; cmd_up "$@";;
   down) shift; cmd_down "$@";;
@@ -357,6 +375,7 @@ case "${1:-}" in
   hunt) cmd_hunt;;
   pipeline) cmd_pipeline;;
   observe) cmd_observe;;
+  healthcheck) cmd_healthcheck;;
   logs) shift; cmd_logs "$@";;
   *) sed -n '2,30p' "$0" | sed 's/^# \{0,1\}//'; exit 0;;
 esac
