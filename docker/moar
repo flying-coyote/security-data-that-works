@@ -16,6 +16,8 @@
 #   ./moar swap-router                                 R-tier swap: identical OCSF out from Vector, Tenzir AND Fluent Bit
 #   ./moar compare                                    head-to-head: open lakehouse vs the schema-on-read SIEM foil (OpenSearch)
 #   ./moar hunt                                       AI tier: air-gapped agentic hunt over the lakehouse (local Ollama)
+#   ./moar pipeline                                   end-to-end: raw Okta -> route -> Iceberg -> brute-force detection
+#   ./moar observe                                    G-tier check: metrics flow push->pushgateway->prometheus; grafana/loki up
 #   ./moar status | down | logs <svc>
 #
 # Presets — by SOC ingest scale, 10x steps. The preset picks the architecture that scale calls for; a single
@@ -107,7 +109,18 @@ c=RestCatalog('m', uri='http://iceberg-rest:8181', warehouse='s3://warehouse/', 
 t=c.load_table('$table').scan().to_arrow()
 import pyarrow.compute as pc
 print(t.num_rows, t.filter(pc.equal(t['dst_port'],3389)).num_rows)
+" 2>/dev/null) || {
+    # cold-start convenience: a fresh `up` has an empty catalog (down resets it), so seed once then retry.
+    echo "  (seeding ocsf.network_activity — not found in the catalog)"
+    $DC exec -T lab python /lab/smoke_core.py >/dev/null 2>&1 || { echo "  duckdb/lab: not available"; return 1; }
+    duck=$($DC exec -T lab python -c "
+from pyiceberg.catalog.rest import RestCatalog
+import os, pyarrow.compute as pc
+c=RestCatalog('m', uri='http://iceberg-rest:8181', warehouse='s3://warehouse/', **{'s3.endpoint':'http://minio:9000','s3.access-key-id':os.environ['AWS_ACCESS_KEY_ID'],'s3.secret-access-key':os.environ['AWS_SECRET_ACCESS_KEY'],'s3.path-style-access':'true','s3.region':'us-east-1'})
+t=c.load_table('$table').scan().to_arrow()
+print(t.num_rows, t.filter(pc.equal(t['dst_port'],3389)).num_rows)
 " 2>/dev/null) || { echo "  duckdb/lab: not available"; return 1; }
+  }
   echo "  duckdb (lab)     total,rdp = $duck"
   # Trino, if running
   if $DC ps --status running --services 2>/dev/null | grep -qx trino; then
@@ -281,6 +294,55 @@ cmd_hunt() {
   $DC exec -T -e OLLAMA_MODEL="${OLLAMA_MODEL:-gemma4:e4b}" ai python /ai/agent.py
 }
 
+cmd_pipeline() {
+  # End-to-end: raw Okta -> route (Tenzir normalizes to OCSF Authentication) -> lakehouse (ocsf.authentication
+  # Iceberg) -> detection (brute-force: a src_ip with >=5 failed auths). This wires the route tier to the lake
+  # (the hop the route configs called "the next hop") and runs a detection over the landed table, so the whole
+  # chain is exercised, not each tier in isolation. The sample plants one brute-force source (198.51.100.66).
+  echo "End-to-end pipeline: raw Okta -> route (OCSF) -> lakehouse (Iceberg) -> detection:"
+  $DC --profile store-minio --profile core up -d >/dev/null 2>&1 || true
+  local ocsf n
+  ocsf=$($DC run --rm -T route-tenzir 2>/dev/null) || true
+  n=$(echo "$ocsf" | grep -c '"class_uid":3002' || true)
+  echo "  route: Tenzir normalized raw Okta -> $n OCSF Authentication records"
+  echo "$ocsf" | $DC exec -T lab python /lab/promote.py
+}
+
+cmd_observe() {
+  # G-tier functional check: prove the observability pipeline actually works, not just that containers are up.
+  # Prometheus is scraping (>=1 up target), Grafana's DB is ok, Loki is ready, and a metric pushed to the
+  # Pushgateway flows all the way through to Prometheus (push -> pushgateway -> scrape). Host ports: prometheus
+  # 9190, grafana 3001, loki 3101, pushgateway 9191.
+  echo "G-tier observability check (Prometheus / Grafana / Loki / Pushgateway):"
+  $DC --profile graph up -d >/dev/null 2>&1 || true
+  local ok=1
+  local up; up=$(curl -s 'http://localhost:9190/api/v1/query?query=up' 2>/dev/null | python3 -c 'import sys,json
+try: print(sum(1 for r in json.load(sys.stdin)["data"]["result"] if r["value"][1]=="1"))
+except Exception: print(0)')
+  echo "  prometheus: $([ "${up:-0}" -ge 1 ] && echo "scraping — $up targets up" || echo "no up targets")"
+  [ "${up:-0}" -ge 1 ] || ok=0
+  local gdb; gdb=$(curl -s --max-time 5 http://localhost:3001/api/health 2>/dev/null | python3 -c 'import sys,json
+try: print(json.load(sys.stdin).get("database","?"))
+except Exception: print("?")')
+  echo "  grafana: database=$gdb"; [ "$gdb" = "ok" ] || ok=0
+  local lr=""; for i in $(seq 1 15); do lr=$(curl -s --max-time 4 http://localhost:3101/ready 2>/dev/null || true); echo "$lr" | grep -qi ready && break; sleep 4; done
+  echo "  loki: $(echo "$lr" | head -c 24 | tr -d '\n' || true)"; echo "$lr" | grep -qi ready || ok=0
+  # pushgateway round-trip: push a probe metric, confirm pushgateway serves it, then that prometheus scrapes it
+  printf 'moar_observe_probe 1\n' | curl -s --data-binary @- http://localhost:9191/metrics/job/moar_observe >/dev/null 2>&1 || true
+  local served; served=$(curl -s http://localhost:9191/metrics 2>/dev/null | grep -c '^moar_observe_probe' || true)
+  echo "  pushgateway: serves the pushed metric = $([ "${served:-0}" -ge 1 ] && echo yes || echo no)"; [ "${served:-0}" -ge 1 ] || ok=0
+  local scraped=0; for i in $(seq 1 8); do
+    scraped=$(curl -s 'http://localhost:9190/api/v1/query?query=moar_observe_probe' 2>/dev/null | python3 -c 'import sys,json
+try: print(len(json.load(sys.stdin)["data"]["result"]))
+except Exception: print(0)')
+    [ "${scraped:-0}" -ge 1 ] && break; sleep 4
+  done
+  echo "  metric flow push->pushgateway->prometheus: $([ "${scraped:-0}" -ge 1 ] && echo yes || echo no)"; [ "${scraped:-0}" -ge 1 ] || ok=0
+  curl -s -X DELETE http://localhost:9191/metrics/job/moar_observe >/dev/null 2>&1 || true
+  [ $ok = 1 ] && echo "  ✓ observability tier functional — metrics flow end to end, Grafana + Loki reachable" \
+              || { echo "  ✗ observability tier has a problem"; return 1; }
+}
+
 case "${1:-}" in
   up) shift; cmd_up "$@";;
   down) shift; cmd_down "$@";;
@@ -293,6 +355,8 @@ case "${1:-}" in
   swap-router) cmd_swap_router;;
   compare) cmd_compare;;
   hunt) cmd_hunt;;
+  pipeline) cmd_pipeline;;
+  observe) cmd_observe;;
   logs) shift; cmd_logs "$@";;
   *) sed -n '2,30p' "$0" | sed 's/^# \{0,1\}//'; exit 0;;
 esac

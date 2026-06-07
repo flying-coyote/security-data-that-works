@@ -1,2 +1,8 @@
 {"published":"2026-01-01T00:00:01Z","eventType":"user.session.start","outcome":{"result":"SUCCESS"},"actor":{"alternateId":"jdoe@acme.example"},"client":{"ipAddress":"10.10.1.21"}}
 {"published":"2026-01-01T00:00:02Z","eventType":"user.session.start","outcome":{"result":"FAILURE"},"actor":{"alternateId":"svc@acme.example"},"client":{"ipAddress":"203.0.113.7"}}
+{"published":"2026-01-01T00:01:10Z","eventType":"user.session.start","outcome":{"result":"FAILURE"},"actor":{"alternateId":"mallory@acme.example"},"client":{"ipAddress":"198.51.100.66"}}
+{"published":"2026-01-01T00:01:12Z","eventType":"user.session.start","outcome":{"result":"FAILURE"},"actor":{"alternateId":"mallory@acme.example"},"client":{"ipAddress":"198.51.100.66"}}
+{"published":"2026-01-01T00:01:14Z","eventType":"user.session.start","outcome":{"result":"FAILURE"},"actor":{"alternateId":"mallory@acme.example"},"client":{"ipAddress":"198.51.100.66"}}
+{"published":"2026-01-01T00:01:16Z","eventType":"user.session.start","outcome":{"result":"FAILURE"},"actor":{"alternateId":"mallory@acme.example"},"client":{"ipAddress":"198.51.100.66"}}
+{"published":"2026-01-01T00:01:18Z","eventType":"user.session.start","outcome":{"result":"FAILURE"},"actor":{"alternateId":"mallory@acme.example"},"client":{"ipAddress":"198.51.100.66"}}
+{"published":"2026-01-01T00:01:20Z","eventType":"user.session.start","outcome":{"result":"FAILURE"},"actor":{"alternateId":"mallory@acme.example"},"client":{"ipAddress":"198.51.100.66"}}

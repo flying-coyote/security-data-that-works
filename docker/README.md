@@ -193,8 +193,9 @@ own benchmark (`sdw-lab-benchmarks/ocsf-arrow-transport`), so it's done, not pen
 | **engine-dremio** | Dremio (federation) reads the Nessie-written copy via a Nessie source + idempotent REST setup, answer identical (1000/125) — `moar verify` now agrees across **five** independent engine codebases |
 | **detection** | a SigmaHQ rule → pySigma→SQL → run over the OCSF lakehouse, detected 125 RDP (the planted count) |
 | **ai** | a *local* model (Ollama `gemma4:e4b`) ran a code-action hunt over the lakehouse via `./moar hunt`: it wrote `SELECT count(*) … WHERE dst_port=3389`, saw 125, and answered — fully air-gapped (only endpoint is the local model) |
-| **graph** | Prometheus + Grafana + Loki + Pushgateway up healthy (prometheus.yml a real file, loki readable) |
+| **graph** | functional via `./moar observe`: Prometheus scraping (2 targets up), Grafana DB ok, Loki ready, and a metric flows the full **push→pushgateway→Prometheus** round-trip — observability proven, not just "containers up" |
 | **route** | Vector/VRL raw→OCSF transform proven by `vector test` (Okta auth → class_uid 3002, activity_id, user, src_ip) |
+| **pipeline (end-to-end)** | `./moar pipeline`: raw Okta → Tenzir route → OCSF → landed in `ocsf.authentication` Iceberg (8 rows) → brute-force detection flags the planted source 198.51.100.66 (6 failed auths) — the full raw-to-detection chain, not tiers in isolation |
 | **baselines (foil)** | head-to-head vs OpenSearch (schema-on-read SIEM) via `./moar compare`: same OCSF data + queries → **identical answers**, lakehouse **~7× less storage** (1.6 vs 11.5 MB at 200K), SIEM term index edges the needle while the columnar scan favors the lakehouse |
 | **swap: L** | **MinIO and SeaweedFS return the identical 125 RDP for the same OCSF batch (`./moar swap-store`) — the object store is interchangeable; SeaweedFS ~10× lighter for the small tier** |
 | **swap: I (catalog)** | **iceberg-rest, Nessie, and Lakekeeper all return the identical 125 RDP over the same MinIO (`./moar swap-catalog`) — three independent catalog codebases under one read contract** |
