@@ -160,11 +160,16 @@ Net-new, prioritized (all gated on "the answer is identical"):
    a sorted-vs-shuffled A/B (identical 1M-key data, only row order differs, so any disagreement isolates a
    pruning bug) plus a chDB-written bloom file, across 5 engines. All sound on current versions — the chDB-bug
    class does not reproduce, so the bench's value is as a standing regression guard for the pushdown paths.
-4. **Vortex vs Parquet** — the one real new sub-Parquet format; footprint+read, correctness-gated. *Still
-   install-blocked* (re-checked 2026-06-06): the Python `vortex-array` is yanked on PyPI and the DuckDB
-   community `vortex` extension has no build for DuckDB 1.5.3 (download 404). Design recorded in
-   `sdw-lab-benchmarks/ocsf-vortex-format`; builds when either path ships. Not yet readable inside Iceberg, so
-   it stays a parallel-store experiment.
+4. **Vortex vs Parquet** — the one real new sub-Parquet format; footprint+read, correctness-gated. **Built +
+   tested** (`sdw-lab-benchmarks/ocsf-vortex-format`): the "install-blocked" turned out to be a rename — the
+   PyPI `vortex-array` is yanked with the note "Renamed to vortex-data," and `vortex-data` (0.74.0, now an LF
+   AI & Data project) installs fine. On a seeded-random OCSF corpus Vortex reads faster (decode-to-Arrow
+   ~1.7–2.6×, the `dst_port=3389` needle ~3.3–4×) at a write cost and a **scale-dependent** size cost (~9%
+   smaller than zstd-Parquet at 100K, ~26% larger at 1M), with identical answers across formats — a single-
+   digit× read win, not the vendor's 10–100×. Honest scoping: each format read by its native reader (no engine
+   on DuckDB 1.5.3 reads Vortex; the extension targets 1.4 LTS), and Vortex is **not yet an Iceberg data file
+   format** (Iceberg 1.11.0 shipped the pluggable File Format API; the Vortex plugin is open issue
+   apache/iceberg#15416), so it stays a standalone-format datapoint, not a swap-in for the table format here.
 5. **SIMD-dispatch determinism** (force NONE/AVX2/AVX512, byte-identical results) and **Parquet modular
    encryption interop**. **Built + tested** (`sdw-lab-benchmarks/parquet-determinism-encryption`): SIMD is
    byte-identical across vector widths (not a risk), but the cross-engine *float* aggregate splits 3 ways
@@ -174,8 +179,9 @@ Net-new, prioritized (all gated on "the answer is identical"):
    *inside* the file revokes the open read contract the swap story rests on (keep encryption at the volume/SSE
    layer for regulated data, or standardize on one PME engine + KMS).
 
-Net-new #1, #2, #3, and #5 are built, tested, and pushed (`sdw-lab-benchmarks`); #4 is blocked upstream. So the
-prioritized lower-level set is complete except for Vortex's availability.
+Net-new #1 through #5 are all built, tested, and pushed (`sdw-lab-benchmarks`) — the Vortex arm (#4) is no
+longer blocked now that the package is found under its renamed name. The Vortex-inside-Iceberg arm stays
+future work, gated on the Iceberg File Format API plugin (apache/iceberg#15416).
 
 Also mapped, lower priority: FileIO/S3-client (S3FileIO vs pyarrow vs s3fs against MinIO/SeaweedFS),
 native-vs-JVM footprint/cold-start, persistent-store filesystem (ext4 vs drvfs spill — already measured in
