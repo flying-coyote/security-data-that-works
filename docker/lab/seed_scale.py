@@ -39,6 +39,17 @@ try:
     cat.drop_table(ident)
 except Exception:  # noqa: BLE001
     pass
+# Purge the table's object-store prefix after dropping the catalog entry. drop_table leaves the old
+# metadata.json + data files behind, and a catalog-LESS reader (ClickHouse's icebergS3 path function) then
+# resolves a STALE metadata file after a reseed — a silent 10x undercount the answer-equality gate catches.
+# Catalog-mediated engines are unaffected, but purging keeps the catalog-less reader honest too.
+try:
+    from pyarrow.fs import S3FileSystem
+    _fs = S3FileSystem(access_key=AK, secret_key=SK, endpoint_override=S3.split("://")[-1],
+                       scheme=S3.split("://")[0], region="us-east-1")
+    _fs.delete_dir_contents("warehouse/ocsf/network_activity_bench", missing_dir_ok=True)
+except Exception:  # noqa: BLE001
+    pass
 it = cat.create_table(ident, schema=tbl.schema)
 it.append(tbl)
 print(f"  seeded {ident}: {it.scan().to_arrow().num_rows:,} rows", file=sys.stderr)

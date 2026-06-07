@@ -56,9 +56,11 @@ declare -A PRESETS=(
 # tiers started LAST and slowly (heavy JVM/MPP cold-starts that OOM if launched simultaneously)
 HEAVY="engine-clickhouse engine-starrocks engine-dremio graph baselines"
 
-profiles_for() {  # expand preset name OR pass-through explicit tier list
-  local key="$1"
-  if [[ -n "${PRESETS[$key]:-}" ]]; then echo "${PRESETS[$key]}"; else shift 0; echo "$@"; fi
+profiles_for() {  # expand preset name (plus any extra explicit tiers) OR pass-through an explicit tier list
+  local key="$1"; shift || true
+  # A preset expands to its tiers AND keeps any extra tiers passed after it, so
+  # `up core index-nessie engine-dremio` brings up core + nessie + dremio (not just core).
+  if [[ -n "${PRESETS[$key]:-}" ]]; then echo "${PRESETS[$key]} $*"; else echo "$key $*"; fi
 }
 
 flags() { local f=""; for p in $1; do f="$f --profile $p"; done; echo "$f"; }
