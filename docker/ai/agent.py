@@ -17,7 +17,30 @@ import duckdb
 import requests
 from pyiceberg.catalog.rest import RestCatalog
 
-OLLAMA = os.environ.get("OLLAMA_URL", "http://host.docker.internal:11434") + "/api/chat"
+def _resolve_ollama():
+    """Find the reachable Ollama base URL across networking modes — where the model server sits depends on how
+    the host runs it. Under Docker Desktop on WSL2 with Ollama in a SEPARATE distro, host.docker.internal does
+    NOT reach it (Docker's host gateway can't route into the distro); the distro's own IP does. Under mirrored
+    WSL networking (or a Docker-host Ollama), host.docker.internal / localhost work. So probe candidates and use
+    the first that answers instead of hardcoding one. OLLAMA_URL (explicit) and OLLAMA_HOST_IP (the WSL host IP,
+    injected by `./moar`) are tried first."""
+    cands, seen = [], set()
+    for c in (os.environ.get("OLLAMA_URL", "").rstrip("/"),
+              (f"http://{os.environ['OLLAMA_HOST_IP']}:11434" if os.environ.get("OLLAMA_HOST_IP", "").strip() else ""),
+              "http://host.docker.internal:11434", "http://localhost:11434"):
+        if c and c not in seen:
+            seen.add(c); cands.append(c)
+    for c in cands:
+        try:
+            requests.get(c + "/api/tags", timeout=4)
+            return c
+        except Exception:  # noqa: BLE001
+            continue
+    return cands[0] if cands else "http://host.docker.internal:11434"
+
+
+OLLAMA_BASE = _resolve_ollama()
+OLLAMA = OLLAMA_BASE + "/api/chat"
 MODEL = os.environ.get("OLLAMA_MODEL", "gemma4:e4b")
 REST = os.environ.get("ICEBERG_REST_URI", "http://iceberg-rest:8181")
 S3 = os.environ.get("S3_ENDPOINT", "http://minio:9000")
@@ -55,6 +78,13 @@ def extract(kind, text):
 
 
 def main():
+    print(f"  model: {MODEL} @ {OLLAMA_BASE} (local, auto-resolved)")
+    try:
+        requests.get(OLLAMA_BASE + "/api/tags", timeout=5)
+    except Exception as e:  # noqa: BLE001
+        print("  ✗ no local model server reachable (tried OLLAMA_URL / OLLAMA_HOST_IP / host.docker.internal / localhost).")
+        print(f"    Is 'ollama serve' up and bound to 0.0.0.0 (OLLAMA_HOST=0.0.0.0:11434)?  detail: {type(e).__name__}")
+        sys.exit(2)
     msgs = [{"role": "system", "content": SYSTEM}, {"role": "user", "content": f"TASK: {TASK}"}]
     final = None
     for step in range(MAX_STEPS):

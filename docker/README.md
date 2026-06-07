@@ -236,11 +236,12 @@ Ports are on the `91xx`/`80xx`-avoiding range so MOAR coexists with other local 
 warehouse bucket uses a bronze/silver/gold medallion layout (peer convention; OCSF normalization slots at
 raw→bronze→silver).
 
-The **ai tier** needs a local Ollama serving a model on the host. Bind it beyond loopback
-(`OLLAMA_HOST=0.0.0.0:11434`) so the container can reach it; `./moar hunt` then finds it at the host's
-reachable IP automatically (the compose default `host.docker.internal` is right for a Docker-host Ollama but
-not when the model runs in a separate WSL2 distro — see the `cmd_hunt` note). Override with `OLLAMA_URL` /
-`OLLAMA_MODEL`.
+The **ai tier** needs a local Ollama serving a model on the host, bound beyond loopback
+(`OLLAMA_HOST=0.0.0.0:11434`) so a container can reach it. The agent then auto-resolves the endpoint — it tries
+`OLLAMA_URL`, the WSL host IP (`./moar` injects it as `OLLAMA_HOST_IP`), then `host.docker.internal` and
+`localhost`, using the first that answers — so it works whether Ollama runs on the Docker host or in a separate
+WSL2 distro, under NAT or mirrored networking. `./moar hunt` and a plain `docker compose exec ai python
+/ai/agent.py` both work; override with `OLLAMA_URL` / `OLLAMA_MODEL`.
 
 ## Read alongside (securitydataworks.com)
 

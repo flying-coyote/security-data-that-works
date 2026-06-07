@@ -342,7 +342,11 @@ services:
       <<: *s3-env
       ICEBERG_REST_URI: http://iceberg-rest:8181
       S3_ENDPOINT: ${S3_INTERNAL_ENDPOINT:-http://minio:9000}
-      OLLAMA_URL: ${OLLAMA_URL:-http://host.docker.internal:11434}
+      # agent.py auto-resolves the reachable Ollama endpoint; these just feed candidates. OLLAMA_HOST_IP is the
+      # WSL host IP injected by `./moar` (needed under Docker Desktop when Ollama runs in a separate WSL distro,
+      # where host.docker.internal can't route to it). Override OLLAMA_URL to pin an endpoint explicitly.
+      OLLAMA_URL: ${OLLAMA_URL:-}
+      OLLAMA_HOST_IP: ${OLLAMA_HOST_IP:-}
       OLLAMA_MODEL: ${OLLAMA_MODEL:-gemma4:e4b}
     volumes: ["./ai:/ai"]
     command: ["sleep", "infinity"]

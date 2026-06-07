@@ -68,6 +68,9 @@ preflight() {  # warn if host RAM is under the preset's rough budget
 cmd_up() {
   local key="${1:-core}"; shift || true
   local tiers; tiers=$(profiles_for "$key" "$@")
+  # inject the WSL host IP so the ai tier can reach a host Ollama that host.docker.internal can't route to
+  # (Docker Desktop + Ollama in a separate WSL distro); agent.py auto-resolves, this is the candidate it needs.
+  export OLLAMA_HOST_IP="${OLLAMA_HOST_IP:-$(hostname -I 2>/dev/null | awk '{print $1}')}"
   case "$key" in
     soc-10gb|laptop) preflight 6;; soc-100gb|workstation) preflight 16;;
     soc-1tb|server) preflight 36;; soc-10tb|compare) preflight 48;;
@@ -270,19 +273,12 @@ cmd_hunt() {
   # resolves to an unreachable IPv6 and gateway.docker.internal doesn't forward into the distro — so reach
   # Ollama directly at the WSL host's eth0 IP, recomputed each run (it's dynamic across WSL restarts). Override
   # with OLLAMA_URL / OLLAMA_MODEL. Cleaner permanent alternative: WSL2 'networkingMode=mirrored' in .wslconfig.
-  local host_ip url
-  host_ip=$(hostname -I 2>/dev/null | awk '{print $1}')
-  url="${OLLAMA_URL:-http://${host_ip}:11434}"
-  local model="${OLLAMA_MODEL:-gemma4:e4b}"
+  export OLLAMA_HOST_IP="${OLLAMA_HOST_IP:-$(hostname -I 2>/dev/null | awk '{print $1}')}"
   echo "AI tier — air-gapped agentic hunt over the lakehouse (local model):"
-  echo "  ollama: $url   model: $model"
+  # recreate the ai container so it picks up the current OLLAMA_HOST_IP, then let agent.py auto-resolve the
+  # reachable endpoint (it tries OLLAMA_URL, OLLAMA_HOST_IP, host.docker.internal, localhost in that order).
   $DC --profile store-minio --profile core --profile ai up -d ai >/dev/null 2>&1 || true
-  if ! $DC exec -T -e OLLAMA_URL="$url" ai python -c "import urllib.request;urllib.request.urlopen('$url/api/tags',timeout=8)" 2>/dev/null; then
-    echo "  ✗ can't reach Ollama at $url from the ai container."
-    echo "    Is 'ollama serve' bound to 0.0.0.0 (OLLAMA_HOST=0.0.0.0:11434)? Override with OLLAMA_URL=..."
-    return 1
-  fi
-  $DC exec -T -e OLLAMA_URL="$url" -e OLLAMA_MODEL="$model" ai python /ai/agent.py
+  $DC exec -T -e OLLAMA_MODEL="${OLLAMA_MODEL:-gemma4:e4b}" ai python /ai/agent.py
 }
 
 case "${1:-}" in
