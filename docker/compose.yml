@@ -263,6 +263,9 @@ services:
     environment:
       <<: *s3-env
     ports: ["8125:8123"]   # HTTP UI on 8125 (8123/8124 taken by other local stacks); native port internal-only
+    # make the default user reachable over the network (the image ships an empty <networks> allowlist) so
+    # in-stack clients — e.g. the lab container's ./moar bench — can query it over HTTP, not just clickhouse-local.
+    volumes: ["./config/clickhouse/users-allow.xml:/etc/clickhouse-server/users.d/zz-moar-allow.xml:ro"]
     ulimits:
       nofile: {soft: 262144, hard: 262144}
     mem_limit: 4g

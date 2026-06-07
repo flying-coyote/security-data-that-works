@@ -19,6 +19,7 @@
 #   ./moar pipeline                                   end-to-end: raw Okta -> route -> Iceberg -> brute-force detection
 #   ./moar observe                                    G-tier check: metrics flow push->pushgateway->prometheus; grafana/loki up
 #   ./moar healthcheck                                data-health gate over the live lakehouse (subset of the Foundation checks)
+#   ./moar bench [rows]                               workload × engine latency matrix (no single engine wins; default 1M rows)
 #   ./moar status | down | logs <svc>
 #
 # Presets — by SOC ingest scale, 10x steps. The preset picks the architecture that scale calls for; a single
@@ -361,6 +362,27 @@ cmd_healthcheck() {
   return "$rc"
 }
 
+cmd_bench() {
+  # Workload x engine latency matrix (H-ARCH-02/06: no single engine wins — pick the engine for the query shape).
+  # Seeds a larger ocsf.network_activity_bench, then runs a 4-workload battery on each engine over its persistent
+  # protocol (from inside the lab container: DuckDB in-process, ClickHouse/Trino HTTP, StarRocks MySQL), so the
+  # timing is the engine's, not a per-query client cold start. Answers gated for equality before latency is trusted.
+  local N="${1:-1000000}"
+  echo "Workload × engine latency matrix over $N rows (H-ARCH-02: does the lakehouse specialize?):"
+  $DC --profile store-minio --profile core up -d >/dev/null 2>&1 || true
+  echo "  seeding ocsf.network_activity_bench ($N rows)..."
+  $DC exec -T -e BENCH_N="$N" lab python /lab/seed_scale.py >/dev/null || { echo "  seed failed"; return 1; }
+  if $DC ps --status running --services 2>/dev/null | grep -qx starrocks; then
+    $DC exec -T starrocks mysql -P 9030 -h 127.0.0.1 -u root -e "
+      CREATE EXTERNAL CATALOG IF NOT EXISTS iceberg PROPERTIES ('type'='iceberg','iceberg.catalog.type'='rest',
+        'iceberg.catalog.uri'='http://iceberg-rest:8181','iceberg.catalog.warehouse'='warehouse',
+        'aws.s3.endpoint'='http://minio:9000','aws.s3.enable_path_style_access'='true','aws.s3.enable_ssl'='false',
+        'aws.s3.access_key'='moar','aws.s3.secret_key'='moar-dev-secret','aws.s3.region'='us-east-1');" >/dev/null 2>&1 || true
+  fi
+  $DC exec -T lab python -c "import pymysql" 2>/dev/null || $DC exec -T lab pip install -q pymysql >/dev/null 2>&1 || true
+  $DC exec -T lab python /lab/workload_matrix.py
+}
+
 case "${1:-}" in
   up) shift; cmd_up "$@";;
   down) shift; cmd_down "$@";;
@@ -376,6 +398,7 @@ case "${1:-}" in
   pipeline) cmd_pipeline;;
   observe) cmd_observe;;
   healthcheck) cmd_healthcheck;;
+  bench) shift; cmd_bench "$@";;
   logs) shift; cmd_logs "$@";;
   *) sed -n '2,30p' "$0" | sed 's/^# \{0,1\}//'; exit 0;;
 esac

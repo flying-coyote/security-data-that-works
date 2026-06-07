@@ -1,0 +1,13 @@
+<?xml version="1.0"?>
+<!-- Make the default user reachable over the network from other stack containers (the image ships an empty
+     <networks> allowlist that blocks remote HTTP/TCP, which is why some checks shell into clickhouse-local
+     instead). Dev-only: empty password, any network. Do not use as-is outside the local reference stack. -->
+<clickhouse>
+  <users>
+    <default>
+      <networks><ip>::/0</ip></networks>
+      <password></password>
+      <access_management>1</access_management>
+    </default>
+  </users>
+</clickhouse>
