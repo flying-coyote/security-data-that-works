@@ -35,6 +35,8 @@ self-hostable stack. MOAR's reference stack leads with the four gaps:
    what made this a standing control rather than a one-off.
 4. **The incumbent as an opt-in foil, in the same compose.** The schema-on-read SIEM baselines live in a
    `baselines` profile you benchmark *against*, rather than a thing you replace blind — the fair-broker move.
+   `./moar compare` runs the head-to-head (same OCSF data into both, same queries): the answers come back
+   identical, and the lakehouse holds them in ~7× less storage than the SIEM's index.
 
 ## The tiers (L-I-G-E-R + extensions + foil)
 
@@ -113,6 +115,21 @@ write-config knob, and Arrow Flight / ADBC vs JDBC (`lakehouse/arrow-flight-sql`
 engine↔client transport concern, so both live in `sdw-lab-benchmarks`, where the variable can be isolated,
 rather than as a profile here.
 
+## Head-to-head vs the SIEM foil
+
+The swaps prove the open components are interchangeable; the foil tier asks the buy-vs-build question directly.
+`./moar compare` loads the same OCSF corpus into the open lakehouse (Parquet on MinIO, queried by DuckDB) and
+into OpenSearch — the open schema-on-read SIEM representative, since Splunk is reference-only under its EULA —
+then runs the same three queries on each (`lab/foil_compare.py`). The verify-the-answer discipline extends to
+the incumbent: the total, the `dst_port=3389` needle, and the `dst_port` distribution come back identical from
+both. What differs is what you'd expect once it's measured. At 200,000 events the lakehouse holds the same data
+in **1.6 MB of columnar Parquet against OpenSearch's 11.5 MB index, a ~7× footprint gap** that comes from the
+inverted index plus the retained `_source`, and it holds near 7× at smaller scale too. Latency at this size is
+close on all three and the lakehouse edges most, but the one query the SIEM wins is the low-selectivity needle,
+which is the term index doing its job, and that's the shape the architecture predicts even though a single host
+with the SIEM queried over HTTP can't isolate the magnitude. The two findings that don't depend on scale or
+transport are the ones to carry: the answers agree, and the columnar store is several times smaller.
+
 ### Lower-level (sub-Parquet) bake-offs — where a swap silently changes the *answer*
 
 The horizontal swaps above are about which box; the deeper, correctness-flavored bake-offs are where the
@@ -178,7 +195,7 @@ own benchmark (`sdw-lab-benchmarks/ocsf-arrow-transport`), so it's done, not pen
 | **ai** | a *local* model (Ollama) ran a code-action hunt over the lakehouse, found the 125 RDP conns, fully air-gapped |
 | **graph** | Prometheus + Grafana + Loki + Pushgateway up healthy (prometheus.yml a real file, loki readable) |
 | **route** | Vector/VRL raw→OCSF transform proven by `vector test` (Okta auth → class_uid 3002, activity_id, user, src_ip) |
-| **baselines** | OpenSearch foil stands up as the schema-on-read SIEM to benchmark against (opt-in, staggered) |
+| **baselines (foil)** | head-to-head vs OpenSearch (schema-on-read SIEM) via `./moar compare`: same OCSF data + queries → **identical answers**, lakehouse **~7× less storage** (1.6 vs 11.5 MB at 200K), SIEM term index edges the needle while the columnar scan favors the lakehouse |
 | **swap: L** | **MinIO and SeaweedFS return the identical 125 RDP for the same OCSF batch (`./moar swap-store`) — the object store is interchangeable; SeaweedFS ~10× lighter for the small tier** |
 | **swap: I (catalog)** | **iceberg-rest, Nessie, and Lakekeeper all return the identical 125 RDP over the same MinIO (`./moar swap-catalog`) — three independent catalog codebases under one read contract** |
 | **swap: I (format)** | **Iceberg and DuckLake return the identical 125 RDP for the same OCSF batch on the same MinIO (`./moar swap-format`) — the data and the answer survive a table-format change** |

@@ -14,6 +14,7 @@
 #   ./moar swap-catalog                               I-tier swap: identical answer via iceberg-rest, nessie AND lakekeeper
 #   ./moar swap-format                                 I-tier format swap: identical answer via Iceberg AND DuckLake
 #   ./moar swap-router                                 R-tier swap: identical OCSF out from Vector, Tenzir AND Fluent Bit
+#   ./moar compare                                    head-to-head: open lakehouse vs the schema-on-read SIEM foil (OpenSearch)
 #   ./moar status | down | logs <svc>
 #
 # Presets — by SOC ingest scale, 10x steps. The preset picks the architecture that scale calls for; a single
@@ -28,19 +29,22 @@ set -euo pipefail
 cd "$(dirname "$0")"
 DC="docker compose"
 
+# Every preset includes store-minio: MinIO is the default object store, and the L tier is the foundation every
+# other tier reads (without it iceberg-rest + lab have no lakehouse to talk to). Swap it for SeaweedFS by
+# bringing up --profile store-seaweedfs with S3_INTERNAL_ENDPOINT=http://seaweedfs:8333 instead.
 declare -A PRESETS=(
-  [core]="core"
+  [core]="store-minio core"
   # SOC ingest-scale tiers (10x steps): the components that ingest scale calls for. StarRocks (MPP) enters at
   # the large/1TB tier so it's brought up and folded into `verify` there, not just reachable as a bare profile.
-  [soc-10gb]="core detection"
-  [soc-100gb]="core engine-trino detection ai"
-  [soc-1tb]="core engine-trino engine-clickhouse engine-starrocks route detection graph ai"
-  [soc-10tb]="core engine-trino engine-clickhouse engine-starrocks route detection graph ai baselines"
+  [soc-10gb]="store-minio core detection"
+  [soc-100gb]="store-minio core engine-trino detection ai"
+  [soc-1tb]="store-minio core engine-trino engine-clickhouse engine-starrocks route detection graph ai"
+  [soc-10tb]="store-minio core engine-trino engine-clickhouse engine-starrocks route detection graph ai baselines"
   # back-compat aliases — the old RAM-budget names map to the matching ingest tier
-  [laptop]="core detection"
-  [workstation]="core engine-trino detection ai"
-  [server]="core engine-trino engine-clickhouse engine-starrocks route detection graph ai"
-  [compare]="core engine-trino engine-clickhouse engine-starrocks route detection graph ai baselines"
+  [laptop]="store-minio core detection"
+  [workstation]="store-minio core engine-trino detection ai"
+  [server]="store-minio core engine-trino engine-clickhouse engine-starrocks route detection graph ai"
+  [compare]="store-minio core engine-trino engine-clickhouse engine-starrocks route detection graph ai baselines"
 )
 # tiers started LAST and slowly (heavy JVM/MPP cold-starts that OOM if launched simultaneously)
 HEAVY="engine-clickhouse engine-starrocks engine-dremio graph baselines"
@@ -245,6 +249,19 @@ cmd_swap_router() {
   else echo "  ✗ router swap problem (vector=$vok tenzir=$tzok fluentbit=$fbok)"; return 1; fi
 }
 
+cmd_compare() {
+  # The fair-broker head-to-head the baselines tier exists for: load the SAME OCSF corpus into the open
+  # lakehouse (Parquet on MinIO, queried by DuckDB) AND the schema-on-read SIEM foil (OpenSearch — the open
+  # representative; Splunk is reference-only per EULA), run the SAME queries on each, and report answer-equality
+  # + storage footprint + the needle-vs-scan latency shape. Don't replace the incumbent blind — benchmark it.
+  # Corpus size via FOIL_N (default 200000). lab/foil_compare.py carries the methodology caveats.
+  echo "Head-to-head: open lakehouse vs schema-on-read SIEM foil (OpenSearch), same OCSF data, same queries:"
+  $DC --profile store-minio --profile core --profile baselines up -d >/dev/null 2>&1 || true
+  echo "  waiting for OpenSearch ..."
+  for i in $(seq 1 40); do [ "$(curl -s -o /dev/null -w '%{http_code}' http://localhost:9211/_cluster/health 2>/dev/null)" = "200" ] && break; sleep 3; done
+  $DC exec -T -e FOIL_N="${FOIL_N:-200000}" lab python /lab/foil_compare.py
+}
+
 case "${1:-}" in
   up) shift; cmd_up "$@";;
   down) shift; cmd_down "$@";;
@@ -255,6 +272,7 @@ case "${1:-}" in
   swap-catalog) cmd_swap_catalog;;
   swap-format) cmd_swap_format;;
   swap-router) cmd_swap_router;;
+  compare) cmd_compare;;
   logs) shift; cmd_logs "$@";;
   *) sed -n '2,30p' "$0" | sed 's/^# \{0,1\}//'; exit 0;;
 esac
