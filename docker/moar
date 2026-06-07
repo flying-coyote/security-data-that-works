@@ -15,6 +15,7 @@
 #   ./moar swap-format                                 I-tier format swap: identical answer via Iceberg AND DuckLake
 #   ./moar swap-router                                 R-tier swap: identical OCSF out from Vector, Tenzir AND Fluent Bit
 #   ./moar compare                                    head-to-head: open lakehouse vs the schema-on-read SIEM foil (OpenSearch)
+#   ./moar hunt                                       AI tier: air-gapped agentic hunt over the lakehouse (local Ollama)
 #   ./moar status | down | logs <svc>
 #
 # Presets — by SOC ingest scale, 10x steps. The preset picks the architecture that scale calls for; a single
@@ -262,6 +263,28 @@ cmd_compare() {
   $DC exec -T -e FOIL_N="${FOIL_N:-200000}" lab python /lab/foil_compare.py
 }
 
+cmd_hunt() {
+  # AI tier: an air-gapped, practitioner-owned agentic hunt over the lakehouse with a LOCAL model (Ollama).
+  # Reaching the host's Ollama: the compose default is host.docker.internal, which is right when Ollama runs on
+  # the Docker host. Under Docker Desktop on WSL2 with Ollama in a SEPARATE WSL distro, host.docker.internal
+  # resolves to an unreachable IPv6 and gateway.docker.internal doesn't forward into the distro — so reach
+  # Ollama directly at the WSL host's eth0 IP, recomputed each run (it's dynamic across WSL restarts). Override
+  # with OLLAMA_URL / OLLAMA_MODEL. Cleaner permanent alternative: WSL2 'networkingMode=mirrored' in .wslconfig.
+  local host_ip url
+  host_ip=$(hostname -I 2>/dev/null | awk '{print $1}')
+  url="${OLLAMA_URL:-http://${host_ip}:11434}"
+  local model="${OLLAMA_MODEL:-gemma4:e4b}"
+  echo "AI tier — air-gapped agentic hunt over the lakehouse (local model):"
+  echo "  ollama: $url   model: $model"
+  $DC --profile store-minio --profile core --profile ai up -d ai >/dev/null 2>&1 || true
+  if ! $DC exec -T -e OLLAMA_URL="$url" ai python -c "import urllib.request;urllib.request.urlopen('$url/api/tags',timeout=8)" 2>/dev/null; then
+    echo "  ✗ can't reach Ollama at $url from the ai container."
+    echo "    Is 'ollama serve' bound to 0.0.0.0 (OLLAMA_HOST=0.0.0.0:11434)? Override with OLLAMA_URL=..."
+    return 1
+  fi
+  $DC exec -T -e OLLAMA_URL="$url" -e OLLAMA_MODEL="$model" ai python /ai/agent.py
+}
+
 case "${1:-}" in
   up) shift; cmd_up "$@";;
   down) shift; cmd_down "$@";;
@@ -273,6 +296,7 @@ case "${1:-}" in
   swap-format) cmd_swap_format;;
   swap-router) cmd_swap_router;;
   compare) cmd_compare;;
+  hunt) cmd_hunt;;
   logs) shift; cmd_logs "$@";;
   *) sed -n '2,30p' "$0" | sed 's/^# \{0,1\}//'; exit 0;;
 esac

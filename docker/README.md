@@ -192,7 +192,7 @@ own benchmark (`sdw-lab-benchmarks/ocsf-arrow-transport`), so it's done, not pen
 | **engine-starrocks** | StarRocks reads the *same* Iceberg table via an Iceberg REST external catalog (enters at the soc-1tb tier), answer identical to the others (1000/125) |
 | **engine-dremio** | Dremio (federation) reads the Nessie-written copy via a Nessie source + idempotent REST setup, answer identical (1000/125) — `moar verify` now agrees across **five** independent engine codebases |
 | **detection** | a SigmaHQ rule → pySigma→SQL → run over the OCSF lakehouse, detected 125 RDP (the planted count) |
-| **ai** | a *local* model (Ollama) ran a code-action hunt over the lakehouse, found the 125 RDP conns, fully air-gapped |
+| **ai** | a *local* model (Ollama `gemma4:e4b`) ran a code-action hunt over the lakehouse via `./moar hunt`: it wrote `SELECT count(*) … WHERE dst_port=3389`, saw 125, and answered — fully air-gapped (only endpoint is the local model) |
 | **graph** | Prometheus + Grafana + Loki + Pushgateway up healthy (prometheus.yml a real file, loki readable) |
 | **route** | Vector/VRL raw→OCSF transform proven by `vector test` (Okta auth → class_uid 3002, activity_id, user, src_ip) |
 | **baselines (foil)** | head-to-head vs OpenSearch (schema-on-read SIEM) via `./moar compare`: same OCSF data + queries → **identical answers**, lakehouse **~7× less storage** (1.6 vs 11.5 MB at 200K), SIEM term index edges the needle while the columnar scan favors the lakehouse |
@@ -235,6 +235,12 @@ Ports are on the `91xx`/`80xx`-avoiding range so MOAR coexists with other local 
 `moar` / `moar-dev-secret` (override via `MINIO_USER`/`MINIO_PASSWORD`); rotate for anything real. The
 warehouse bucket uses a bronze/silver/gold medallion layout (peer convention; OCSF normalization slots at
 raw→bronze→silver).
+
+The **ai tier** needs a local Ollama serving a model on the host. Bind it beyond loopback
+(`OLLAMA_HOST=0.0.0.0:11434`) so the container can reach it; `./moar hunt` then finds it at the host's
+reachable IP automatically (the compose default `host.docker.internal` is right for a Docker-host Ollama but
+not when the model runs in a separate WSL2 distro — see the `cmd_hunt` note). Override with `OLLAMA_URL` /
+`OLLAMA_MODEL`.
 
 ## Read alongside (securitydataworks.com)
 
