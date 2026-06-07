@@ -6,30 +6,41 @@
 # OOM lesson). `verify` is the differentiator: it cross-checks that every running engine returns the same
 # answer over the same Iceberg table — verify the answer, don't trust it.
 #
-#   ./moar up laptop|workstation|server|compare      bring up a scale preset (staggered)
+#   ./moar up soc-10gb|soc-100gb|soc-1tb|soc-10tb    bring up an ingest-scale preset (staggered)
 #   ./moar up core engine-trino detection            bring up explicit tiers
-#   ./moar verify                                     cross-engine answer-equality over the lakehouse
+#   ./moar verify                                     cross-engine answer-equality over the lakehouse (incl. Dremio if up)
+#   ./moar verify-dremio                              Dremio's answer-equality check via a Nessie source (1000/125)
+#   ./moar swap-store                                 L-tier swap: identical answer on MinIO AND SeaweedFS
 #   ./moar swap-catalog                               I-tier swap: identical answer via iceberg-rest, nessie AND lakekeeper
 #   ./moar swap-format                                 I-tier format swap: identical answer via Iceberg AND DuckLake
 #   ./moar swap-router                                 R-tier swap: identical OCSF out from Vector, Tenzir AND Fluent Bit
 #   ./moar status | down | logs <svc>
 #
-# Presets (approx working RAM; see README for the per-tier budget table):
-#   core         ~2-4GB   L+I+embedded-E (minio + iceberg-rest + duckdb lab)
-#   laptop       ~6-8GB   core + detection                      (no JVM engines)
-#   workstation  ~16-24GB core + engine-trino + detection + ai
-#   server       ~32-48GB core + engine-trino + engine-clickhouse + route + detection + graph + ai
-#   compare      heavy    server + baselines (SIEM foil; run one SIEM at a time)
+# Presets — by SOC ingest scale, 10x steps. The preset picks the architecture that scale calls for; a single
+# host demonstrates the architecture, not the throughput (the SDW Lab carries the measured scale sweeps). The
+# old RAM-budget names (laptop/workstation/server/compare) still work as aliases. ~RAM is the host budget.
+#   core                       ~2-4GB    L+I+embedded-E (minio + iceberg-rest + duckdb lab)
+#   soc-10gb  (=laptop)        ~6-8GB    small SOC, ~10 GB/day: core + detection (DuckDB embedded; no JVM engines)
+#   soc-100gb (=workstation)   ~16-24GB  mid SOC, ~100 GB/day: + Trino (federation) + agentic AI
+#   soc-1tb   (=server)        ~32-40GB  large SOC, ~1 TB/day: + ClickHouse (real-time OLAP) + StarRocks (MPP) + route + dashboards
+#   soc-10tb  (=compare)       heavy     ~10 TB/day: + the schema-on-read SIEM foil for buy-vs-build (run one SIEM at a time)
 set -euo pipefail
 cd "$(dirname "$0")"
 DC="docker compose"
 
 declare -A PRESETS=(
   [core]="core"
+  # SOC ingest-scale tiers (10x steps): the components that ingest scale calls for. StarRocks (MPP) enters at
+  # the large/1TB tier so it's brought up and folded into `verify` there, not just reachable as a bare profile.
+  [soc-10gb]="core detection"
+  [soc-100gb]="core engine-trino detection ai"
+  [soc-1tb]="core engine-trino engine-clickhouse engine-starrocks route detection graph ai"
+  [soc-10tb]="core engine-trino engine-clickhouse engine-starrocks route detection graph ai baselines"
+  # back-compat aliases — the old RAM-budget names map to the matching ingest tier
   [laptop]="core detection"
   [workstation]="core engine-trino detection ai"
-  [server]="core engine-trino engine-clickhouse route detection graph ai"
-  [compare]="core engine-trino engine-clickhouse route detection graph ai baselines"
+  [server]="core engine-trino engine-clickhouse engine-starrocks route detection graph ai"
+  [compare]="core engine-trino engine-clickhouse engine-starrocks route detection graph ai baselines"
 )
 # tiers started LAST and slowly (heavy JVM/MPP cold-starts that OOM if launched simultaneously)
 HEAVY="engine-clickhouse engine-starrocks engine-dremio graph baselines"
@@ -52,7 +63,10 @@ preflight() {  # warn if host RAM is under the preset's rough budget
 cmd_up() {
   local key="${1:-core}"; shift || true
   local tiers; tiers=$(profiles_for "$key" "$@")
-  case "$key" in laptop) preflight 6;; workstation) preflight 16;; server) preflight 32;; compare) preflight 48;; esac
+  case "$key" in
+    soc-10gb|laptop) preflight 6;; soc-100gb|workstation) preflight 16;;
+    soc-1tb|server) preflight 36;; soc-10tb|compare) preflight 48;;
+  esac
   # light tiers first (always-needed substrate + cheap), then heavy tiers staggered
   local light="" heavy=""
   for p in $tiers; do if [[ " $HEAVY " == *" $p "* ]]; then heavy="$heavy $p"; else light="$light $p"; fi; done
@@ -119,7 +133,26 @@ print(t.num_rows, t.filter(pc.equal(t['dst_port'],3389)).num_rows)
     echo "  starrocks        total,rdp = $sr"
     [[ "$duck" == "$sr" ]] || { echo "  ✗ DIVERGENCE: starrocks != duckdb"; ok=0; }
   fi
+  # Dremio, if running — the fifth engine, reading the Nessie-written copy (OSS lacks the iceberg-rest source).
+  # Same logical OCSF data, so it joins the gate; self-contained via config/dremio/setup-dremio.sh (REST setup).
+  if $DC ps --status running --services 2>/dev/null | grep -qx dremio; then
+    local dr
+    dr=$(bash config/dremio/setup-dremio.sh 2>/dev/null | grep -oE 'total,rdp = [0-9]+ [0-9]+' | grep -oE '[0-9]+ [0-9]+$')
+    echo "  dremio (nessie)  total,rdp = ${dr:-unavailable}"
+    [[ "$duck" == "$dr" ]] || { echo "  ✗ DIVERGENCE: dremio != duckdb"; ok=0; }
+  fi
   [[ $ok == 1 ]] && echo "  ✓ all running engines agree" || { echo "  ✗ engines disagree — investigate"; return 1; }
+}
+
+cmd_verify_dremio() {
+  # Dremio's standalone answer-equality check (federation engine, via a Nessie source). OSS has no Iceberg REST
+  # catalog source, so Dremio reads the Nessie-written copy of ocsf.network_activity — the same logical OCSF
+  # data the iceberg-rest gate reads, independently committed through a second catalog. Confirmed 1000/125.
+  echo "Dremio answer-equality check (via Nessie source):"
+  if ! $DC ps --status running --services 2>/dev/null | grep -qx dremio; then
+    echo "  dremio not running — bring it up: ./moar up core index-nessie engine-dremio"; return 1
+  fi
+  bash config/dremio/setup-dremio.sh
 }
 
 cmd_swap_catalog() {
@@ -162,6 +195,26 @@ cmd_swap_format() {
   else echo "  ✗ format swap DIVERGENCE (iceberg=$ice ducklake=$dl)"; return 1; fi
 }
 
+cmd_swap_store() {
+  # Prove the L-tier (object store) is swappable: write+read the SAME OCSF batch on BOTH MinIO and SeaweedFS
+  # and assert an identical answer. Both speak S3, so the lakehouse is indifferent to which is underneath — the
+  # store-footprint choice (SeaweedFS ~10× lighter) doesn't move the answer. Same shape as swap-catalog /
+  # swap-format / swap-router, completing the swap-command set across all of L-I-R.
+  echo "L-tier store swap check (MinIO vs SeaweedFS), same OCSF batch:"
+  $DC --profile store-minio --profile store-seaweedfs up -d >/dev/null 2>&1 || true
+  echo "  waiting for SeaweedFS + its warehouse-bucket init ..."
+  for i in $(seq 1 20); do [ "$(curl -s -o /dev/null -w '%{http_code}' http://localhost:8333/ 2>/dev/null)" != "000" ] && break; sleep 3; done
+  sleep 6   # let seaweedfs-init create the warehouse bucket
+  local out m s
+  out=$($DC exec -T lab python /lab/swap_store.py 2>/dev/null)
+  echo "$out" | grep -E "store (minio|seaweedfs)"
+  m=$(echo "$out" | sed -n 's/.*store minio .*-> \([0-9]\{1,\}\).*/\1/p')
+  s=$(echo "$out" | sed -n 's/.*store seaweedfs .*-> \([0-9]\{1,\}\).*/\1/p')
+  if [[ -n "$m" && "$m" == "$s" ]]; then
+    echo "  ✓ store swap clean — identical answer (rdp=$m) on MinIO and SeaweedFS"
+  else echo "  ✗ store swap DIVERGENCE (minio=$m seaweedfs=$s)"; return 1; fi
+}
+
 cmd_swap_router() {
   # Prove the R-tier (route/normalization) is swappable across THREE independent codebases: Vector/VRL (Rust),
   # Tenzir/TQL (C++, security-native), and Fluent Bit/Lua (C, CNCF) all turn the SAME raw Okta event into the
@@ -197,6 +250,8 @@ case "${1:-}" in
   down) shift; cmd_down "$@";;
   status) cmd_status;;
   verify) cmd_verify;;
+  verify-dremio) cmd_verify_dremio;;
+  swap-store) cmd_swap_store;;
   swap-catalog) cmd_swap_catalog;;
   swap-format) cmd_swap_format;;
   swap-router) cmd_swap_router;;

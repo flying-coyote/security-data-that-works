@@ -6,12 +6,15 @@ The deployment tiers *are* the book's canonical **L-I-G-E-R** component model ma
 plus two extensions this kit adds and an opt-in incumbent foil.
 
 ```
-./moar up laptop          # ~6-8GB:  open lakehouse + detection-as-code, no JVM engines
-./moar up workstation     # ~16-24GB: + a distributed engine + local agentic AI
-./moar up server          # ~32-48GB: + a 2nd engine + OCSF ingest + dashboards
-./moar up compare         # heavy:   + the schema-on-read SIEM foil for head-to-heads
-./moar verify             # cross-engine answer-equality over the lakehouse
+./moar up soc-10gb        # ~6-8GB:  small SOC (~10 GB/day) — open lakehouse + detection-as-code, no JVM engines
+./moar up soc-100gb       # ~16-24GB: mid SOC (~100 GB/day) — + Trino federation + local agentic AI
+./moar up soc-1tb         # ~32-40GB: large SOC (~1 TB/day) — + ClickHouse + StarRocks + OCSF ingest + dashboards
+./moar up soc-10tb        # heavy:   + the schema-on-read SIEM foil for buy-vs-build
+./moar verify             # answer-equality across DuckDB / Trino / ClickHouse / StarRocks / Dremio
 ```
+
+Presets are named by the SOC ingest scale they map to (10× steps); the old RAM-budget names
+(`laptop`/`workstation`/`server`/`compare`) still work as aliases.
 
 ## Why this exists (the four things nobody else ships)
 
@@ -21,12 +24,15 @@ self-hostable stack. MOAR's reference stack leads with the four gaps:
 
 1. **Fully self-hostable / air-gappable.** No cloud control plane, no vendor SaaS — object store, catalog,
    engines, ingestion, detection, and the AI layer all run on your hardware, mirror-able for an air gap.
-2. **Resource-budgeted tiering as a first-class feature.** Every tier has a measured RAM budget and a scale
-   preset; `moar` brings heavy tiers up staggered so a cold start doesn't OOM (a lesson learned the hard way).
-   No one else in this category publishes laptop / workstation / server / compare presets.
+2. **Tiering by SOC ingest scale, as a first-class feature.** Presets map to the ingest scale a SOC actually
+   plans around (~10 GB/day → ~10 TB/day in 10× steps) and bring up only the components that scale calls for;
+   `moar` staggers heavy tiers so a cold start doesn't OOM (a lesson learned the hard way). A single host
+   demonstrates the architecture; the throughput numbers come from the SDW Lab's measured scale sweeps. No one
+   else in this category ships ingest-scale presets.
 3. **Verify the answer, don't trust it.** `moar verify` cross-checks that every running engine returns the
-   *same* answer over the *same* Iceberg table (the SDW Lab finding that a fast engine can be silently wrong —
-   chDB's Bloom-filter undercount — made a standing control, not a one-off).
+   *same* answer over the *same* Iceberg table — five engines today (DuckDB, Trino, ClickHouse, StarRocks,
+   Dremio). The SDW Lab finding that a fast engine can be silently wrong (chDB's Bloom-filter undercount) is
+   what made this a standing control rather than a one-off.
 4. **The incumbent as an opt-in foil, in the same compose.** The schema-on-read SIEM baselines live in a
    `baselines` profile you benchmark *against*, rather than a thing you replace blind — the fair-broker move.
 
@@ -37,8 +43,8 @@ self-hostable stack. MOAR's reference stack leads with the four gaps:
 | **core** | **L**+**I**+embedded **E** | MinIO (→SeaweedFS) · Iceberg REST catalog (→Nessie/Polaris/Lakekeeper/DuckLake) · DuckDB lab | 2–4 GB | ✅ | open |
 | **engine-trino** | **E** | Trino over the same Iceberg | +4 GB | ✅ | open |
 | **engine-clickhouse** | **E** | ClickHouse (real-time OLAP) | +2–4 GB | ✅ | open |
-| **engine-starrocks** | **E** | StarRocks (MPP, all-in-one) over the same Iceberg — in the verify gate | +8 GB | ✅ | open |
-| **engine-dremio** *(opt-in)* | **E** | Dremio OSS via a Nessie source — off the gate, see swaps | +6 GB | ✅ | open |
+| **engine-starrocks** | **E** | StarRocks (MPP, all-in-one) over the same Iceberg — in `verify`, enters at the soc-1tb tier | +8 GB | ✅ | open |
+| **engine-dremio** | **E** | Dremio OSS (federation) via a Nessie source — verified, folds into `verify` (`./moar verify-dremio`) | +6 GB | ✅ | open |
 | **route** | **R** | Vector (→Tenzir/Fluent Bit) + OCSF normalization | +0.5–1 GB | ✅ | open |
 | **detection** | (analysis) | marimo notebooks + SigmaHQ + pySigma→engine | +0.3 GB | ✅ | open |
 | **ai** *(extension)* | — | Ollama (local weights) + self-hosted stdio MCP + code-action loop | +CPU; GPU-opt | ✅ | open |
@@ -48,6 +54,13 @@ self-hostable stack. MOAR's reference stack leads with the four gaps:
 Always include `core`; every other tier reads its lakehouse. Catalog and engine are genuinely swappable —
 that's the point of an open table format under one read contract (`SPEC.md` §5).
 
+**Presets bundle these tiers by SOC ingest scale** (10× steps), so you pick by the scale you plan around:
+`soc-10gb` (small SOC, core + detection) → `soc-100gb` (mid, + Trino federation +
+agentic AI) → `soc-1tb` (large, + ClickHouse + StarRocks + OCSF route + dashboards) → `soc-10tb` (+ the SIEM
+foil for buy-vs-build). The old RAM-budget names (`laptop`/`workstation`/`server`/`compare`) still work as
+aliases. The preset picks the architecture that ingest scale calls for; the single host proves the
+architecture, while the SDW Lab carries the measured scale sweeps to 100M+ rows.
+
 ## Component selection & swaps (bake-offs)
 
 Because the stack is open under one read contract, components are genuinely swappable — and a swap is
@@ -56,38 +69,43 @@ the remaining candidates, each with a reason, drawing on the peers' choices (Lis
 
 | Tier | default | swap candidates | reason to swap | status |
 |---|---|---|---|---|
-| **L** object store | MinIO | **SeaweedFS** (Lisa, q3) · RustFS · Ceph | footprint, since SeaweedFS is **~10× lighter** | **tested: identical answers, 34 MiB vs MinIO ~256-512 MB → use for the laptop tier** |
+| **L** object store | MinIO | **SeaweedFS** (Lisa, q3) · RustFS · Ceph | footprint, since SeaweedFS is **~10× lighter** | **tested: identical 125 RDP on both, same OCSF batch — `./moar swap-store`** |
 | **I** catalog | iceberg-rest-fixture | **Nessie** (Java, git-branching) · **Lakekeeper** (Rust, Postgres-backed) · Polaris/Unity (governance) | production-readiness / footprint / governance | **tested: all three (iceberg-rest, Nessie, Lakekeeper) return the identical 125 RDP over the same MinIO — `./moar swap-catalog`** |
 | **I** table format | Iceberg | **DuckLake** (SQL-catalog + Parquet on the same store) | a different format, not a catalog drop-in | **tested: DuckLake writes the same OCSF batch and returns the identical 125 RDP — `./moar swap-format`** |
-| **E** engine | DuckDB + Trino + ClickHouse | **StarRocks** (MPP) · Dremio (opt-in) | workload fit (real-time vs federation vs MPP) | **tested: 4-engine `moar verify` green (DuckDB, Trino, ClickHouse, StarRocks all 1000/125); Dremio is an opt-in Nessie-source overlay, off the gate** |
+| **E** engine | DuckDB + Trino + ClickHouse | **StarRocks** (MPP) · **Dremio** (federation, via Nessie) | workload fit (real-time vs MPP vs federation) | **tested: 5-engine `moar verify` green — DuckDB, Trino, ClickHouse, StarRocks, Dremio all 1000/125** |
 | **R** router | Vector | **Tenzir** (security-native: Sigma/OCSF/STIX) · **Fluent Bit** (lightest) | security-awareness vs footprint | **tested: all three (Vector, Tenzir, Fluent Bit) emit the identical OCSF Authentication record on the same raw Okta event — `./moar swap-router`** |
 
 The discipline is to never swap blind: the answer has to stay identical across the swap. Every swap above now
 ships as a one-command check that writes or reads the same OCSF data through the alternative backend and
-asserts the answer doesn't move — the MinIO→SeaweedFS object-store bake-off, `./moar swap-catalog` across three
-catalog implementations, `./moar swap-format` across Iceberg and DuckLake, `./moar verify` across four engines,
-and `./moar swap-router` across three routers. Trino's S3 endpoint is templated via `${ENV:S3_INTERNAL_ENDPOINT}`
-so a store swap flows through to Trino as well, and the whole core/lab/detection/engine path follows
-`S3_INTERNAL_ENDPOINT`.
+asserts the answer doesn't move — `./moar swap-store` across MinIO and SeaweedFS, `./moar swap-catalog` across
+three catalog implementations, `./moar swap-format` across Iceberg and DuckLake, `./moar swap-router` across
+three routers, and `./moar verify` across five engines. Trino's S3 endpoint is templated via
+`${ENV:S3_INTERNAL_ENDPOINT}` so a store swap flows through to Trino as well, and the whole
+core/lab/detection/engine path follows `S3_INTERNAL_ENDPOINT`.
 
-**Why three or four of each, not one.** A single alternative proves a swap is possible; agreement across
-several independent codebases proves the read contract is real rather than a quirk of one implementation. The
-catalog check runs the Java reference fixture, Nessie (Java/Quarkus, with git-style branching), and Lakekeeper
-(Rust, Postgres-backed), and all three return the same 125 RDP. The engine gate spans DuckDB (embedded), Trino
-(JVM/MPP), ClickHouse (C++ OLAP), and StarRocks (C++/MPP), and all four return 1000/125. The router check spans
-Vector (Rust/VRL), Tenzir (C++, security-native TQL), and Fluent Bit (C, with a Lua transform), and all three
-emit the identical OCSF Authentication record. DuckLake is the deliberately different case, because it isn't an
-Iceberg REST catalog at all but a SQL-catalog table format, so `swap-format` proves the weaker and more honest
-claim that the data and the answer survive a format change, not that the catalog is a drop-in.
+**Why several independent implementations of each.** A single alternative proves a swap is possible; agreement
+across several independent codebases proves the read contract is real rather than a quirk of one implementation.
+The catalog check runs the Java reference fixture, Nessie (Java/Quarkus, with git-style branching), and
+Lakekeeper (Rust, Postgres-backed), and all three return the same 125 RDP. The engine gate spans DuckDB
+(embedded), Trino (JVM/MPP), ClickHouse (C++ OLAP), StarRocks (C++/MPP), and Dremio (JVM federation), and all
+five return 1000/125. The router check spans Vector (Rust/VRL), Tenzir (C++, security-native TQL), and Fluent
+Bit (C, with a Lua transform), and all three emit the identical OCSF Authentication record. DuckLake is the
+deliberately different case, because it isn't an Iceberg REST catalog at all but a SQL-catalog table format, so
+`swap-format` proves the weaker and more honest claim that the data and the answer survive a format change, not
+that the catalog is a drop-in.
 
-**Dremio is the one exception, and an honest one.** Dremio OSS doesn't ship the Iceberg REST catalog source,
+**Dremio takes a different path to the same answer.** Dremio OSS doesn't ship the Iceberg REST catalog source,
 since that's gated to Enterprise and Cloud, so it can't read the iceberg-rest catalog the other four engines
-read. The path that does work on OSS is a Nessie source, set up through an imperative REST choreography
-(`config/dremio/setup-dremio.sh`) rather than the declarative boot-time catalog every other engine uses, and it
-only proves equality on the Nessie-written copy of the table. So Dremio ships as a documented opt-in overlay
-(`--profile engine-dremio`) rather than a participant in `./moar verify`, because four engines already carry the
-gate and wiring a JVM container with an acquisition-clouded OSS roadmap into the automated check would buy
-little. If Dremio-on-Iceberg-REST ever lands in OSS, it flips to a clean gate participant.
+read. The path that does work on OSS is a Nessie source, set up through an idempotent REST choreography
+(`config/dremio/setup-dremio.sh`: bootstrap → login → source → query) rather than the declarative boot-time
+catalog every other engine uses. So Dremio reads the Nessie-written copy of the table — the same logical OCSF
+data, independently committed through a second catalog — and `./moar verify` folds it in when it's running
+(or `./moar verify-dremio` runs it on its own). It returns the identical 1000/125, so answer-equality now spans
+five engines and two catalogs. The honest caveat is that the
+equality holds on the Nessie copy, not the byte-identical iceberg-rest files, so if Dremio-on-Iceberg-REST ever
+lands in OSS it becomes a cleaner same-table check. (Getting it working took three corrections over the
+documented config: `secure:false` because MinIO is plain HTTP and Dremio otherwise attempts TLS, an
+`awsRootPath` with no leading slash, and the real object-store credentials.)
 
 **What stays in the lab.** Some of what the `/writing` essays compare isn't a stack-service swap at
 all. The codec and encoder read-lever (`lakehouse/encoder-is-the-read-lever`, `same-codec-different-sizes`) is a
@@ -154,21 +172,22 @@ own benchmark (`sdw-lab-benchmarks/ocsf-arrow-transport`), so it's done, not pen
 | **core** | OCSF table round-trips MinIO↔Iceberg-REST↔DuckDB/pyiceberg (1000 rows; RDP→125=truth) |
 | **engine-trino** | Trino reads the *same* Iceberg table, answers identical to DuckDB (`moar verify` green) |
 | **engine-clickhouse** | ClickHouse reads the *same* Iceberg table via `icebergS3` (snapshot-correct), answer identical to DuckDB + Trino (1000/125) |
-| **engine-starrocks** | StarRocks reads the *same* Iceberg table via an Iceberg REST external catalog, answer identical to the other three, so `moar verify` agrees across **four** independent engine codebases (1000/125) |
+| **engine-starrocks** | StarRocks reads the *same* Iceberg table via an Iceberg REST external catalog (enters at the soc-1tb tier), answer identical to the others (1000/125) |
+| **engine-dremio** | Dremio (federation) reads the Nessie-written copy via a Nessie source + idempotent REST setup, answer identical (1000/125) — `moar verify` now agrees across **five** independent engine codebases |
 | **detection** | a SigmaHQ rule → pySigma→SQL → run over the OCSF lakehouse, detected 125 RDP (the planted count) |
 | **ai** | a *local* model (Ollama) ran a code-action hunt over the lakehouse, found the 125 RDP conns, fully air-gapped |
 | **graph** | Prometheus + Grafana + Loki + Pushgateway up healthy (prometheus.yml a real file, loki readable) |
 | **route** | Vector/VRL raw→OCSF transform proven by `vector test` (Okta auth → class_uid 3002, activity_id, user, src_ip) |
 | **baselines** | OpenSearch foil stands up as the schema-on-read SIEM to benchmark against (opt-in, staggered) |
-| **swap: L** | **MinIO→SeaweedFS bake-off: identical answers, 34 MiB vs ~256-512 MB → laptop-tier object store** |
+| **swap: L** | **MinIO and SeaweedFS return the identical 125 RDP for the same OCSF batch (`./moar swap-store`) — the object store is interchangeable; SeaweedFS ~10× lighter for the small tier** |
 | **swap: I (catalog)** | **iceberg-rest, Nessie, and Lakekeeper all return the identical 125 RDP over the same MinIO (`./moar swap-catalog`) — three independent catalog codebases under one read contract** |
 | **swap: I (format)** | **Iceberg and DuckLake return the identical 125 RDP for the same OCSF batch on the same MinIO (`./moar swap-format`) — the data and the answer survive a table-format change** |
 | **swap: R** | **Vector, Tenzir, and Fluent Bit all emit the identical OCSF Authentication record (class_uid 3002, activity 1/2, user, src_ip) on the same raw Okta event (`./moar swap-router`)** |
 
 The central claim is proven end-to-end: write once via pyiceberg, read through any engine, and **verify the
-answers agree** — across four engines, across an object-store swap, across three catalog implementations and a
-DuckLake format swap, and across three routers that normalize the same raw Okta event to the identical OCSF
-Authentication record.
+answers agree** — across five engines, across a MinIO/SeaweedFS store swap, across three catalog implementations
+and a DuckLake format swap, and across three routers that normalize the same raw Okta event to the identical
+OCSF Authentication record.
 
 ## How it relates to peers (what's borrowed, what's different)
 

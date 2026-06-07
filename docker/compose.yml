@@ -294,11 +294,13 @@ services:
       retries: 30
       start_period: 90s
 
-  # ---- E (opt-in, NOT in `./moar verify`): Dremio OSS. OSS lacks the Iceberg REST catalog source (Enterprise
-  # only), so Dremio can't read the iceberg-rest catalog the others read; the viable OSS path is a Nessie
-  # source set up via an imperative REST choreography (config/dremio/setup-dremio.sh), which proves equality
-  # only on the Nessie-written copy. Shipped as a documented manual overlay rather than a gate participant —
-  # four engines already cover the automated check. Bring up with --profile index-nessie + --profile engine-dremio.
+  # ---- E (federation): Dremio OSS — the fifth engine, VERIFIED via a Nessie source. OSS lacks the Iceberg REST
+  # catalog source (Enterprise only), so Dremio reads the Nessie-written copy of the table — the same logical
+  # OCSF data the iceberg-rest gate reads, independently committed through a second catalog. Setup is an
+  # idempotent REST choreography (config/dremio/setup-dremio.sh: bootstrap -> login -> source -> query), since
+  # Dremio has no boot-time catalog file. Confirmed 1000/125, identical to the other four engines. `./moar
+  # verify` folds it in when it's running; `./moar verify-dremio` runs it standalone. Bring up with
+  # --profile core --profile index-nessie --profile engine-dremio.
   dremio:
     image: dremio/dremio-oss:26.0
     profiles: ["engine-dremio"]
