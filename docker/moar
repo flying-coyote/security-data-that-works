@@ -21,6 +21,7 @@
 #   ./moar healthcheck                                data-health gate over the live lakehouse (subset of the Foundation checks)
 #   ./moar bench [rows]                               workload × engine latency matrix (no single engine wins; default 1M rows)
 #   ./moar correlate                                  federated cross-source correlation over the open OCSF store (well-connected)
+#   ./moar governance                                 catalog audit trail + time-travel + lineage (vs a mutable SIEM index)
 #   ./moar status | down | logs <svc>
 #
 # Presets — by SOC ingest scale, 10x steps. The preset picks the architecture that scale calls for; a single
@@ -393,6 +394,14 @@ cmd_correlate() {
   $DC exec -T lab python /lab/correlate.py
 }
 
+cmd_governance() {
+  # Catalog governance (H-SEC-CATALOG-01): the audit trail + time-travel + lineage a mutable SIEM index can't
+  # give — every Iceberg commit is an immutable snapshot in a linked history, so the data's past is verifiable.
+  echo "Catalog governance check (audit trail + time-travel + lineage) over the open lakehouse:"
+  $DC --profile store-minio --profile core up -d >/dev/null 2>&1 || true
+  $DC exec -T lab python /lab/governance.py
+}
+
 case "${1:-}" in
   up) shift; cmd_up "$@";;
   down) shift; cmd_down "$@";;
@@ -410,6 +419,7 @@ case "${1:-}" in
   healthcheck) cmd_healthcheck;;
   bench) shift; cmd_bench "$@";;
   correlate) cmd_correlate;;
+  governance) cmd_governance;;
   logs) shift; cmd_logs "$@";;
   *) sed -n '2,30p' "$0" | sed 's/^# \{0,1\}//'; exit 0;;
 esac
