@@ -2,8 +2,10 @@
 
 A runnable reference implementation of the **Modular Open Architecture (MOAR)**: an open, swappable
 security-data lakehouse you stand up in **tiers**, running only the layers your box and your question need.
-The deployment tiers *are* the book's canonical **L-I-G-E-R** component model made independently deployable,
-plus two extensions this kit adds and an opt-in incumbent foil.
+The default composition follows the book's **L-I-G-E-R** component model (Lakehouse / Index / Graph /
+Engine / Route), which is one falsifiable arrangement of those layers — the tiers below document where that
+arrangement may need to change by scale, and the swap commands let you verify a different choice without
+rebuilding from scratch. Two extensions this kit adds and an opt-in incumbent foil ride alongside.
 
 ```
 ./moar up soc-10gb        # ~6-8GB:  small SOC (~10 GB/day) — open lakehouse + detection-as-code, no JVM engines
