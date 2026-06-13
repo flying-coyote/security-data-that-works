@@ -22,6 +22,11 @@
 #   ./moar bench [rows]                               workload × engine latency matrix (no single engine wins; default 1M rows)
 #   ./moar correlate                                  federated cross-source correlation over the open OCSF store (well-connected)
 #   ./moar governance                                 catalog audit trail + time-travel + lineage (vs a mutable SIEM index)
+#   ./moar variant-mfa                                absence-vs-NULL: flattening hides absent-MFA logins; nested catches them (context-collapse)
+#   ./moar flow-gate                                  flow-layer count-at-every-hop gate: catches a silently mis-mapped OCSF class the quality gate can't see
+#   ./moar cidr [rows]                                native IPv4 vs String CIDR hunting in ClickHouse (needs engine-clickhouse; default 20M rows)
+#   ./moar commit-tax [rows]                          streaming commit-tax: Iceberg per-commit metadata floor vs DuckLake catalog/inlining (default 100k rows)
+#   ./moar concurrency-sweep                          C concurrent clients per engine: embedded-vs-server scheduling model (seeds the bench table first)
 #   ./moar status | down | logs <svc>
 #
 # Presets — by SOC ingest scale, 10x steps. The preset picks the architecture that scale calls for; a single
@@ -404,6 +409,91 @@ cmd_governance() {
   $DC exec -T lab python /lab/governance.py
 }
 
+cmd_variant_mfa() {
+  # Variant / absence-vs-NULL (H-OCSF-CONTEXT-COLLAPSE-01): a "logins NOT protected by MFA" detection has to
+  # count BOTH explicit mfa=false AND the absent-MFA path (the legacy/mis-instrumented logins that never asserted
+  # MFA). Flattening nested JSON collapses "field absent" into the same NULL as "present-null", so a naive
+  # flattened detection silently MISSES the absent-MFA logins; querying the structure keeps absence visible.
+  # Self-contained DuckDB probe in the lab container (no engine tier; the lab image carries duckdb).
+  echo "Variant absence-vs-NULL check (the CloudTrail MFA silent-miss, flattened vs nested):"
+  $DC --profile store-minio --profile core up -d >/dev/null 2>&1 || true
+  $DC exec -T lab python /lab/variant_mfa.py
+}
+
+cmd_flow_gate() {
+  # Flow-layer count-at-every-hop gate (book ch03 / Appendix-B #12 / Appendix-F F.2): the observe/healthcheck
+  # gates check the QUALITY layer (NULLs, timestamps, cross-engine count); this checks the FLOW layer — count
+  # what each source emitted vs what landed in the OCSF model per class_uid, and fail LOUD when a hop silently
+  # drops or mis-routes a whole class (a detection keyed on it then returns zero on a "healthy" pipeline). The
+  # demonstrator passes a clean pipeline and catches a mis-mapped class 3002. Self-contained pure Python, no
+  # engine — this is the counting discipline itself (exit 0 on demonstrated, 1 otherwise).
+  echo "Flow-layer count-at-every-hop gate (source tap -> OCSF model, per class_uid):"
+  $DC --profile store-minio --profile core up -d >/dev/null 2>&1 || true
+  $DC exec -T lab python /lab/flow_gate.py
+}
+
+cmd_cidr() {
+  # CIDR-membership: native IPv4 type vs String column in ClickHouse, the most-cited security-specific number
+  # ("native IP types make CIDR hunting much faster"). Measured first-party on one host so the essays carry a
+  # measured ratio, not a vendor-doc figure. The workload is ClickHouse-internal MergeTree (not the lakehouse),
+  # so it needs the engine-clickhouse tier; cidr_probe.py emits the SQL, piped into the running server's client.
+  # Row count via CIDR_N (default 20,000,000). Recorded 2026-06-07 (Ryzen 5800H/WSL2, 20M rows, warm): native
+  # IPv4 ~0.010 s vs String ~0.166 s (~13-17x), storage IPv4 65.4 MiB vs String 188.1 MiB (~2.9x), same
+  # 78,211-IP answer in 10.5.0.0/16. Honest read: ~13-17x at 20M on a single host lands below the borrowed
+  # 50-100x headline (larger scale / other query shapes); the direction and the storage ratio are the durable findings.
+  local N="${1:-${CIDR_N:-20000000}}"
+  echo "CIDR-membership: native IPv4 vs String column in ClickHouse over $N rows (engine-clickhouse tier):"
+  $DC --profile store-minio --profile core --profile engine-clickhouse up -d >/dev/null 2>&1 || true
+  if ! $DC ps --status running --services 2>/dev/null | grep -qx clickhouse; then
+    echo "  clickhouse not running — bring it up: ./moar up core engine-clickhouse"; return 1
+  fi
+  # cidr_probe.py prints the exact (parameterizable) SQL on stdout from the lab container; run it inside the
+  # ClickHouse server's client (MergeTree tables persist in the server, unlike clickhouse local).
+  $DC exec -T -e CIDR_N="$N" lab python /lab/cidr_probe.py | $DC exec -T clickhouse clickhouse client -mn
+}
+
+cmd_commit_tax() {
+  # Streaming commit-tax (H-DUCKLAKE-02 / write-pattern-is-architectural): security telemetry arrives as a
+  # tiny-frequent-commit stream, the cadence Iceberg's file-per-commit floor punishes (every commit writes a
+  # data file + manifest + manifest-list + a new metadata.json, and planning then walks them all). This ingests
+  # the SAME total rows two ways — one batch commit vs N streaming commits — into Iceberg and into DuckLake
+  # (inlining off, then on) on the real MinIO object store, and reports the metadata footprint + planning cost.
+  # Runs in the lab container; rows via COMMIT_TAX_ROWS (default 100,000), commits via COMMIT_TAX_STREAM_COMMITS
+  # (default 100). The shape of the tax is the finding, not the absolute ms; single host.
+  local N="${1:-${COMMIT_TAX_ROWS:-100000}}"
+  echo "Streaming commit-tax: $N rows, batch (1 commit) vs streaming, Iceberg vs DuckLake on MinIO:"
+  $DC --profile store-minio --profile core up -d >/dev/null 2>&1 || true
+  $DC exec -T -e COMMIT_TAX_ROWS="$N" lab python /lab/commit_tax.py
+}
+
+cmd_concurrency_sweep() {
+  # Concurrency sweep (the other half of H-ARCH-02 the sequential scale runs only hinted at): the bench fires
+  # queries one at a time, so it measures per-query latency, not what happens when C analysts hit the same engine
+  # at once. This drives C concurrent clients running the same scan-aggregate over the shared bench table and
+  # reports throughput (q/s) + p50/p95 as C rises — the embedded engine (DuckDB, one in-process engine per
+  # client) vs the server engines (ClickHouse/StarRocks/Trino, C connections to one scheduler). Each engine is
+  # tried and skipped if its tier isn't up. Seeds ocsf.network_activity_bench first (same table ./moar bench
+  # uses); levels via CONC_LEVELS (default 1,2,4,8,16). Single host: the engine scheduling MODEL, not a cluster.
+  local N="${BENCH_N:-1000000}"
+  echo "Concurrency sweep over ocsf.network_activity_bench, scan-aggregate as C concurrent clients rises:"
+  $DC --profile store-minio --profile core up -d >/dev/null 2>&1 || true
+  echo "  seeding ocsf.network_activity_bench ($N rows)..."
+  $DC exec -T -e BENCH_N="$N" lab python /lab/seed_scale.py >/dev/null || { echo "  seed failed"; return 1; }
+  # StarRocks needs its Iceberg REST external catalog created (no boot-time properties file) before it can read
+  # the shared table — created idempotently here, same as ./moar verify / ./moar bench do.
+  if $DC ps --status running --services 2>/dev/null | grep -qx starrocks; then
+    $DC exec -T starrocks mysql -P 9030 -h 127.0.0.1 -u root -e "
+      CREATE EXTERNAL CATALOG IF NOT EXISTS iceberg PROPERTIES ('type'='iceberg','iceberg.catalog.type'='rest',
+        'iceberg.catalog.uri'='http://iceberg-rest:8181','iceberg.catalog.warehouse'='warehouse',
+        'aws.s3.endpoint'='http://minio:9000','aws.s3.enable_path_style_access'='true','aws.s3.enable_ssl'='false',
+        'aws.s3.access_key'='moar','aws.s3.secret_key'='moar-dev-secret','aws.s3.region'='us-east-1');" >/dev/null 2>&1 || true
+  fi
+  # concurrency_sweep.py drives StarRocks over MySQL via pymysql (not in the base lab image); install on demand,
+  # the same lazy-install ./moar bench uses for the workload matrix.
+  $DC exec -T lab python -c "import pymysql" 2>/dev/null || $DC exec -T lab pip install -q pymysql >/dev/null 2>&1 || true
+  $DC exec -T lab python /lab/concurrency_sweep.py
+}
+
 case "${1:-}" in
   up) shift; cmd_up "$@";;
   down) shift; cmd_down "$@";;
@@ -422,6 +512,11 @@ case "${1:-}" in
   bench) shift; cmd_bench "$@";;
   correlate) cmd_correlate;;
   governance) cmd_governance;;
+  variant-mfa) cmd_variant_mfa;;
+  flow-gate) cmd_flow_gate;;
+  cidr) shift; cmd_cidr "$@";;
+  commit-tax) shift; cmd_commit_tax "$@";;
+  concurrency-sweep) cmd_concurrency_sweep;;
   logs) shift; cmd_logs "$@";;
   *) sed -n '2,30p' "$0" | sed 's/^# \{0,1\}//'; exit 0;;
 esac
