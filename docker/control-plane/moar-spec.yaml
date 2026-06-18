@@ -1,0 +1,26 @@
+components:
+  catalog:
+    admin_client_id: admin
+    admin_client_secret: adminsecret
+    port: 8181
+    provider: polaris
+  pipeline:
+    fluentbit_ingest_port: 24224
+    fluentbit_observe_port: 2020
+    fluentbit_transform: ''
+    ingest_port: 514
+    observe_port: 8686
+    provider:
+    - vector
+    vrl_transform: "# 1. Parse incoming syslog message as JSON\nparsed = parse_json!(.message)\n\
+      \n# 2. Map fields to OCSF Authentication schema (class 3002)\n.class_uid = 3002\n\
+      .category_uid = 3\n.activity_id = 1 # logon\n.event_time = parsed.timestamp\n\
+      \n# 3. Actor/user mappings\n.actor = {\n  \"user\": {\n    \"name\": parsed.user\n\
+      \  }\n}\n\n# 4. Status mapping\n.status_id = if parsed.success { 1 } else {\
+      \ 2 } # 1 = Success, 2 = Failure\n\n# 5. Clean up raw data\ndel(.message)\n"
+  storage:
+    bucket_name: liger-warehouse
+    port: 8333
+    provider: seaweedfs
+    volume_size_gb: 10
+version: 1.0.0

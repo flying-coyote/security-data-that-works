@@ -4,7 +4,7 @@ import pulumi
 import pulumi_docker as docker
 from pulumi.automation import create_or_select_stack
 
-def create_liger_program(config_dict):
+def create_moar_program(config_dict):
     # Retrieve provider choices
     storage_provider = config_dict.get("components", {}).get("storage", {}).get("provider", "seaweedfs")
     catalog_provider = config_dict.get("components", {}).get("catalog", {}).get("provider", "polaris")
@@ -12,7 +12,7 @@ def create_liger_program(config_dict):
     pipeline_providers = config_dict.get("components", {}).get("pipeline", {}).get("provider", ["vector"])
     if isinstance(pipeline_providers, str):
         pipeline_providers = [pipeline_providers]
-
+ 
     # Retrieve configuration variables
     storage_port = int(config_dict.get("components", {}).get("storage", {}).get("port", 8333))
     catalog_port = int(config_dict.get("components", {}).get("catalog", {}).get("port", 8181))
@@ -24,10 +24,10 @@ def create_liger_program(config_dict):
     fluentbit_observe_port = int(config_dict.get("components", {}).get("pipeline", {}).get("fluentbit_observe_port", 2020))
     fluentbit_ingest_port = int(config_dict.get("components", {}).get("pipeline", {}).get("fluentbit_ingest_port", 24224))
     
-    bucket_name = config_dict.get("components", {}).get("storage", {}).get("bucket_name", "liger-warehouse")
+    bucket_name = config_dict.get("components", {}).get("storage", {}).get("bucket_name", "moar-warehouse")
 
     # 1. Create a Docker Network
-    network = docker.Network("liger-network", name="liger-network")
+    network = docker.Network("moar-network", name="moar-network")
     
     # 2. PostgreSQL container (Polaris/Catalog metadata backend)
     postgres_db = docker.Container("postgres-db",
@@ -198,11 +198,11 @@ sinks:
         pulumi.export("fluentbit_observe", f"http://localhost:{fluentbit_observe_port}")
 
 def deploy_stack(config_dict, log_callback=None):
-    project_name = "liger_control_plane"
+    project_name = "moar_control_plane"
     stack_name = "dev"
 
     def program():
-        create_liger_program(config_dict)
+        create_moar_program(config_dict)
 
     stack = create_or_select_stack(
         stack_name=stack_name,
@@ -215,11 +215,11 @@ def deploy_stack(config_dict, log_callback=None):
     return up_result.outputs
 
 def destroy_stack(config_dict, log_callback=None):
-    project_name = "liger_control_plane"
+    project_name = "moar_control_plane"
     stack_name = "dev"
 
     def program():
-        create_liger_program(config_dict)
+        create_moar_program(config_dict)
 
     stack = create_or_select_stack(
         stack_name=stack_name,
