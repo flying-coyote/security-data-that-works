@@ -5,6 +5,11 @@ import pulumi_docker as docker
 from pulumi.automation import create_or_select_stack
 
 def create_liger_program(config_dict):
+    # Retrieve provider choices
+    storage_provider = config_dict.get("components", {}).get("storage", {}).get("provider", "seaweedfs")
+    catalog_provider = config_dict.get("components", {}).get("catalog", {}).get("provider", "polaris")
+    pipeline_provider = config_dict.get("components", {}).get("pipeline", {}).get("provider", "vector")
+
     # Retrieve configuration variables
     storage_port = int(config_dict.get("components", {}).get("storage", {}).get("port", 8333))
     catalog_port = int(config_dict.get("components", {}).get("catalog", {}).get("port", 8181))
@@ -16,7 +21,7 @@ def create_liger_program(config_dict):
     # 1. Create a Docker Network
     network = docker.Network("liger-network", name="liger-network")
     
-    # 2. PostgreSQL container (Polaris catalog metadata backend)
+    # 2. PostgreSQL container (Polaris/Catalog metadata backend)
     postgres_db = docker.Container("postgres-db",
         name="postgres-db",
         image="postgres:15-alpine",
@@ -30,38 +35,100 @@ def create_liger_program(config_dict):
         restart="unless-stopped"
     )
     
-    # 3. SeaweedFS container (S3-compatible object storage)
-    seaweed = docker.Container("seaweedfs",
-        name="seaweedfs",
-        image="chrislusf/seaweedfs:latest",
-        command=["server", "-s3", f"-s3.port={storage_port}"],
-        networks_advanced=[docker.ContainerNetworksAdvancedArgs(name=network.name)],
-        ports=[
-            docker.ContainerPortArgs(internal=8333, external=storage_port),
-            docker.ContainerPortArgs(internal=9333, external=9333)
-        ],
-        restart="unless-stopped"
-    )
+    # 3. Storage container (SeaweedFS or MinIO)
+    if storage_provider == "minio":
+        storage_container = docker.Container("seaweedfs", # Kept Pulumi name stable to avoid replacement churn
+            name="minio",
+            image="minio/minio:latest",
+            command=["server", "/data", f"--address=:{storage_port}"],
+            networks_advanced=[docker.ContainerNetworksAdvancedArgs(name=network.name)],
+            envs=[
+                "MINIO_ROOT_USER=aws_access_key",
+                "MINIO_ROOT_PASSWORD=aws_secret_key"
+            ],
+            ports=[
+                docker.ContainerPortArgs(internal=storage_port, external=storage_port),
+                docker.ContainerPortArgs(internal=9001, external=9001) # Console port
+            ],
+            restart="unless-stopped"
+        )
+    else: # seaweedfs
+        storage_container = docker.Container("seaweedfs",
+            name="seaweedfs",
+            image="chrislusf/seaweedfs:latest",
+            command=["server", "-s3", f"-s3.port={storage_port}"],
+            networks_advanced=[docker.ContainerNetworksAdvancedArgs(name=network.name)],
+            ports=[
+                docker.ContainerPortArgs(internal=8333, external=storage_port),
+                docker.ContainerPortArgs(internal=9333, external=9333)
+            ],
+            restart="unless-stopped"
+        )
     
-    # 4. Apache Polaris container (Iceberg REST catalog)
-    polaris = docker.Container("polaris",
-        name="polaris",
-        image="apache/polaris:1.4.1", # Pinned secure release
-        networks_advanced=[docker.ContainerNetworksAdvancedArgs(name=network.name)],
-        envs=[
-            "POLARIS_DATABASE_URL=jdbc:postgresql://postgres-db:5432/polaris_catalog",
-            "POLARIS_DATABASE_USER=polaris",
-            "POLARIS_DATABASE_PASSWORD=polaris_pass",
-            "POLARIS_DEFAULT_AWS_KEY=aws_access_key",
-            "POLARIS_DEFAULT_AWS_SECRET=aws_secret_key"
-        ],
-        ports=[docker.ContainerPortArgs(internal=8181, external=catalog_port)],
-        opts=pulumi.ResourceOptions(depends_on=[postgres_db]),
-        restart="unless-stopped"
-    )
+    # 4. Catalog container (Apache Polaris or Project Nessie)
+    if catalog_provider == "nessie":
+        catalog_container = docker.Container("polaris", # Kept Pulumi name stable
+            name="nessie",
+            image="projectnessie/nessie:latest",
+            networks_advanced=[docker.ContainerNetworksAdvancedArgs(name=network.name)],
+            ports=[docker.ContainerPortArgs(internal=19120, external=catalog_port)],
+            restart="unless-stopped"
+        )
+    else: # polaris
+        catalog_container = docker.Container("polaris",
+            name="polaris",
+            image="apache/polaris:1.4.1", # Pinned secure release
+            networks_advanced=[docker.ContainerNetworksAdvancedArgs(name=network.name)],
+            envs=[
+                "POLARIS_DATABASE_URL=jdbc:postgresql://postgres-db:5432/polaris_catalog",
+                "POLARIS_DATABASE_USER=polaris",
+                "POLARIS_DATABASE_PASSWORD=polaris_pass",
+                "POLARIS_DEFAULT_AWS_KEY=aws_access_key",
+                "POLARIS_DEFAULT_AWS_SECRET=aws_secret_key"
+            ],
+            ports=[docker.ContainerPortArgs(internal=8181, external=catalog_port)],
+            opts=pulumi.ResourceOptions(depends_on=[postgres_db]),
+            restart="unless-stopped"
+        )
     
-    # 5. Dynamic Vector Config File Preparation
-    vector_config_content = f"""
+    # 5. Pipeline Container (Vector or Fluentbit)
+    if pipeline_provider == "fluentbit":
+        fluentbit_config = f"""
+[SERVICE]
+    flush        1
+    daemon       Off
+[INPUT]
+    Name         syslog
+    Listen       0.0.0.0
+    Port         {vector_ingest_port}
+[OUTPUT]
+    Name         stdout
+    Match        *
+"""
+        config_dir = os.path.abspath("./temp_config")
+        os.makedirs(config_dir, exist_ok=True)
+        config_file_path = os.path.join(config_dir, "fluent-bit.conf")
+        with open(config_file_path, "w") as f:
+            f.write(fluentbit_config.strip())
+            
+        vector = docker.Container("vector",
+            name="fluentbit",
+            image="fluent/fluent-bit:latest",
+            networks_advanced=[docker.ContainerNetworksAdvancedArgs(name=network.name)],
+            mounts=[docker.ContainerMountArgs(
+                type="bind",
+                source=config_file_path,
+                target="/fluent-bit/etc/fluent-bit.conf"
+            )],
+            ports=[
+                docker.ContainerPortArgs(internal=vector_ingest_port, external=vector_ingest_port),
+                docker.ContainerPortArgs(internal=2020, external=vector_observe_port)
+            ],
+            opts=pulumi.ResourceOptions(depends_on=[storage_container, catalog_container]),
+            restart="unless-stopped"
+        )
+    else: # vector
+        vector_config_content = f"""
 sources:
   in_syslog:
     type: syslog
@@ -80,7 +147,7 @@ sinks:
     type: aws_s3
     inputs: ["process_logs"]
     bucket: {bucket_name}
-    endpoint: http://seaweedfs:{storage_port}
+    endpoint: http://{storage_container.name}:{storage_port}
     key_prefix: OCSF/
     compression: gzip
     encoding:
@@ -89,31 +156,29 @@ sinks:
       access_key_id: aws_access_key
       secret_access_key: aws_secret_key
 """
-    # Write config file locally so Docker can mount it
-    config_dir = os.path.abspath("./temp_config")
-    os.makedirs(config_dir, exist_ok=True)
-    config_file_path = os.path.join(config_dir, "vector.yaml")
-    with open(config_file_path, "w") as f:
-        f.write(vector_config_content.strip())
+        config_dir = os.path.abspath("./temp_config")
+        os.makedirs(config_dir, exist_ok=True)
+        config_file_path = os.path.join(config_dir, "vector.yaml")
+        with open(config_file_path, "w") as f:
+            f.write(vector_config_content.strip())
 
-    # 6. Vector container
-    vector = docker.Container("vector",
-        name="vector",
-        image="vectordotdev/vector:0.36.0-alpine",
-        command=["--config", "/etc/vector/vector.yaml"],
-        networks_advanced=[docker.ContainerNetworksAdvancedArgs(name=network.name)],
-        mounts=[docker.ContainerMountArgs(
-            type="bind",
-            source=config_file_path,
-            target="/etc/vector/vector.yaml"
-        )],
-        ports=[
-            docker.ContainerPortArgs(internal=vector_ingest_port, external=vector_ingest_port),
-            docker.ContainerPortArgs(internal=8686, external=vector_observe_port)
-        ],
-        opts=pulumi.ResourceOptions(depends_on=[seaweed, polaris]),
-        restart="unless-stopped"
-    )
+        vector = docker.Container("vector",
+            name="vector",
+            image="vectordotdev/vector:0.36.0-alpine",
+            command=["--config", "/etc/vector/vector.yaml"],
+            networks_advanced=[docker.ContainerNetworksAdvancedArgs(name=network.name)],
+            mounts=[docker.ContainerMountArgs(
+                type="bind",
+                source=config_file_path,
+                target="/etc/vector/vector.yaml"
+            )],
+            ports=[
+                docker.ContainerPortArgs(internal=vector_ingest_port, external=vector_ingest_port),
+                docker.ContainerPortArgs(internal=8686, external=vector_observe_port)
+            ],
+            opts=pulumi.ResourceOptions(depends_on=[storage_container, catalog_container]),
+            restart="unless-stopped"
+        )
 
     # Exports
     pulumi.export("storage_endpoint", f"http://localhost:{storage_port}")
