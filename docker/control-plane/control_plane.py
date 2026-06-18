@@ -181,17 +181,17 @@ def _(os, yaml):
 def _(config_data, mo):
     # Primary dropdown selectors for components
     storage_provider = mo.ui.dropdown(
-        options=["seaweedfs", "minio"], 
+        options={"SeaweedFS": "seaweedfs", "MinIO": "minio"}, 
         value=config_data.get("components", {}).get("storage", {}).get("provider", "seaweedfs"), 
         label="Storage Provider"
     )
     catalog_provider = mo.ui.dropdown(
-        options=["polaris", "nessie"], 
+        options={"Polaris": "polaris", "Nessie": "nessie"}, 
         value=config_data.get("components", {}).get("catalog", {}).get("provider", "polaris"), 
         label="Catalog Provider"
     )
     pipeline_provider = mo.ui.dropdown(
-        options=["vector", "fluentbit"], 
+        options={"Vector": "vector", "Fluent Bit": "fluentbit"}, 
         value=config_data.get("components", {}).get("pipeline", {}).get("provider", "vector"), 
         label="Pipeline Engine"
     )
