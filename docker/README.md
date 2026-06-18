@@ -34,7 +34,11 @@ self-hostable stack. MOAR's reference stack leads with the four gaps:
 3. **Verify the answer, don't trust it.** `moar verify` cross-checks that every running engine returns the
    *same* answer over the *same* Iceberg table — five engines today (DuckDB, Trino, ClickHouse, StarRocks,
    Dremio). The SDW Lab finding that a fast engine can be silently wrong (chDB's Bloom-filter undercount) is
-   what made this a standing control rather than a one-off.
+   what made this a standing control rather than a one-off — and the reason it stays a standing control is
+   that the failure is version-bound: that undercount was wrong on chDB 4.1.8 and fixed in 4.1.9, while a
+   second reader (fastparquet's `PLAIN_DICTIONARY` mis-decode) is still wrong on the latest version. A bug a
+   point release fixes is one a point release can reintroduce, so answer-equality is pinned to the versions
+   under test and re-run on every bump, not assumed once.
 4. **The incumbent as an opt-in foil, in the same compose.** The schema-on-read SIEM baselines live in a
    `baselines` profile you benchmark *against*, rather than a thing you replace blind — the fair-broker move.
    `./moar compare` runs the head-to-head (same OCSF data into both, same queries): the answers come back
@@ -138,8 +142,10 @@ The horizontal swaps above are about which box; the deeper, correctness-flavored
 SDW Lab earns its keep (both silent-wrong-answer findings this year — chDB's Bloom-pushdown undercount and
 fastparquet's `PLAIN_DICTIONARY` mis-decode — lived in the Parquet *library* layer, not the engine).
 
-Already benchmarked in `sdw-lab-benchmarks`: Parquet **reader** answer-equivalence (8 readers, 2 silently
-wrong), Parquet **writer/encoder** as a read-lever, **codec** (zstd/snappy + schema-trained dict),
+Already benchmarked in `sdw-lab-benchmarks`: Parquet **reader** answer-equivalence (of 13 readers, 2 were
+caught silently wrong; on the latest libraries chDB's bloom undercount is fixed in 4.1.9 and fastparquet's
+mis-decode persists, so it reads 1-of-13 today — the version-bound count is the case for keeping the check in
+CI), Parquet **writer/encoder** as a read-lever, **codec** (zstd/snappy + schema-trained dict),
 **catalog DB** (sqlite vs postgres under concurrency), **spill medium** (ext4 vs drvfs).
 
 Net-new, prioritized (all gated on "the answer is identical"):
