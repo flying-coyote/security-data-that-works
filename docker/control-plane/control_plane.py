@@ -16,15 +16,16 @@ def _():
         from pyiceberg.catalog import load_catalog
     except ImportError:
         load_catalog = None
-    
+
     import pulumi_deployer as deployer
-    return boto3, deployer, mo, os, subprocess, yaml, load_catalog
+
+    return boto3, deployer, mo, os, subprocess, yaml
 
 
 @app.cell(hide_code=True)
 def _(mo):
     mo.md("""
-    # 🦁 LIGER Stack Control Plane
+    # LIGER Stack Control Plane
     Reactive administrator cockpit for the Modular Open Architecture Security-Data (MOAR) Liger Stack.
     """)
     return
@@ -42,19 +43,19 @@ def _(os, yaml):
     return config_data, config_path
 
 
-@app.cell
+@app.cell(hide_code=True)
 def _(config_data, mo):
     # Construct Configuration Widgets
     storage_port = mo.ui.number(start=1024, stop=65535, value=config_data.get("components", {}).get("storage", {}).get("port", 8333), label="SeaweedFS Port")
     storage_bucket = mo.ui.text(value=config_data.get("components", {}).get("storage", {}).get("bucket_name", "liger-warehouse"), label="S3 Bucket Name")
-    
+
     catalog_port = mo.ui.number(start=1024, stop=65535, value=config_data.get("components", {}).get("catalog", {}).get("port", 8181), label="Polaris Port")
-    
+
     pipeline_ingest = mo.ui.number(start=1, stop=65535, value=config_data.get("components", {}).get("pipeline", {}).get("ingest_port", 514), label="Vector Ingest Port (Syslog TCP)")
     pipeline_observe = mo.ui.number(start=1024, stop=65535, value=config_data.get("components", {}).get("pipeline", {}).get("observe_port", 8686), label="Vector Observability Port")
-    
+
     vrl_transform = mo.ui.text_area(value=config_data.get("components", {}).get("pipeline", {}).get("vrl_transform", ""), label="Vector VRL Transform Rule", rows=12)
-    
+
     config_panel = mo.vstack([
         mo.md("### ⚙️ Component Settings"),
         mo.hstack([storage_port, storage_bucket]),
@@ -83,7 +84,7 @@ def _(config_panel):
 def _(mo):
     # Save button UI definition (instantiated here)
     save_btn = mo.ui.button(label="💾 Save Configuration Specs")
-    return save_btn,
+    return (save_btn,)
 
 
 @app.cell
@@ -128,7 +129,7 @@ def _(
         with open(config_path, "w") as _f:
             yaml.safe_dump(updated_config, _f)
         save_status = mo.md("✅ **liger-spec.yaml updated!**")
-    return save_status,
+    return (save_status,)
 
 
 @app.cell
@@ -151,28 +152,28 @@ def _(mo, os, subprocess, test_btn, test_input, vrl_transform):
     test_output = ""
     if test_btn.value:
         temp_config = f"""
-sources:
-  test_src:
+    sources:
+      test_src:
     type: stdin
 
-transforms:
-  test_vrl:
+    transforms:
+      test_vrl:
     type: remap
     inputs: ["test_src"]
     source: |
-{vrl_transform.value}
+    {vrl_transform.value}
 
-sinks:
-  test_sink:
+    sinks:
+      test_sink:
     type: console
     inputs: ["test_vrl"]
     encoding:
       codec: json
-"""
+    """
         temp_file = "temp_test_config.yaml"
         with open(temp_file, "w") as _tf:
             _tf.write(temp_config)
-            
+
         try:
             res = subprocess.run(
                 ["vector", "test", "--config", temp_file],
@@ -184,8 +185,8 @@ sinks:
             test_output = mo.md(f"**VRL Test Run Output:**\n```json\n{res.stdout or res.stderr}\n```")
         except Exception as e:
             test_output = mo.md(f"⚠️ **VRL Test Error:** Vector binary not found or failed: {str(e)}")
-            
-    return test_output,
+
+    return (test_output,)
 
 
 @app.cell
@@ -215,7 +216,7 @@ def _(config_path, deploy_btn, deployer, destroy_btn, mo, yaml):
         logs.append(message)
 
     deployment_status = mo.md("*Deployer Idle.*")
-    
+
     if deploy_btn.value:
         with open(config_path, "r") as _f:
             current_config = yaml.safe_load(_f) or {}
@@ -224,7 +225,7 @@ def _(config_path, deploy_btn, deployer, destroy_btn, mo, yaml):
             deployment_status = mo.md(f"✅ **Stack successfully deployed!**\nEndpoints:\n- S3: {outputs.get('storage_endpoint').value}\n- Polaris: {outputs.get('catalog_endpoint').value}\n- Ingestion Port: {current_config.get('components', {}).get('pipeline', {}).get('ingest_port')}")
         except Exception as e:
             deployment_status = mo.md(f"❌ **Deployment Failed:** {str(e)}")
-            
+
     elif destroy_btn.value:
         with open(config_path, "r") as _f:
             current_config = yaml.safe_load(_f) or {}
@@ -233,7 +234,6 @@ def _(config_path, deploy_btn, deployer, destroy_btn, mo, yaml):
             deployment_status = mo.md("✅ **Stack destroyed.**")
         except Exception as e:
             deployment_status = mo.md(f"❌ **Stack destruction failed:** {str(e)}")
-
     return deployment_status, logs
 
 
@@ -252,7 +252,7 @@ def _(deploy_btn, deployment_status, destroy_btn, logs, mo):
 def _(mo):
     # Audit button (instantiated here)
     audit_btn = mo.ui.button(label="🔍 Scan Storage & Catalog for Orphans")
-    return audit_btn,
+    return (audit_btn,)
 
 
 @app.cell
@@ -264,13 +264,13 @@ def _(audit_btn, boto3, config_path, mo, yaml):
             config = yaml.safe_load(_f) or {}
         s_port = config.get("components", {}).get("storage", {}).get("port", 8333)
         b_name = config.get("components", {}).get("storage", {}).get("bucket_name", "liger-warehouse")
-        
+
         s3 = boto3.client("s3",
             endpoint_url=f"http://localhost:{s_port}",
             aws_access_key_id="aws_access_key",
             aws_secret_access_key="aws_secret_key"
         )
-        
+
         try:
             objects = s3.list_objects_v2(Bucket=b_name).get("Contents", [])
             physical_files = [obj["Key"] for obj in objects]
@@ -278,8 +278,8 @@ def _(audit_btn, boto3, config_path, mo, yaml):
                                  f"🔍 **Polaris Schema Alignment:** Tables are online and synchronized. No orphan files detected.")
         except Exception as e:
             audit_result = mo.md(f"⚠️ **Observability Gap:** Storage bucket or Polaris is offline: {str(e)}")
-            
-    return audit_result,
+
+    return (audit_result,)
 
 
 @app.cell
