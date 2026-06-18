@@ -205,38 +205,116 @@ def _(config_data, mo):
     saved_catalog = config_data.get("components", {}).get("catalog", {}).get("provider", "polaris")
     catalog_label = "Polaris" if saved_catalog == "polaris" else "Nessie"
 
+    # Normalize query values to labels
+    saved_query = config_data.get("components", {}).get("query", {}).get("provider", ["clickhouse"])
+    if isinstance(saved_query, str):
+        saved_query = [saved_query]
+    query_labels = []
+    for q in saved_query:
+        if q == "clickhouse":
+            query_labels.append("ClickHouse")
+        elif q == "starrocks":
+            query_labels.append("StarRocks")
+        elif q == "dremio":
+            query_labels.append("Dremio")
+        elif q == "datafusion":
+            query_labels.append("DataFusion")
+        elif q == "duckdb":
+            query_labels.append("DuckDB")
+
     storage_provider = mo.ui.radio(
         options=["SeaweedFS", "MinIO"], 
         value=storage_label, 
-        label="Storage Provider",
+        label="",
         inline=True
     )
     catalog_provider = mo.ui.radio(
         options=["Polaris", "Nessie"], 
         value=catalog_label, 
-        label="Catalog Provider",
+        label="",
         inline=True
     )
     pipeline_provider = mo.ui.dictionary({
         "Vector": mo.ui.checkbox(value="Vector" in pipeline_labels, label="Vector"),
         "Fluent Bit": mo.ui.checkbox(value="Fluent Bit" in pipeline_labels, label="Fluent Bit")
-    }, label="Pipeline Engine(s)")
-    return storage_provider, catalog_provider, pipeline_provider
+    }, label="Ingest")
+
+    query_provider = mo.ui.dictionary({
+        "ClickHouse": mo.ui.checkbox(value="ClickHouse" in query_labels, label="ClickHouse"),
+        "StarRocks": mo.ui.checkbox(value="StarRocks" in query_labels, label="StarRocks"),
+        "Dremio": mo.ui.checkbox(value="Dremio" in query_labels, label="Dremio"),
+        "DataFusion": mo.ui.checkbox(value="DataFusion" in query_labels, label="DataFusion"),
+        "DuckDB": mo.ui.checkbox(value="DuckDB" in query_labels, label="DuckDB")
+    }, label="Query")
+
+    return storage_provider, catalog_provider, pipeline_provider, query_provider
 
 
 @app.cell(hide_code=True)
-def _(storage_provider, catalog_provider, pipeline_provider, mo):
+def _(storage_provider, catalog_provider, pipeline_provider, query_provider, mo):
+    storage_card = mo.vstack([
+        mo.md("#### 📦 Storage"),
+        storage_provider
+    ]).style({
+        "border": "1px solid var(--color-border-subtle)",
+        "padding": "1rem",
+        "background-color": "var(--color-bg-subtle)",
+        "flex": "1",
+        "min-width": "180px",
+        "border-radius": "4px"
+    })
+    
+    catalog_card = mo.vstack([
+        mo.md("#### 📋 Catalog"),
+        catalog_provider
+    ]).style({
+        "border": "1px solid var(--color-border-subtle)",
+        "padding": "1rem",
+        "background-color": "var(--color-bg-subtle)",
+        "flex": "1",
+        "min-width": "180px",
+        "border-radius": "4px"
+    })
+    
+    ingest_card = mo.vstack([
+        mo.md("#### 📥 Ingest"),
+        mo.hstack([pipeline_provider["Vector"], pipeline_provider["Fluent Bit"]], gap=2)
+    ]).style({
+        "border": "1px solid var(--color-border-subtle)",
+        "padding": "1rem",
+        "background-color": "var(--color-bg-subtle)",
+        "flex": "1",
+        "min-width": "180px",
+        "border-radius": "4px"
+    })
+    
+    query_card = mo.vstack([
+        mo.md("#### 🔍 Query Engine(s)"),
+        mo.hstack([
+            query_provider["ClickHouse"],
+            query_provider["StarRocks"],
+            query_provider["Dremio"],
+            query_provider["DataFusion"],
+            query_provider["DuckDB"]
+        ], gap=2)
+    ]).style({
+        "border": "1px solid var(--color-border-subtle)",
+        "padding": "1rem",
+        "background-color": "var(--color-bg-subtle)",
+        "flex": "2",
+        "min-width": "350px",
+        "border-radius": "4px"
+    })
+
     selector_panel = mo.vstack([
         mo.md("### ❖ Modular Component Selection"),
         mo.md("Choose the software components for your active MOAr stack deployment."),
         mo.hstack([
-            storage_provider, 
-            catalog_provider, 
-            mo.vstack([
-                mo.md("**Pipeline Engine(s)**"),
-                mo.hstack([pipeline_provider["Vector"], pipeline_provider["Fluent Bit"]])
-            ])
-        ])
+            storage_card,
+            catalog_card,
+            ingest_card,
+            query_card
+        ], gap=3, justify="start", align="start")
     ]).style({
         "border": "1px solid var(--color-border-subtle)",
         "padding": "1.5rem",
@@ -244,6 +322,89 @@ def _(storage_provider, catalog_provider, pipeline_provider, mo):
         "margin-bottom": "1.5rem"
     })
     return (selector_panel,)
+
+
+@app.cell(hide_code=True)
+def _(storage_provider, catalog_provider, query_provider, mo):
+    warnings = []
+    
+    # 1. Polaris + StarRocks
+    is_polaris = catalog_provider.value == "Polaris"
+    is_starrocks = query_provider.value.get("StarRocks", False)
+    if is_polaris and is_starrocks:
+        warnings.append(
+            mo.md(
+                "❖ **Apache Polaris & StarRocks Incompatibility**<br/>"
+                "Apache Polaris does not yet have stable/full catalog integration support for StarRocks. "
+                "Ensure manual catalog sync or validation is performed at deployment time (verify at engagement time)."
+            ).style({"color": "#ad9e90", "padding": "0.5rem", "border-left": "4px solid #ad9e90"})
+        )
+        
+    # 2. Nessie + Dremio
+    is_nessie = catalog_provider.value == "Nessie"
+    is_dremio = query_provider.value.get("Dremio", False)
+    if is_nessie and is_dremio:
+        warnings.append(
+            mo.md(
+                "❖ **Nessie & Dremio Performance Warning**<br/>"
+                "Dremio Reflections do not persist over Iceberg tables when using an external Nessie catalog "
+                "on OSS version 26.0 (materialization freshness and rewrite limitations)."
+            ).style({"color": "#ad9e90", "padding": "0.5rem", "border-left": "4px solid #ad9e90"})
+        )
+
+    # 3. DuckDB scale limitation
+    is_duckdb = query_provider.value.get("DuckDB", False)
+    if is_duckdb:
+        warnings.append(
+            mo.md(
+                "❖ **DuckDB Scale & Catalog Limitations**<br/>"
+                "DuckDB is strictly single-node-only and filtered out for workloads exceeding a single host. "
+                "Its single-process ceiling is ~10 concurrent analysts before S3 read quota saturation (see "
+                "[A-14](file:///home/USER/project1/02-projects/securitydataworks/assumptions/A-14-duckdb-10-concurrent-ceiling.md)). "
+                "Additionally, when using DuckLake on Postgres, watch out for "
+                "delete-conflict issue [#1215](file:///home/USER/project1/02-projects/securitydataworks/MATRIX.md#L174) "
+                "(silent resurrected deleted rows) and database CREATE schema failure [#1184](file:///home/USER/project1/02-projects/securitydataworks/MATRIX.md#L174)."
+            ).style({"color": "#ad9e90", "padding": "0.5rem", "border-left": "4px solid #ad9e90"})
+        )
+
+    # 4. ClickHouse stale-snapshot warning
+    is_clickhouse = query_provider.value.get("ClickHouse", False)
+    if is_clickhouse:
+        warnings.append(
+            mo.md(
+                "❖ **ClickHouse Catalog-less Read Integration Note**<br/>"
+                "ClickHouse reads Iceberg tables via the `icebergS3()` connector instead of native catalog reads. "
+                "Catalog-less reads can serve stale snapshots after table compaction rewrites; ensure reads route "
+                "through the catalog or utilize prefix purge rules (see [MATRIX.md](file:///home/USER/project1/02-projects/securitydataworks/MATRIX.md#L78))."
+            ).style({"color": "#ad9e90", "padding": "0.5rem", "border-left": "4px solid #ad9e90"})
+        )
+
+    # 5. DataFusion schema evolution limitations
+    is_datafusion = query_provider.value.get("DataFusion", False)
+    if is_datafusion:
+        warnings.append(
+            mo.md(
+                "❖ **DataFusion Additive Schema Evolution Limitation**<br/>"
+                "DataFusion-standalone hard-errors on `List<Struct>` additive schema evolution (#20835). "
+                "Since OCSF is list-of-struct heavy (e.g. `observables[]`), queries over evolved schemas can crash. "
+                "Consider flattening OCSF data models before routing."
+            ).style({"color": "#ad9e90", "padding": "0.5rem", "border-left": "4px solid #ad9e90"})
+        )
+
+    if warnings:
+        warnings_panel = mo.vstack([
+            mo.md("#### ⚠ Compatibility & Operational Warnings"),
+            mo.vstack(warnings)
+        ]).style({
+            "border": "1px solid #ad9e90",
+            "padding": "1rem",
+            "background-color": "var(--color-bg-subtle)",
+            "margin-bottom": "1.5rem"
+        })
+    else:
+        warnings_panel = mo.Html("")
+        
+    return (warnings_panel,)
 
 
 @app.cell(hide_code=True)
@@ -374,6 +535,7 @@ def _(
     storage_provider,
     catalog_provider,
     pipeline_provider,
+    query_provider,
     storage_port,
     storage_bucket,
     catalog_port,
@@ -393,6 +555,7 @@ def _(
         s_val = storage_provider.value.lower() if storage_provider.value else "seaweedfs"
         c_val = catalog_provider.value.lower() if catalog_provider.value else "polaris"
         p_vals = [k.lower().replace(" ", "") for k, v in pipeline_provider.value.items() if v]
+        q_vals = [k.lower() for k, v in query_provider.value.items() if v]
         
         updated_config = {
             "version": "1.0.0",
@@ -417,6 +580,9 @@ def _(
                     "fluentbit_observe_port": int(fluentbit_observe_port.value),
                     "fluentbit_ingest_port": int(fluentbit_ingest_port.value),
                     "fluentbit_transform": fluentbit_transform.value
+                },
+                "query": {
+                    "provider": q_vals
                 }
             }
         }
@@ -710,6 +876,7 @@ def _(vector_observe_port, fluentbit_observe_port, pipeline_provider, mo):
 @app.cell(hide_code=True)
 def _(
     selector_panel,
+    warnings_panel,
     config_panel,
     save_btn,
     save_status,
@@ -728,7 +895,7 @@ def _(
     mo
 ):
     # Tab 1: Modular Component Selection
-    tab_selection = selector_panel
+    tab_selection = mo.vstack([selector_panel, warnings_panel])
     
     # Tab 2: Config Settings
     tab_config = mo.vstack([

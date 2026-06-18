@@ -18,6 +18,9 @@ components:
       \n# 3. Actor/user mappings\n.actor = {\n  \"user\": {\n    \"name\": parsed.user\n\
       \  }\n}\n\n# 4. Status mapping\n.status_id = if parsed.success { 1 } else {\
       \ 2 } # 1 = Success, 2 = Failure\n\n# 5. Clean up raw data\ndel(.message)\n"
+  query:
+    provider:
+    - clickhouse
   storage:
     bucket_name: liger-warehouse
     port: 8333
