@@ -46,13 +46,13 @@ def _(os, yaml):
 @app.cell(hide_code=True)
 def _(config_data, mo):
     # Construct Configuration Widgets
-    storage_port = mo.ui.number(start=1024, stop=65535, value=config_data.get("components", {}).get("storage", {}).get("port", 8333), label="SeaweedFS Port")
+    storage_port = mo.ui.text(value=str(config_data.get("components", {}).get("storage", {}).get("port", 8333)), label="SeaweedFS Port")
     storage_bucket = mo.ui.text(value=config_data.get("components", {}).get("storage", {}).get("bucket_name", "liger-warehouse"), label="S3 Bucket Name")
 
-    catalog_port = mo.ui.number(start=1024, stop=65535, value=config_data.get("components", {}).get("catalog", {}).get("port", 8181), label="Polaris Port")
+    catalog_port = mo.ui.text(value=str(config_data.get("components", {}).get("catalog", {}).get("port", 8181)), label="Polaris Port")
 
-    pipeline_ingest = mo.ui.number(start=1, stop=65535, value=config_data.get("components", {}).get("pipeline", {}).get("ingest_port", 514), label="Vector Ingest Port (Syslog TCP)")
-    pipeline_observe = mo.ui.number(start=1024, stop=65535, value=config_data.get("components", {}).get("pipeline", {}).get("observe_port", 8686), label="Vector Observability Port")
+    pipeline_ingest = mo.ui.text(value=str(config_data.get("components", {}).get("pipeline", {}).get("ingest_port", 514)), label="Vector Ingest Port (Syslog TCP)")
+    pipeline_observe = mo.ui.text(value=str(config_data.get("components", {}).get("pipeline", {}).get("observe_port", 8686)), label="Vector Observability Port")
 
     vrl_transform = mo.ui.text_area(value=config_data.get("components", {}).get("pipeline", {}).get("vrl_transform", ""), label="Vector VRL Transform Rule", rows=12)
 
