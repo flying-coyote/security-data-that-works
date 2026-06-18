@@ -74,20 +74,20 @@ def _(config_data, mo):
     )
 
 
-@app.cell
+@app.cell(hide_code=True)
 def _(config_panel):
     config_panel
     return
 
 
-@app.cell
+@app.cell(hide_code=True)
 def _(mo):
     # Save button UI definition (instantiated here)
     save_btn = mo.ui.button(label="💾 Save Configuration Specs")
     return (save_btn,)
 
 
-@app.cell
+@app.cell(hide_code=True)
 def _(
     catalog_port,
     config_path,
@@ -132,13 +132,13 @@ def _(
     return (save_status,)
 
 
-@app.cell
+@app.cell(hide_code=True)
 def _(mo, save_btn, save_status):
     mo.hstack([save_btn, save_status])
     return
 
 
-@app.cell
+@app.cell(hide_code=True)
 def _(mo):
     # VRL Tester UI inputs (instantiated here)
     test_input = mo.ui.text_area(value='{"message": "log line", "timestamp": "2026-06-18T12:00:00Z", "user": "admin", "success": true}', label="Sample JSON Record In", rows=4)
@@ -146,7 +146,7 @@ def _(mo):
     return test_btn, test_input
 
 
-@app.cell
+@app.cell(hide_code=True)
 def _(mo, os, subprocess, test_btn, test_input, vrl_transform):
     # VRL Tester handler (reads test_btn.value in separate cell)
     test_output = ""
@@ -189,7 +189,7 @@ def _(mo, os, subprocess, test_btn, test_input, vrl_transform):
     return (test_output,)
 
 
-@app.cell
+@app.cell(hide_code=True)
 def _(mo, test_btn, test_input, test_output):
     mo.vstack([
         mo.md("### 🧪 VRL Testing Console"),
@@ -200,7 +200,7 @@ def _(mo, test_btn, test_input, test_output):
     return
 
 
-@app.cell
+@app.cell(hide_code=True)
 def _(mo):
     # Pulumi Buttons (instantiated here)
     deploy_btn = mo.ui.button(label="🚀 Deploy Stack via Pulumi")
@@ -208,7 +208,7 @@ def _(mo):
     return deploy_btn, destroy_btn
 
 
-@app.cell
+@app.cell(hide_code=True)
 def _(config_path, deploy_btn, deployer, destroy_btn, mo, yaml):
     # Pulumi stack logic handler
     logs = []
@@ -237,7 +237,7 @@ def _(config_path, deploy_btn, deployer, destroy_btn, mo, yaml):
     return deployment_status, logs
 
 
-@app.cell
+@app.cell(hide_code=True)
 def _(deploy_btn, deployment_status, destroy_btn, logs, mo):
     mo.vstack([
         mo.md("### 🛠️ Infrastructure Lifecycle Manager"),
@@ -248,14 +248,14 @@ def _(deploy_btn, deployment_status, destroy_btn, logs, mo):
     return
 
 
-@app.cell
+@app.cell(hide_code=True)
 def _(mo):
     # Audit button (instantiated here)
     audit_btn = mo.ui.button(label="🔍 Scan Storage & Catalog for Orphans")
     return (audit_btn,)
 
 
-@app.cell
+@app.cell(hide_code=True)
 def _(audit_btn, boto3, config_path, mo, yaml):
     # Audit logic handler
     audit_result = ""
@@ -282,7 +282,7 @@ def _(audit_btn, boto3, config_path, mo, yaml):
     return (audit_result,)
 
 
-@app.cell
+@app.cell(hide_code=True)
 def _(audit_btn, audit_result, mo):
     mo.vstack([
         mo.md("### 📊 Active Storage & Metadata Auditor"),
