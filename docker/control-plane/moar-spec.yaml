@@ -20,9 +20,11 @@ components:
       \ 2 } # 1 = Success, 2 = Failure\n\n# 5. Clean up raw data\ndel(.message)\n"
   query:
     provider:
-    - clickhouse
+    - dremio
+  schema:
+    standard: ocsf
   storage:
-    bucket_name: liger-warehouse
+    bucket_name: moar-warehouse
     port: 8333
     provider: seaweedfs
     volume_size_gb: 10

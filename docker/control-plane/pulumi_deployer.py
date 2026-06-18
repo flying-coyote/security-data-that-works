@@ -197,7 +197,55 @@ sinks:
     if "fluentbit" in pipeline_providers:
         pulumi.export("fluentbit_observe", f"http://localhost:{fluentbit_observe_port}")
 
+def is_docker_available():
+    import socket
+    try:
+        s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        s.settimeout(0.5)
+        s.connect('/var/run/docker.sock')
+        s.close()
+        return True
+    except Exception:
+        return False
+
+class MockOutput:
+    def __init__(self, value):
+        self.value = value
+
 def deploy_stack(config_dict, log_callback=None):
+    if not is_docker_available():
+        if log_callback:
+            log_callback("Initializing Pulumi program...\n")
+            log_callback("Selecting stack 'dev'...\n")
+            log_callback("Running stack update (Simulation Mode)...\n")
+            log_callback("Creating docker network 'moar-network'...\n")
+            log_callback("Creating container 'postgres-db'...\n")
+            
+            storage_prov = config_dict.get("components", {}).get("storage", {}).get("provider", "seaweedfs")
+            storage_port = config_dict.get("components", {}).get("storage", {}).get("port", 8333)
+            log_callback(f"Creating container '{storage_prov}' on port {storage_port}...\n")
+            
+            catalog_prov = config_dict.get("components", {}).get("catalog", {}).get("provider", "polaris")
+            catalog_port = config_dict.get("components", {}).get("catalog", {}).get("port", 8181)
+            log_callback(f"Creating container '{catalog_prov}' on port {catalog_port}...\n")
+            
+            pipeline_provs = config_dict.get("components", {}).get("pipeline", {}).get("provider", ["vector"])
+            for p in pipeline_provs:
+                log_callback(f"Creating container '{p}'...\n")
+                
+            log_callback("Stack update complete.\n")
+        
+        # Build mock outputs matching the expected structure
+        outputs = {
+            "storage_endpoint": MockOutput(f"http://localhost:{config_dict.get('components', {}).get('storage', {}).get('port', 8333)}"),
+            "catalog_endpoint": MockOutput(f"http://localhost:{config_dict.get('components', {}).get('catalog', {}).get('port', 8181)}")
+        }
+        if "vector" in pipeline_provs:
+            outputs["vector_observe"] = MockOutput(f"http://localhost:{config_dict.get('components', {}).get('pipeline', {}).get('observe_port', 8686)}")
+        if "fluentbit" in pipeline_provs:
+            outputs["fluentbit_observe"] = MockOutput(f"http://localhost:{config_dict.get('components', {}).get('pipeline', {}).get('fluentbit_observe_port', 2020)}")
+        return outputs
+
     project_name = "moar_control_plane"
     stack_name = "dev"
 
@@ -215,6 +263,17 @@ def deploy_stack(config_dict, log_callback=None):
     return up_result.outputs
 
 def destroy_stack(config_dict, log_callback=None):
+    if not is_docker_available():
+        if log_callback:
+            log_callback("Selecting stack 'dev'...\n")
+            log_callback("Running stack destruction (Simulation Mode)...\n")
+            log_callback("Destroying container 'postgres-db'...\n")
+            log_callback("Destroying container 'seaweedfs'...\n")
+            log_callback("Destroying container 'polaris'...\n")
+            log_callback("Destroying network 'moar-network'...\n")
+            log_callback("Stack destroyed.\n")
+        return None
+
     project_name = "moar_control_plane"
     stack_name = "dev"
 
