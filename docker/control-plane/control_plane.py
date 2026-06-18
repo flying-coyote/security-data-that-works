@@ -188,26 +188,38 @@ def _(os, yaml):
 
 @app.cell(hide_code=True)
 def _(config_data, mo):
-    # Normalize pipeline to list
+    # Normalize pipeline values to labels
     saved_pipeline = config_data.get("components", {}).get("pipeline", {}).get("provider", ["vector"])
     if isinstance(saved_pipeline, str):
         saved_pipeline = [saved_pipeline]
+    pipeline_labels = []
+    for p in saved_pipeline:
+        if p == "vector":
+            pipeline_labels.append("Vector")
+        elif p == "fluentbit":
+            pipeline_labels.append("Fluent Bit")
+
+    saved_storage = config_data.get("components", {}).get("storage", {}).get("provider", "seaweedfs")
+    storage_label = "SeaweedFS" if saved_storage == "seaweedfs" else "MinIO"
+
+    saved_catalog = config_data.get("components", {}).get("catalog", {}).get("provider", "polaris")
+    catalog_label = "Polaris" if saved_catalog == "polaris" else "Nessie"
 
     storage_provider = mo.ui.radio(
-        options={"SeaweedFS": "seaweedfs", "MinIO": "minio"}, 
-        value=config_data.get("components", {}).get("storage", {}).get("provider", "seaweedfs"), 
+        options=["SeaweedFS", "MinIO"], 
+        value=storage_label, 
         label="Storage Provider",
         inline=True
     )
     catalog_provider = mo.ui.radio(
-        options={"Polaris": "polaris", "Nessie": "nessie"}, 
-        value=config_data.get("components", {}).get("catalog", {}).get("provider", "polaris"), 
+        options=["Polaris", "Nessie"], 
+        value=catalog_label, 
         label="Catalog Provider",
         inline=True
     )
     pipeline_provider = mo.ui.multiselect(
-        options={"Vector": "vector", "Fluent Bit": "fluentbit"}, 
-        value=saved_pipeline, 
+        options=["Vector", "Fluent Bit"], 
+        value=pipeline_labels, 
         label="Pipeline Engine(s)"
     )
     return storage_provider, catalog_provider, pipeline_provider
@@ -231,15 +243,15 @@ def _(storage_provider, catalog_provider, pipeline_provider, mo):
 @app.cell(hide_code=True)
 def _(config_data, storage_provider, catalog_provider, pipeline_provider, PROVIDER_NAMES, mo):
     # Dynamic settings based on selectors
-    # 1. Storage config
-    s_prov = storage_provider.value
+    # Convert labels back to lowercase codes
+    s_prov = storage_provider.value.lower() if storage_provider.value else "seaweedfs"
     s_name = PROVIDER_NAMES.get(s_prov, s_prov)
     default_s_port = 8333 if s_prov == "seaweedfs" else 9000
     storage_port = mo.ui.text(value=str(config_data.get("components", {}).get("storage", {}).get("port", default_s_port)), label=f"{s_name} Port")
     storage_bucket = mo.ui.text(value=config_data.get("components", {}).get("storage", {}).get("bucket_name", "liger-warehouse"), label="S3 Bucket Name")
 
     # 2. Catalog config
-    c_prov = catalog_provider.value
+    c_prov = catalog_provider.value.lower() if catalog_provider.value else "polaris"
     c_name = PROVIDER_NAMES.get(c_prov, c_prov)
     default_c_port = 8181 if c_prov == "polaris" else 19120
     catalog_port = mo.ui.text(value=str(config_data.get("components", {}).get("catalog", {}).get("port", default_c_port)), label=f"{c_name} Port")
@@ -280,10 +292,10 @@ def _(
     storage_provider,
     catalog_provider,
     pipeline_provider,
-    PROVIDER_NAMES,
     mo,
 ):
-    s_name = PROVIDER_NAMES.get(storage_provider.value, "Storage")
+    s_prov = storage_provider.value.lower() if storage_provider.value else "storage"
+    s_name = "SeaweedFS" if s_prov == "seaweedfs" else "MinIO"
     storage_settings = mo.vstack([
         mo.md(f"### 📁 {s_name} Settings"),
         mo.hstack([storage_port, storage_bucket])
@@ -294,7 +306,8 @@ def _(
         "margin-bottom": "1.5rem"
     })
 
-    c_name = PROVIDER_NAMES.get(catalog_provider.value, "Catalog")
+    c_prov = catalog_provider.value.lower() if catalog_provider.value else "catalog"
+    c_name = "Polaris" if c_prov == "polaris" else "Nessie"
     catalog_settings = mo.vstack([
         mo.md(f"### 🗂️ {c_name} Settings"),
         catalog_port
@@ -305,7 +318,7 @@ def _(
         "margin-bottom": "1.5rem"
     })
 
-    p_provs = pipeline_provider.value or []
+    p_provs = [p.lower().replace(" ", "") for p in (pipeline_provider.value or [])]
     pipeline_settings = []
     
     if "vector" in p_provs:
@@ -371,23 +384,27 @@ def _(
 ):
     save_status = mo.md("*Save configuration before deploying.*")
     if save_btn.value:
+        s_val = storage_provider.value.lower() if storage_provider.value else "seaweedfs"
+        c_val = catalog_provider.value.lower() if catalog_provider.value else "polaris"
+        p_vals = [p.lower().replace(" ", "") for p in (pipeline_provider.value or [])]
+        
         updated_config = {
             "version": "1.0.0",
             "components": {
                 "storage": {
-                    "provider": storage_provider.value,
+                    "provider": s_val,
                     "bucket_name": storage_bucket.value,
                     "port": int(storage_port.value),
                     "volume_size_gb": 10
                 },
                 "catalog": {
-                    "provider": catalog_provider.value,
+                    "provider": c_val,
                     "port": int(catalog_port.value),
                     "admin_client_id": "admin",
                     "admin_client_secret": "adminsecret"
                 },
                 "pipeline": {
-                    "provider": pipeline_provider.value,
+                    "provider": p_vals,
                     "observe_port": int(vector_observe_port.value),
                     "ingest_port": int(vector_ingest_port.value),
                     "vrl_transform": vrl_transform.value,
