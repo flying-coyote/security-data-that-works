@@ -3,3 +3,8 @@ __pycache__/
 .DS_Store
 *.owl
 *.tmp
+
+# marimo runtime cache & app temp files
+__marimo__/
+docker/control-plane/temp_test_config.yaml
+docker/control-plane/temp_config/

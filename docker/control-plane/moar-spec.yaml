@@ -20,7 +20,7 @@ components:
       \ 2 } # 1 = Success, 2 = Failure\n\n# 5. Clean up raw data\ndel(.message)\n"
   query:
     provider:
-    - dremio
+    - datafusion
   schema:
     standard: ocsf
   storage:
