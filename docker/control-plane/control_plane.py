@@ -597,7 +597,7 @@ def _(
     ])
     
     # Combined dashboard with premium styling
-    dashboard = mo.tabs({
+    dashboard = mo.ui.tabs({
         "⚙️ Configuration": tab_config,
         "🧪 VRL Tester": tab_tester,
         "🛠️ Infrastructure": tab_pulumi,
