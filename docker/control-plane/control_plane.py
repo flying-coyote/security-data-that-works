@@ -37,7 +37,7 @@ def _():
 def _(mo):
     branding_styles = mo.Html("""
 <style>
-@import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,100..1000;1,9..40,100..1000&family=JetBrains+Mono:ital,wght@0,100..800;1,100..800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,100..1000;1,9..40,100..1000&family=JetBrains+Mono:ital,wght@0,100..800;1,100..800&family=Noto+Color+Emoji&display=swap');
 
 :root {
   --color-teal-400: #5c8dc5;
@@ -73,12 +73,12 @@ def _(mo):
 .marimo-app {
   background-color: var(--color-bg-primary) !important;
   color: var(--color-text-primary) !important;
-  font-family: var(--font-sans) !important;
+  font-family: var(--font-sans), "Noto Color Emoji", sans-serif !important;
 }
 
 h1, h2, h3, h4, h5, h6 {
   color: var(--color-text-display) !important;
-  font-family: var(--font-sans) !important;
+  font-family: var(--font-sans), "Noto Color Emoji", sans-serif !important;
   font-weight: 600 !important;
   letter-spacing: -0.025em !important;
   margin-top: 1.5rem !important;
@@ -92,8 +92,8 @@ code, pre {
   color: var(--color-text-primary) !important;
 }
 
-button.marimo-button, .marimo-button button {
-  font-family: var(--font-sans) !important;
+button.marimo-button, .marimo-button button, [role="tab"] {
+  font-family: var(--font-sans), "Noto Color Emoji", sans-serif !important;
   font-weight: 500 !important;
   border-radius: 0px !important;
   border: 1px solid var(--color-border-subtle) !important;
@@ -103,7 +103,7 @@ button.marimo-button, .marimo-button button {
   padding: 0.5rem 1rem !important;
 }
 
-button.marimo-button:hover, .marimo-button button:hover {
+button.marimo-button:hover, .marimo-button button:hover, [role="tab"]:hover {
   background-color: var(--color-teal-50) !important;
   border-color: var(--color-teal-400) !important;
   color: var(--color-teal-600) !important;
@@ -228,7 +228,7 @@ def _(config_data, mo):
 @app.cell(hide_code=True)
 def _(storage_provider, catalog_provider, pipeline_provider, mo):
     selector_panel = mo.vstack([
-        mo.md("### 🔌 Modular Component Selection"),
+        mo.md("### ❖ Modular Component Selection"),
         mo.md("Choose the software components for your active LIGER stack deployment."),
         mo.hstack([storage_provider, catalog_provider, pipeline_provider])
     ]).style({
@@ -244,17 +244,17 @@ def _(storage_provider, catalog_provider, pipeline_provider, mo):
 def _(config_data, storage_provider, catalog_provider, pipeline_provider, PROVIDER_NAMES, mo):
     # Dynamic settings based on selectors
     # Convert labels back to lowercase codes
-    s_prov = storage_provider.value.lower() if storage_provider.value else "seaweedfs"
-    s_name = PROVIDER_NAMES.get(s_prov, s_prov)
-    default_s_port = 8333 if s_prov == "seaweedfs" else 9000
-    storage_port = mo.ui.text(value=str(config_data.get("components", {}).get("storage", {}).get("port", default_s_port)), label=f"{s_name} Port")
+    _s_prov = storage_provider.value.lower() if storage_provider.value else "seaweedfs"
+    _s_name = PROVIDER_NAMES.get(_s_prov, _s_prov)
+    _default_s_port = 8333 if _s_prov == "seaweedfs" else 9000
+    storage_port = mo.ui.text(value=str(config_data.get("components", {}).get("storage", {}).get("port", _default_s_port)), label=f"{_s_name} Port")
     storage_bucket = mo.ui.text(value=config_data.get("components", {}).get("storage", {}).get("bucket_name", "liger-warehouse"), label="S3 Bucket Name")
 
     # 2. Catalog config
-    c_prov = catalog_provider.value.lower() if catalog_provider.value else "polaris"
-    c_name = PROVIDER_NAMES.get(c_prov, c_prov)
-    default_c_port = 8181 if c_prov == "polaris" else 19120
-    catalog_port = mo.ui.text(value=str(config_data.get("components", {}).get("catalog", {}).get("port", default_c_port)), label=f"{c_name} Port")
+    _c_prov = catalog_provider.value.lower() if catalog_provider.value else "polaris"
+    _c_name = PROVIDER_NAMES.get(_c_prov, _c_prov)
+    _default_c_port = 8181 if _c_prov == "polaris" else 19120
+    catalog_port = mo.ui.text(value=str(config_data.get("components", {}).get("catalog", {}).get("port", _default_c_port)), label=f"{_c_name} Port")
 
     # 3. Pipeline config (Define both Vector and Fluent Bit configuration widgets)
     vector_ingest_port = mo.ui.text(value=str(config_data.get("components", {}).get("pipeline", {}).get("ingest_port", 514)), label="Vector Ingest Port (Syslog TCP)")
@@ -294,10 +294,10 @@ def _(
     pipeline_provider,
     mo,
 ):
-    s_prov = storage_provider.value.lower() if storage_provider.value else "storage"
-    s_name = "SeaweedFS" if s_prov == "seaweedfs" else "MinIO"
+    _s_prov = storage_provider.value.lower() if storage_provider.value else "storage"
+    _s_name = "SeaweedFS" if _s_prov == "seaweedfs" else "MinIO"
     storage_settings = mo.vstack([
-        mo.md(f"### 📁 {s_name} Settings"),
+        mo.md(f"### ❖ {_s_name} Settings"),
         mo.hstack([storage_port, storage_bucket])
     ]).style({
         "border": "1px solid var(--color-border-subtle)",
@@ -306,10 +306,10 @@ def _(
         "margin-bottom": "1.5rem"
     })
 
-    c_prov = catalog_provider.value.lower() if catalog_provider.value else "catalog"
-    c_name = "Polaris" if c_prov == "polaris" else "Nessie"
+    _c_prov = catalog_provider.value.lower() if catalog_provider.value else "catalog"
+    _c_name = "Polaris" if _c_prov == "polaris" else "Nessie"
     catalog_settings = mo.vstack([
-        mo.md(f"### 🗂️ {c_name} Settings"),
+        mo.md(f"### ❖ {_c_name} Settings"),
         catalog_port
     ]).style({
         "border": "1px solid var(--color-border-subtle)",
@@ -318,10 +318,10 @@ def _(
         "margin-bottom": "1.5rem"
     })
 
-    p_provs = [p.lower().replace(" ", "") for p in (pipeline_provider.value or [])]
+    _p_provs = [p.lower().replace(" ", "") for p in (pipeline_provider.value or [])]
     pipeline_settings = []
     
-    if "vector" in p_provs:
+    if "vector" in _p_provs:
         pipeline_settings.append(
             mo.vstack([
                 mo.md("### ⚡ Vector Settings"),
@@ -335,7 +335,7 @@ def _(
             })
         )
         
-    if "fluentbit" in p_provs:
+    if "fluentbit" in _p_provs:
         pipeline_settings.append(
             mo.vstack([
                 mo.md("### ⚡ Fluent Bit Settings"),
@@ -359,7 +359,7 @@ def _(
 
 @app.cell(hide_code=True)
 def _(mo):
-    save_btn = mo.ui.button(label="💾 Save Configuration Specs", kind="success")
+    save_btn = mo.ui.run_button(label="✓ Save Configuration Specs", kind="success")
     return (save_btn,)
 
 
@@ -416,14 +416,14 @@ def _(
         }
         with open(config_path, "w") as _f:
             yaml.safe_dump(updated_config, _f)
-        save_status = mo.md("✅ **liger-spec.yaml updated!**")
+        save_status = mo.md("✓ **liger-spec.yaml updated!**")
     return (save_status,)
 
 
 @app.cell(hide_code=True)
 def _(mo):
     test_input = mo.ui.text_area(value='{"message": "log line", "timestamp": "2026-06-18T12:00:00Z", "user": "admin", "success": true}', label="Sample JSON Record In", rows=4)
-    test_btn = mo.ui.button(label="🧪 Run Pre-Deployment VRL Test", kind="success")
+    test_btn = mo.ui.run_button(label="⚡ Run Pre-Deployment VRL Test", kind="success")
     return test_btn, test_input
 
 
@@ -465,15 +465,15 @@ sinks:
             os.remove(temp_file)
             test_output = mo.md(f"**VRL Test Run Output:**\n```json\n{res.stdout or res.stderr}\n```")
         except Exception as e:
-            test_output = mo.md(f"⚠️ **VRL Test Error:** Vector binary not found or failed: {str(e)}")
+            test_output = mo.md(f"⚠ **VRL Test Error:** Vector binary not found or failed: {str(e)}")
 
     return (test_output,)
 
 
 @app.cell(hide_code=True)
 def _(mo):
-    deploy_btn = mo.ui.button(label="🚀 Deploy Stack via Pulumi", kind="success")
-    destroy_btn = mo.ui.button(label="🛑 Tear Down Stack", kind="danger")
+    deploy_btn = mo.ui.run_button(label="⚡ Deploy Stack via Pulumi", kind="success")
+    destroy_btn = mo.ui.run_button(label="✗ Tear Down Stack", kind="danger")
     return deploy_btn, destroy_btn
 
 
@@ -490,18 +490,18 @@ def _(config_path, deploy_btn, deployer, destroy_btn, mo, yaml):
             current_config = yaml.safe_load(_f) or {}
         try:
             outputs = deployer.deploy_stack(current_config, log_callback=log_callback)
-            deployment_status = mo.md(f"✅ **Stack successfully deployed!**\nEndpoints:\n- S3 Storage: {outputs.get('storage_endpoint').value}\n- Catalog URL: {outputs.get('catalog_endpoint').value}\n- Observability Dashboard: {outputs.get('vector_observe').value}")
+            deployment_status = mo.md(f"✓ **Stack successfully deployed!**\nEndpoints:\n- S3 Storage: {outputs.get('storage_endpoint').value}\n- Catalog URL: {outputs.get('catalog_endpoint').value}\n- Observability Dashboard: {outputs.get('vector_observe').value}")
         except Exception as e:
-            deployment_status = mo.md(f"❌ **Deployment Failed:** {str(e)}")
+            deployment_status = mo.md(f"✗ **Deployment Failed:** {str(e)}")
 
     elif destroy_btn.value:
         with open(config_path, "r") as _f:
             current_config = yaml.safe_load(_f) or {}
         try:
             deployer.destroy_stack(current_config, log_callback=log_callback)
-            deployment_status = mo.md("✅ **Stack destroyed.**")
+            deployment_status = mo.md("✓ **Stack destroyed.**")
         except Exception as e:
-            deployment_status = mo.md(f"❌ **Stack destruction failed:** {str(e)}")
+            deployment_status = mo.md(f"✗ **Stack destruction failed:** {str(e)}")
     return deployment_status, logs
 
 
@@ -536,9 +536,9 @@ def _(cat, mo, catalog_error):
     ns_selector = None
     if cat is None:
         if catalog_error:
-            ns_selector = mo.md(f"⚠️ **REST Catalog Connection Error**: `{catalog_error}`. Deploy stack first.")
+            ns_selector = mo.md(f"⚠ **REST Catalog Connection Error**: `{catalog_error}`. Deploy stack first.")
         else:
-            ns_selector = mo.md("ℹ️ *REST Catalog is currently offline or unconfigured. Deploy stack to query.*")
+            ns_selector = mo.md("❖ *REST Catalog is currently offline or unconfigured. Deploy stack to query.*")
     else:
         try:
             namespaces = cat.list_namespaces()
@@ -548,7 +548,7 @@ def _(cat, mo, catalog_error):
             else:
                 ns_selector = mo.md("*No namespaces found. Please write data first.*")
         except Exception as e:
-            ns_selector = mo.md(f"⚠️ **Failed to list namespaces**: `{str(e)}`")
+            ns_selector = mo.md(f"⚠ **Failed to list namespaces**: `{str(e)}`")
     return namespaces, ns_selector
 
 
@@ -565,7 +565,7 @@ def _(cat, ns_selector, mo):
             else:
                 table_selector = mo.md("*No tables found in this namespace.*")
         except Exception as e:
-            table_selector = mo.md(f"⚠️ **Failed to list tables**: `{str(e)}`")
+            table_selector = mo.md(f"⚠ **Failed to list tables**: `{str(e)}`")
     return table_selector
 
 
@@ -608,7 +608,7 @@ def _(cat, ns_selector, table_selector, mo):
                 preview_html
             ])
         except Exception as e:
-            inspect_output = mo.md(f"⚠️ Failed to load table metadata: {str(e)}")
+            inspect_output = mo.md(f"⚠ Failed to load table metadata: {str(e)}")
     else:
         inspect_output = mo.md("*Select a catalog namespace and table to inspect.*")
     return (inspect_output,)
@@ -692,11 +692,11 @@ def _(
     
     # Combined dashboard with premium styling
     dashboard = mo.ui.tabs({
-        "🔌 Component Selection": tab_selection,
-        "⚙️ Configuration": tab_config,
-        "🧪 VRL Tester": tab_tester,
-        "🛠️ Infrastructure": tab_pulumi,
-        "🔍 Metadata Inspector": tab_inspector
+        "❖ Component Selection": tab_selection,
+        "⚙ Configuration": tab_config,
+        "⚡ VRL Tester": tab_tester,
+        "⚒ Infrastructure": tab_pulumi,
+        "✦ Metadata Inspector": tab_inspector
     })
     
     dashboard
