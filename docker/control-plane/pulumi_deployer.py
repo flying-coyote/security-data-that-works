@@ -8,14 +8,22 @@ def create_liger_program(config_dict):
     # Retrieve provider choices
     storage_provider = config_dict.get("components", {}).get("storage", {}).get("provider", "seaweedfs")
     catalog_provider = config_dict.get("components", {}).get("catalog", {}).get("provider", "polaris")
-    pipeline_provider = config_dict.get("components", {}).get("pipeline", {}).get("provider", "vector")
+    
+    pipeline_providers = config_dict.get("components", {}).get("pipeline", {}).get("provider", ["vector"])
+    if isinstance(pipeline_providers, str):
+        pipeline_providers = [pipeline_providers]
 
     # Retrieve configuration variables
     storage_port = int(config_dict.get("components", {}).get("storage", {}).get("port", 8333))
     catalog_port = int(config_dict.get("components", {}).get("catalog", {}).get("port", 8181))
+    
     vector_observe_port = int(config_dict.get("components", {}).get("pipeline", {}).get("observe_port", 8686))
     vector_ingest_port = int(config_dict.get("components", {}).get("pipeline", {}).get("ingest_port", 514))
     vrl_transform = config_dict.get("components", {}).get("pipeline", {}).get("vrl_transform", "")
+    
+    fluentbit_observe_port = int(config_dict.get("components", {}).get("pipeline", {}).get("fluentbit_observe_port", 2020))
+    fluentbit_ingest_port = int(config_dict.get("components", {}).get("pipeline", {}).get("fluentbit_ingest_port", 24224))
+    
     bucket_name = config_dict.get("components", {}).get("storage", {}).get("bucket_name", "liger-warehouse")
 
     # 1. Create a Docker Network
@@ -91,8 +99,8 @@ def create_liger_program(config_dict):
             restart="unless-stopped"
         )
     
-    # 5. Pipeline Container (Vector or Fluentbit)
-    if pipeline_provider == "fluentbit":
+    # 5. Pipeline Containers (Vector and/or Fluentbit)
+    if "fluentbit" in pipeline_providers:
         fluentbit_config = f"""
 [SERVICE]
     flush        1
@@ -100,7 +108,7 @@ def create_liger_program(config_dict):
 [INPUT]
     Name         syslog
     Listen       0.0.0.0
-    Port         {vector_ingest_port}
+    Port         {fluentbit_ingest_port}
 [OUTPUT]
     Name         stdout
     Match        *
@@ -111,7 +119,7 @@ def create_liger_program(config_dict):
         with open(config_file_path, "w") as f:
             f.write(fluentbit_config.strip())
             
-        vector = docker.Container("vector",
+        fluentbit = docker.Container("fluentbit-service",
             name="fluentbit",
             image="fluent/fluent-bit:latest",
             networks_advanced=[docker.ContainerNetworksAdvancedArgs(name=network.name)],
@@ -121,13 +129,14 @@ def create_liger_program(config_dict):
                 target="/fluent-bit/etc/fluent-bit.conf"
             )],
             ports=[
-                docker.ContainerPortArgs(internal=vector_ingest_port, external=vector_ingest_port),
-                docker.ContainerPortArgs(internal=2020, external=vector_observe_port)
+                docker.ContainerPortArgs(internal=fluentbit_ingest_port, external=fluentbit_ingest_port),
+                docker.ContainerPortArgs(internal=2020, external=fluentbit_observe_port)
             ],
             opts=pulumi.ResourceOptions(depends_on=[storage_container, catalog_container]),
             restart="unless-stopped"
         )
-    else: # vector
+
+    if "vector" in pipeline_providers:
         vector_config_content = f"""
 sources:
   in_syslog:
@@ -162,7 +171,7 @@ sinks:
         with open(config_file_path, "w") as f:
             f.write(vector_config_content.strip())
 
-        vector = docker.Container("vector",
+        vector = docker.Container("vector-service",
             name="vector",
             image="vectordotdev/vector:0.36.0-alpine",
             command=["--config", "/etc/vector/vector.yaml"],
@@ -183,7 +192,10 @@ sinks:
     # Exports
     pulumi.export("storage_endpoint", f"http://localhost:{storage_port}")
     pulumi.export("catalog_endpoint", f"http://localhost:{catalog_port}")
-    pulumi.export("vector_observe", f"http://localhost:{vector_observe_port}")
+    if "vector" in pipeline_providers:
+        pulumi.export("vector_observe", f"http://localhost:{vector_observe_port}")
+    if "fluentbit" in pipeline_providers:
+        pulumi.export("fluentbit_observe", f"http://localhost:{fluentbit_observe_port}")
 
 def deploy_stack(config_dict, log_callback=None):
     project_name = "liger_control_plane"

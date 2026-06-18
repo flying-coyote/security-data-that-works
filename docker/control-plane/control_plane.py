@@ -179,21 +179,27 @@ def _(os, yaml):
 
 @app.cell(hide_code=True)
 def _(config_data, mo):
-    # Primary dropdown selectors for components
-    storage_provider = mo.ui.dropdown(
+    # Normalize pipeline to list
+    saved_pipeline = config_data.get("components", {}).get("pipeline", {}).get("provider", ["vector"])
+    if isinstance(saved_pipeline, str):
+        saved_pipeline = [saved_pipeline]
+
+    storage_provider = mo.ui.radio(
         options={"SeaweedFS": "seaweedfs", "MinIO": "minio"}, 
         value=config_data.get("components", {}).get("storage", {}).get("provider", "seaweedfs"), 
-        label="Storage Provider"
+        label="Storage Provider",
+        inline=True
     )
-    catalog_provider = mo.ui.dropdown(
+    catalog_provider = mo.ui.radio(
         options={"Polaris": "polaris", "Nessie": "nessie"}, 
         value=config_data.get("components", {}).get("catalog", {}).get("provider", "polaris"), 
-        label="Catalog Provider"
+        label="Catalog Provider",
+        inline=True
     )
-    pipeline_provider = mo.ui.dropdown(
+    pipeline_provider = mo.ui.multiselect(
         options={"Vector": "vector", "Fluent Bit": "fluentbit"}, 
-        value=config_data.get("components", {}).get("pipeline", {}).get("provider", "vector"), 
-        label="Pipeline Engine"
+        value=saved_pipeline, 
+        label="Pipeline Engine(s)"
     )
     return storage_provider, catalog_provider, pipeline_provider
 
@@ -227,50 +233,99 @@ def _(config_data, storage_provider, catalog_provider, pipeline_provider, mo):
     default_c_port = 8181 if c_prov == "polaris" else 19120
     catalog_port = mo.ui.text(value=str(config_data.get("components", {}).get("catalog", {}).get("port", default_c_port)), label=f"{c_prov.upper()} Port")
 
-    # 3. Pipeline config
-    p_prov = pipeline_provider.value
-    default_p_ingest = 514 if p_prov == "vector" else 24224
-    default_p_obs = 8686 if p_prov == "vector" else 2020
-    pipeline_ingest = mo.ui.text(value=str(config_data.get("components", {}).get("pipeline", {}).get("ingest_port", default_p_ingest)), label=f"{p_prov.upper()} Ingest Port")
-    pipeline_observe = mo.ui.text(value=str(config_data.get("components", {}).get("pipeline", {}).get("observe_port", default_p_obs)), label=f"{p_prov.upper()} Observability Port")
+    # 3. Pipeline config (Define both Vector and Fluent Bit configuration widgets)
+    vector_ingest_port = mo.ui.text(value=str(config_data.get("components", {}).get("pipeline", {}).get("ingest_port", 514)), label="Vector Ingest Port (Syslog TCP)")
+    vector_observe_port = mo.ui.text(value=str(config_data.get("components", {}).get("pipeline", {}).get("observe_port", 8686)), label="Vector Observability Port")
+    vrl_transform = mo.ui.text_area(value=config_data.get("components", {}).get("pipeline", {}).get("vrl_transform", ""), label="Vector VRL Transform Rule", rows=12)
 
-    default_transform = config_data.get("components", {}).get("pipeline", {}).get("vrl_transform", "")
-    vrl_transform = mo.ui.text_area(value=default_transform, label=f"{p_prov.upper()} Transform Rules / Parsers", rows=12)
+    fluentbit_ingest_port = mo.ui.text(value=str(config_data.get("components", {}).get("pipeline", {}).get("fluentbit_ingest_port", 24224)), label="Fluent Bit Ingest Port")
+    fluentbit_observe_port = mo.ui.text(value=str(config_data.get("components", {}).get("pipeline", {}).get("fluentbit_observe_port", 2020)), label="Fluent Bit Monitor Port")
+    fluentbit_transform = mo.ui.text_area(value=config_data.get("components", {}).get("pipeline", {}).get("fluentbit_transform", ""), label="Fluent Bit Parsers Rule", rows=12)
 
-    return storage_port, storage_bucket, catalog_port, pipeline_ingest, pipeline_observe, vrl_transform
+    return (
+        storage_port,
+        storage_bucket,
+        catalog_port,
+        vector_ingest_port,
+        vector_observe_port,
+        vrl_transform,
+        fluentbit_ingest_port,
+        fluentbit_observe_port,
+        fluentbit_transform,
+    )
 
 
 @app.cell(hide_code=True)
-def _(storage_port, storage_bucket, catalog_port, pipeline_ingest, pipeline_observe, vrl_transform, storage_provider, catalog_provider, pipeline_provider, mo):
+def _(
+    storage_port,
+    storage_bucket,
+    catalog_port,
+    vector_ingest_port,
+    vector_observe_port,
+    vrl_transform,
+    fluentbit_ingest_port,
+    fluentbit_observe_port,
+    fluentbit_transform,
+    storage_provider,
+    catalog_provider,
+    pipeline_provider,
+    mo,
+):
+    storage_settings = mo.vstack([
+        mo.md(f"### ⚙️ {storage_provider.value.upper()} Settings"),
+        mo.hstack([storage_port, storage_bucket])
+    ]).style({
+        "border": "1px solid var(--color-border-subtle)",
+        "padding": "1.5rem",
+        "background-color": "var(--color-bg-primary)",
+        "margin-bottom": "1.5rem"
+    })
+
+    catalog_settings = mo.vstack([
+        mo.md(f"### 📐 {catalog_provider.value.upper()} Settings"),
+        catalog_port
+    ]).style({
+        "border": "1px solid var(--color-border-subtle)",
+        "padding": "1.5rem",
+        "background-color": "var(--color-bg-primary)",
+        "margin-bottom": "1.5rem"
+    })
+
+    p_provs = pipeline_provider.value or []
+    pipeline_settings = []
+    
+    if "vector" in p_provs:
+        pipeline_settings.append(
+            mo.vstack([
+                mo.md("### 🪵 Vector Settings"),
+                mo.hstack([vector_ingest_port, vector_observe_port]),
+                vrl_transform
+            ]).style({
+                "border": "1px solid var(--color-border-subtle)",
+                "padding": "1.5rem",
+                "background-color": "var(--color-bg-primary)",
+                "margin-bottom": "1.5rem"
+            })
+        )
+        
+    if "fluentbit" in p_provs:
+        pipeline_settings.append(
+            mo.vstack([
+                mo.md("### 🪵 Fluent Bit Settings"),
+                mo.hstack([fluentbit_ingest_port, fluentbit_observe_port]),
+                fluentbit_transform
+            ]).style({
+                "border": "1px solid var(--color-border-subtle)",
+                "padding": "1.5rem",
+                "background-color": "var(--color-bg-primary)",
+                "margin-bottom": "1.5rem"
+            })
+        )
+
     config_panel = mo.vstack([
-        mo.vstack([
-            mo.md(f"### ⚙️ {storage_provider.value.upper()} Settings"),
-            mo.hstack([storage_port, storage_bucket])
-        ]).style({
-            "border": "1px solid var(--color-border-subtle)",
-            "padding": "1.5rem",
-            "background-color": "var(--color-bg-primary)",
-            "margin-bottom": "1.5rem"
-        }),
-        mo.vstack([
-            mo.md(f"### 📐 {catalog_provider.value.upper()} Settings"),
-            catalog_port
-        ]).style({
-            "border": "1px solid var(--color-border-subtle)",
-            "padding": "1.5rem",
-            "background-color": "var(--color-bg-primary)",
-            "margin-bottom": "1.5rem"
-        }),
-        mo.vstack([
-            mo.md(f"### 🪵 {pipeline_provider.value.upper()} Settings"),
-            mo.hstack([pipeline_ingest, pipeline_observe]),
-            vrl_transform
-        ]).style({
-            "border": "1px solid var(--color-border-subtle)",
-            "padding": "1.5rem",
-            "background-color": "var(--color-bg-primary)",
-            "margin-bottom": "1.5rem"
-        })
+        storage_settings,
+        catalog_settings,
+        mo.vstack(pipeline_settings) if pipeline_settings else mo.md("⚠️ *Select at least one Pipeline Engine to configure.*")
     ])
     return (config_panel,)
 
@@ -289,9 +344,12 @@ def _(
     storage_port,
     storage_bucket,
     catalog_port,
-    pipeline_ingest,
-    pipeline_observe,
+    vector_ingest_port,
+    vector_observe_port,
     vrl_transform,
+    fluentbit_ingest_port,
+    fluentbit_observe_port,
+    fluentbit_transform,
     config_path,
     save_btn,
     mo,
@@ -316,9 +374,12 @@ def _(
                 },
                 "pipeline": {
                     "provider": pipeline_provider.value,
-                    "observe_port": int(pipeline_observe.value),
-                    "ingest_port": int(pipeline_ingest.value),
-                    "vrl_transform": vrl_transform.value
+                    "observe_port": int(vector_observe_port.value),
+                    "ingest_port": int(vector_ingest_port.value),
+                    "vrl_transform": vrl_transform.value,
+                    "fluentbit_observe_port": int(fluentbit_observe_port.value),
+                    "fluentbit_ingest_port": int(fluentbit_ingest_port.value),
+                    "fluentbit_transform": fluentbit_transform.value
                 }
             }
         }
