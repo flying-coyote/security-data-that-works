@@ -200,20 +200,16 @@ def _(config_data, mo):
 
 @app.cell(hide_code=True)
 def _(storage_provider, catalog_provider, pipeline_provider, mo):
-    selector_panel = mo.md(f"""
-<div class="sdw-card">
-
-### 🔌 Component Swapping Selectors
-Choose the software components for your active LIGER stack deployment.
-
-<div style="display: flex; gap: 2rem; flex-wrap: wrap; margin-top: 1rem;">
-    <div>{storage_provider}</div>
-    <div>{catalog_provider}</div>
-    <div>{pipeline_provider}</div>
-</div>
-
-</div>
-""")
+    selector_panel = mo.vstack([
+        mo.md("### 🔌 Component Swapping Selectors"),
+        mo.md("Choose the software components for your active LIGER stack deployment."),
+        mo.hstack([storage_provider, catalog_provider, pipeline_provider])
+    ]).style({
+        "border": "1px solid var(--color-border-subtle)",
+        "padding": "1.5rem",
+        "background-color": "var(--color-bg-primary)",
+        "margin-bottom": "1.5rem"
+    })
     return (selector_panel,)
 
 
@@ -246,41 +242,42 @@ def _(config_data, storage_provider, catalog_provider, pipeline_provider, mo):
 
 @app.cell(hide_code=True)
 def _(storage_port, storage_bucket, catalog_port, pipeline_ingest, pipeline_observe, vrl_transform, storage_provider, catalog_provider, pipeline_provider, mo):
-    config_panel = mo.md(f"""
-<div class="sdw-card">
-
-### ⚙️ {storage_provider.value.upper()} Settings
-<div style="display: flex; gap: 1rem; flex-wrap: wrap;">
-    <div>{storage_port}</div>
-    <div>{storage_bucket}</div>
-</div>
-
-</div>
-
-<div class="sdw-card">
-
-### 📐 {catalog_provider.value.upper()} Settings
-<div>{catalog_port}</div>
-
-</div>
-
-<div class="sdw-card">
-
-### 🪵 {pipeline_provider.value.upper()} Settings
-<div style="display: flex; gap: 1rem; flex-wrap: wrap; margin-bottom: 1rem;">
-    <div>{pipeline_ingest}</div>
-    <div>{pipeline_observe}</div>
-</div>
-{vrl_transform}
-
-</div>
-""")
+    config_panel = mo.vstack([
+        mo.vstack([
+            mo.md(f"### ⚙️ {storage_provider.value.upper()} Settings"),
+            mo.hstack([storage_port, storage_bucket])
+        ]).style({
+            "border": "1px solid var(--color-border-subtle)",
+            "padding": "1.5rem",
+            "background-color": "var(--color-bg-primary)",
+            "margin-bottom": "1.5rem"
+        }),
+        mo.vstack([
+            mo.md(f"### 📐 {catalog_provider.value.upper()} Settings"),
+            catalog_port
+        ]).style({
+            "border": "1px solid var(--color-border-subtle)",
+            "padding": "1.5rem",
+            "background-color": "var(--color-bg-primary)",
+            "margin-bottom": "1.5rem"
+        }),
+        mo.vstack([
+            mo.md(f"### 🪵 {pipeline_provider.value.upper()} Settings"),
+            mo.hstack([pipeline_ingest, pipeline_observe]),
+            vrl_transform
+        ]).style({
+            "border": "1px solid var(--color-border-subtle)",
+            "padding": "1.5rem",
+            "background-color": "var(--color-bg-primary)",
+            "margin-bottom": "1.5rem"
+        })
+    ])
     return (config_panel,)
 
 
 @app.cell(hide_code=True)
 def _(mo):
-    save_btn = mo.ui.button(label="💾 Save Configuration Specs", kind="primary")
+    save_btn = mo.ui.button(label="💾 Save Configuration Specs", kind="success")
     return (save_btn,)
 
 
@@ -334,7 +331,7 @@ def _(
 @app.cell(hide_code=True)
 def _(mo):
     test_input = mo.ui.text_area(value='{"message": "log line", "timestamp": "2026-06-18T12:00:00Z", "user": "admin", "success": true}', label="Sample JSON Record In", rows=4)
-    test_btn = mo.ui.button(label="🧪 Run Pre-Deployment VRL Test", kind="primary")
+    test_btn = mo.ui.button(label="🧪 Run Pre-Deployment VRL Test", kind="success")
     return test_btn, test_input
 
 
@@ -383,8 +380,8 @@ sinks:
 
 @app.cell(hide_code=True)
 def _(mo):
-    deploy_btn = mo.ui.button(label="🚀 Deploy Stack via Pulumi", kind="primary")
-    destroy_btn = mo.ui.button(label="🛑 Tear Down Stack")
+    deploy_btn = mo.ui.button(label="🚀 Deploy Stack via Pulumi", kind="success")
+    destroy_btn = mo.ui.button(label="🛑 Tear Down Stack", kind="danger")
     return deploy_btn, destroy_btn
 
 
@@ -553,14 +550,15 @@ def _(
     
     # Tab 2: VRL Tester
     tab_tester = mo.vstack([
-        mo.md("""
-        <div class="sdw-card">
-        
-        ### 🧪 VRL Testing Console
-        Test your vector transform rules against raw mock logs locally before provisioning them in the docker vector container.
-        
-        </div>
-        """),
+        mo.vstack([
+            mo.md("### 🧪 VRL Testing Console"),
+            mo.md("Test your vector transform rules against raw mock logs locally before provisioning them in the docker vector container.")
+        ]).style({
+            "border": "1px solid var(--color-border-subtle)",
+            "padding": "1.5rem",
+            "background-color": "var(--color-bg-primary)",
+            "margin-bottom": "1.5rem"
+        }),
         test_input,
         mo.hstack([test_btn]),
         test_output
@@ -568,14 +566,15 @@ def _(
     
     # Tab 3: Infrastructure
     tab_pulumi = mo.vstack([
-        mo.md("""
-        <div class="sdw-card">
-        
-        ### 🛠️ Infrastructure Lifecycle Manager
-        Spin up or tear down your selected LIGER stack components locally inside docker container networks using Pulumi.
-        
-        </div>
-        """),
+        mo.vstack([
+            mo.md("### 🛠️ Infrastructure Lifecycle Manager"),
+            mo.md("Spin up or tear down your selected LIGER stack components locally inside docker container networks using Pulumi.")
+        ]).style({
+            "border": "1px solid var(--color-border-subtle)",
+            "padding": "1.5rem",
+            "background-color": "var(--color-bg-primary)",
+            "margin-bottom": "1.5rem"
+        }),
         mo.hstack([deploy_btn, destroy_btn]),
         deployment_status,
         mo.accordion({"Deployment Execution Logs": mo.Html(f"<pre style='max-height: 250px; overflow-y: auto;'>{''.join(logs)}</pre>")})
@@ -584,14 +583,15 @@ def _(
     # Tab 4: Metadata Inspector
     inspector_selectors = mo.hstack([ns_selector, table_selector]) if (cat and hasattr(ns_selector, "value")) else ns_selector
     tab_inspector = mo.vstack([
-        mo.md("""
-        <div class="sdw-card">
-        
-        ### 🔍 Iceberg Metadata Inspector
-        Query schemas, list tables, and inspect metadata/data from your active REST catalog.
-        
-        </div>
-        """),
+        mo.vstack([
+            mo.md("### 🔍 Iceberg Metadata Inspector"),
+            mo.md("Query schemas, list tables, and inspect metadata/data from your active REST catalog.")
+        ]).style({
+            "border": "1px solid var(--color-border-subtle)",
+            "padding": "1.5rem",
+            "background-color": "var(--color-bg-primary)",
+            "margin-bottom": "1.5rem"
+        }),
         inspector_selectors,
         inspect_output
     ])
