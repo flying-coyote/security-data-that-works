@@ -21,7 +21,16 @@ def _():
     sys.path.append(os.path.abspath("."))
     import pulumi_deployer as deployer
 
-    return boto3, deployer, mo, os, subprocess, yaml, RestCatalog
+    PROVIDER_NAMES = {
+        "seaweedfs": "SeaweedFS",
+        "minio": "MinIO",
+        "polaris": "Polaris",
+        "nessie": "Nessie",
+        "vector": "Vector",
+        "fluentbit": "Fluent Bit"
+    }
+
+    return PROVIDER_NAMES, boto3, deployer, mo, os, subprocess, yaml, RestCatalog
 
 
 @app.cell(hide_code=True)
@@ -207,7 +216,7 @@ def _(config_data, mo):
 @app.cell(hide_code=True)
 def _(storage_provider, catalog_provider, pipeline_provider, mo):
     selector_panel = mo.vstack([
-        mo.md("### 🔌 Component Swapping Selectors"),
+        mo.md("### 🔌 Modular Component Selection"),
         mo.md("Choose the software components for your active LIGER stack deployment."),
         mo.hstack([storage_provider, catalog_provider, pipeline_provider])
     ]).style({
@@ -220,18 +229,20 @@ def _(storage_provider, catalog_provider, pipeline_provider, mo):
 
 
 @app.cell(hide_code=True)
-def _(config_data, storage_provider, catalog_provider, pipeline_provider, mo):
+def _(config_data, storage_provider, catalog_provider, pipeline_provider, PROVIDER_NAMES, mo):
     # Dynamic settings based on selectors
     # 1. Storage config
     s_prov = storage_provider.value
+    s_name = PROVIDER_NAMES.get(s_prov, s_prov)
     default_s_port = 8333 if s_prov == "seaweedfs" else 9000
-    storage_port = mo.ui.text(value=str(config_data.get("components", {}).get("storage", {}).get("port", default_s_port)), label=f"{s_prov.upper()} Port")
+    storage_port = mo.ui.text(value=str(config_data.get("components", {}).get("storage", {}).get("port", default_s_port)), label=f"{s_name} Port")
     storage_bucket = mo.ui.text(value=config_data.get("components", {}).get("storage", {}).get("bucket_name", "liger-warehouse"), label="S3 Bucket Name")
 
     # 2. Catalog config
     c_prov = catalog_provider.value
+    c_name = PROVIDER_NAMES.get(c_prov, c_prov)
     default_c_port = 8181 if c_prov == "polaris" else 19120
-    catalog_port = mo.ui.text(value=str(config_data.get("components", {}).get("catalog", {}).get("port", default_c_port)), label=f"{c_prov.upper()} Port")
+    catalog_port = mo.ui.text(value=str(config_data.get("components", {}).get("catalog", {}).get("port", default_c_port)), label=f"{c_name} Port")
 
     # 3. Pipeline config (Define both Vector and Fluent Bit configuration widgets)
     vector_ingest_port = mo.ui.text(value=str(config_data.get("components", {}).get("pipeline", {}).get("ingest_port", 514)), label="Vector Ingest Port (Syslog TCP)")
@@ -269,10 +280,12 @@ def _(
     storage_provider,
     catalog_provider,
     pipeline_provider,
+    PROVIDER_NAMES,
     mo,
 ):
+    s_name = PROVIDER_NAMES.get(storage_provider.value, "Storage")
     storage_settings = mo.vstack([
-        mo.md(f"### ⚙️ {storage_provider.value.upper()} Settings"),
+        mo.md(f"### 📁 {s_name} Settings"),
         mo.hstack([storage_port, storage_bucket])
     ]).style({
         "border": "1px solid var(--color-border-subtle)",
@@ -281,8 +294,9 @@ def _(
         "margin-bottom": "1.5rem"
     })
 
+    c_name = PROVIDER_NAMES.get(catalog_provider.value, "Catalog")
     catalog_settings = mo.vstack([
-        mo.md(f"### 📐 {catalog_provider.value.upper()} Settings"),
+        mo.md(f"### 🗂️ {c_name} Settings"),
         catalog_port
     ]).style({
         "border": "1px solid var(--color-border-subtle)",
@@ -297,7 +311,7 @@ def _(
     if "vector" in p_provs:
         pipeline_settings.append(
             mo.vstack([
-                mo.md("### 🪵 Vector Settings"),
+                mo.md("### ⚡ Vector Settings"),
                 mo.hstack([vector_ingest_port, vector_observe_port]),
                 vrl_transform
             ]).style({
@@ -311,7 +325,7 @@ def _(
     if "fluentbit" in p_provs:
         pipeline_settings.append(
             mo.vstack([
-                mo.md("### 🪵 Fluent Bit Settings"),
+                mo.md("### ⚡ Fluent Bit Settings"),
                 mo.hstack([fluentbit_ingest_port, fluentbit_observe_port]),
                 fluentbit_transform
             ]).style({
@@ -602,14 +616,16 @@ def _(
     cat,
     mo
 ):
-    # Tab 1: Config
+    # Tab 1: Modular Component Selection
+    tab_selection = selector_panel
+    
+    # Tab 2: Config Settings
     tab_config = mo.vstack([
-        selector_panel,
         config_panel,
         mo.hstack([save_btn, save_status])
     ])
     
-    # Tab 2: VRL Tester
+    # Tab 3: VRL Tester
     tab_tester = mo.vstack([
         mo.vstack([
             mo.md("### 🧪 VRL Testing Console"),
@@ -625,7 +641,7 @@ def _(
         test_output
     ])
     
-    # Tab 3: Infrastructure
+    # Tab 4: Infrastructure
     tab_pulumi = mo.vstack([
         mo.vstack([
             mo.md("### 🛠️ Infrastructure Lifecycle Manager"),
@@ -641,7 +657,7 @@ def _(
         mo.accordion({"Deployment Execution Logs": mo.Html(f"<pre style='max-height: 250px; overflow-y: auto;'>{''.join(logs)}</pre>")})
     ])
     
-    # Tab 4: Metadata Inspector
+    # Tab 5: Metadata Inspector
     inspector_selectors = mo.hstack([ns_selector, table_selector]) if (cat and hasattr(ns_selector, "value")) else ns_selector
     tab_inspector = mo.vstack([
         mo.vstack([
@@ -659,6 +675,7 @@ def _(
     
     # Combined dashboard with premium styling
     dashboard = mo.ui.tabs({
+        "🔌 Component Selection": tab_selection,
         "⚙️ Configuration": tab_config,
         "🧪 VRL Tester": tab_tester,
         "🛠️ Infrastructure": tab_pulumi,
