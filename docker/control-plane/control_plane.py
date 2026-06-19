@@ -280,6 +280,7 @@ def _(P, config_data, mo, sel_catalog, sel_storage):
 
     vector_ingest_port = mo.ui.text(value=str(_pipe("ingest_port", 514)), label="Vector Ingest Port (Syslog TCP)")
     vector_observe_port = mo.ui.text(value=str(_pipe("observe_port", 8686)), label="Vector Observability Port")
+    vector_metrics_port = mo.ui.text(value=str(_pipe("metrics_port", 9598)), label="Vector Prometheus Metrics Port")
     vrl_transform = mo.ui.text_area(value=_pipe("vrl_transform", ""), label="Vector VRL Transform Rule", rows=12)
 
     fluentbit_ingest_port = mo.ui.text(value=str(_pipe("fluentbit_ingest_port", 24224)), label="Fluent Bit Ingest Port")
@@ -293,6 +294,7 @@ def _(P, config_data, mo, sel_catalog, sel_storage):
         storage_bucket,
         storage_port,
         vector_ingest_port,
+        vector_metrics_port,
         vector_observe_port,
         vrl_transform,
     )
@@ -313,6 +315,7 @@ def _(
     storage_port,
     ui,
     vector_ingest_port,
+    vector_metrics_port,
     vector_observe_port,
     vrl_transform,
 ):
@@ -329,7 +332,7 @@ def _(
     if "vector" in sel_ingest:
         pipeline_settings.append(ui.panel(mo,
             mo.md("### Vector Settings"),
-            mo.hstack([vector_ingest_port, vector_observe_port]),
+            mo.hstack([vector_ingest_port, vector_observe_port, vector_metrics_port]),
             vrl_transform,
         ))
     if "fluentbit" in sel_ingest:
@@ -371,6 +374,7 @@ def _(
     storage_bucket,
     storage_port,
     vector_ingest_port,
+    vector_metrics_port,
     vector_observe_port,
     vrl_transform,
     yaml,
@@ -396,6 +400,7 @@ def _(
                     "provider": sel_ingest,
                     "observe_port": int(vector_observe_port.value),
                     "ingest_port": int(vector_ingest_port.value),
+                    "metrics_port": int(vector_metrics_port.value),
                     "vrl_transform": vrl_transform.value,
                     "fluentbit_observe_port": int(fluentbit_observe_port.value),
                     "fluentbit_ingest_port": int(fluentbit_ingest_port.value),
@@ -682,8 +687,10 @@ def _(cat, mo, ns_selector, table_selector):
 
 
 @app.cell(hide_code=True)
-def _(fluentbit_observe_port, mo, sel_ingest, ui, vector_observe_port):
+def _(fluentbit_observe_port, mo, sel_ingest, ui, vector_metrics_port):
     import urllib.request
+
+    import vector_metrics as vm
 
     def _probe(url):
         try:
@@ -692,26 +699,39 @@ def _(fluentbit_observe_port, mo, sel_ingest, ui, vector_observe_port):
         except Exception:
             return False
 
-    _vector_up = "vector" in sel_ingest and _probe(f"http://localhost:{vector_observe_port.value}/health")
+    _counts = (vm.scrape_counts(f"http://localhost:{vector_metrics_port.value}/metrics")
+               if "vector" in sel_ingest else None)
     _fluent_up = "fluentbit" in sel_ingest and _probe(f"http://localhost:{fluentbit_observe_port.value}/api/v0/info")
+    _vector_up = _counts is not None
     _live = _vector_up or _fluent_up
 
     _status = "Active (running)" if _live else "Offline"
     _color = "var(--color-teal-500)" if _live else "var(--color-text-muted)"
-    _counter = "(wire Vector's Prometheus sink to populate counters)" if _live else "—"
-    _hint = (
-        "Liveness probe only — event/error counters need Vector's Prometheus sink (not wired in this POC)."
-        if _live else
-        "Deploy the stack (Manage -> Infrastructure) to bring the pipeline online."
-    )
+    if _counts is not None:
+        _ein, _eout, _errs = _counts
+        _in_s, _out_s, _err_s = f"{_ein:,}", f"{_eout:,}", f"{_errs:,}"
+        _hint = (
+            f"Real counters scraped from Vector's prometheus_exporter on :{vector_metrics_port.value} "
+            "(internal_metrics → component_{received,sent,errors}_total, excluding Vector's own "
+            "telemetry plumbing)."
+        )
+    else:
+        _in_s = _out_s = _err_s = "—"
+        _hint = (
+            "Pipeline live via Fluent Bit; Vector metrics scrape unavailable — counters unmeasured (—), never faked."
+            if _live else
+            "No Vector metrics scrape — counters unmeasured (shown as —, never faked). Deploy the stack "
+            "(Manage → Infrastructure) and confirm the Prometheus metrics port."
+        )
 
     tab_metrics = ui.panel(mo,
         ui.header(mo, "Live Pipeline Telemetry"),
         mo.md(f"**<span style='color:{_color}; font-size:1.1rem;'>● {_status}</span>**"),
         mo.hstack([
             ui.card(mo, ui.header(mo, "Status"), mo.md(f"`{_status}`")),
-            ui.card(mo, ui.header(mo, "Events ingested"), mo.md(f"`{_counter}`")),
-            ui.card(mo, ui.header(mo, "Errors"), mo.md("`—`")),
+            ui.card(mo, ui.header(mo, "Events ingested"), mo.md(f"`{_in_s}`")),
+            ui.card(mo, ui.header(mo, "Events delivered"), mo.md(f"`{_out_s}`")),
+            ui.card(mo, ui.header(mo, "Errors"), mo.md(f"`{_err_s}`")),
         ], gap=2),
         mo.md(f"*{_hint}*"),
     )
