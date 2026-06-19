@@ -170,6 +170,11 @@ def check_schema_conformance(schema_field_names, required_field_names, required_
     """expected_columns: optional set the table must contain (e.g. an OCSF core
     set). required_field_names + required_null_violations: Iceberg-required fields
     and any of them carrying NULLs per the manifest counts."""
+    # Nothing to assert (no expected columns AND no required fields) is unmeasured,
+    # never a vacuous pass — a schema check that validated nothing isn't a green.
+    if not expected_columns and not required_field_names:
+        return CheckResult("schema_conformance", "unmeasured",
+                           "no expected columns or required fields to validate against")
     present = set(schema_field_names)
     missing = set(expected_columns or set()) - present
     null_viol = sorted(required_null_violations)

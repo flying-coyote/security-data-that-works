@@ -25,11 +25,14 @@ def _():
     import ui_helpers as ui
     import gate_logic as gl
     import layer3_audit as l3
+    import layer1_audit as l1
+    import layer4_audit as l4
+    import decay as dk
     import evidence_runner as ev
 
     # Tolaria convention: point VAULT_PATH at the OKF vault (project1).
     VAULT_PATH = os.environ.get("VAULT_PATH", os.path.expanduser("~/project1"))
-    return P, RestCatalog, VAULT_PATH, deployer, ev, gl, l3, mo, okf, os, subprocess, textwrap, ui, yaml
+    return P, RestCatalog, VAULT_PATH, deployer, dk, ev, gl, l1, l3, l4, mo, okf, os, subprocess, textwrap, ui, yaml
 
 
 @app.cell(hide_code=True)
@@ -476,21 +479,22 @@ def _(mo):
 
 
 @app.cell(hide_code=True)
-def _(P, cat, config_path, deployer, ev, evidence, gl, layer3, mo, os, sel_catalog, sel_ingest, sel_query, sel_schema, sel_storage, ui):
+def _(P, cat, config_path, deployer, ev, evidence, gl, layer1, layer3, layer4, mo, os, sel_catalog, sel_ingest, sel_query, sel_schema, sel_storage, ui):
     # The composite data-health gate — the spine of the console. The verdict logic
-    # lives in gate_logic.compute_gate (a pure function the proof harness exercises
-    # through a healthy -> broken -> healthy arc), so this cell only gathers the
-    # layer inputs and renders. Config integrity is a HARD deploy gate; Layer 1-2 is
-    # observed; Layer 3 is now MEASURED by the data-quality audit below; Layer 4 is
-    # still unwired and stays labeled unmeasured rather than bluffing a pass.
+    # lives in gate_logic.compute_gate (a pure function the proof harnesses exercise
+    # through healthy -> broken -> healthy arcs), so this cell only gathers the layer
+    # inputs and renders. Config integrity is a HARD deploy gate; Layer 2 is observed;
+    # Layers 1/3/4 are MEASURED by their audits and may decay to `stale` (a proven
+    # pass that has not been re-validated within its TTL — not-green but not a failure).
     _warns = [t for lvl, t, _b in P.compat_notes(sel_storage, sel_catalog, sel_query, sel_ingest, sel_schema) if lvl == "warn"]
     gate = gl.compute_gate(
         warns=_warns,
         spec_saved=os.path.exists(config_path),
         docker_up=deployer.is_docker_available(),
         catalog_live=cat is not None,
-        layer3_status=layer3.get("status", "unmeasured"),
-        layer4_status="unmeasured",
+        layer1_status=layer1.get("effective_status", layer1.get("status", "unmeasured")),
+        layer3_status=layer3.get("effective_status", layer3.get("status", "unmeasured")),
+        layer4_status=layer4.get("effective_status", layer4.get("status", "unmeasured")),
     )
 
     _verdict, _vcolor = gl.verdict_line(gate)
@@ -960,13 +964,20 @@ def _(
 
         _result = l3.audit_table(loaded_table, store_basenames=_store, enabled=_enabled)
         _result["table"] = loaded_table_id
+        import datetime as _dt
+        _result["ran_at"] = _dt.datetime.now(_dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
         set_layer3(_result)
     return
 
 
 @app.cell(hide_code=True)
-def _(get_layer3):
-    layer3 = get_layer3()
+def _(dk, get_layer3):
+    import datetime as _dt
+    _l3 = get_layer3()
+    layer3 = dict(_l3)
+    layer3["effective_status"] = dk.effective_status(
+        _l3.get("status", "unmeasured"), _l3.get("ran_at"),
+        _dt.datetime.now(_dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"), dk.DEFAULT_TTL_SECONDS)
     return (layer3,)
 
 
@@ -1077,22 +1088,241 @@ def _(ev, evidence, mo, ui):
     return (evidence_panel,)
 
 
+# ----- Layer 1 — source health ----------------------------------------------
 @app.cell(hide_code=True)
-def _(docs_panel, evidence_panel, evidence_select, health_compaction, health_crc, health_orphan, health_panel, health_schema, health_tombstone, mo, okf_panel, run_evidence, run_health, scorecard_panel, ui):
+def _(cat, ns_selector):
+    # Cheap: list the source table NAMES in the selected namespace for the Layer 1/4
+    # selectors. load_table is deferred to the audit runners (on button press), so
+    # picking a namespace does not trigger a metadata load for every table in it.
+    ns_table_names = []
+    if cat and ns_selector and hasattr(ns_selector, "value") and isinstance(ns_selector.value, str):
+        try:
+            for _t in cat.list_tables(tuple(ns_selector.value.split("."))):
+                ns_table_names.append(".".join(_t[1:]) if len(_t) > 1 else str(_t[0]))
+        except Exception:
+            ns_table_names = []
+    return (ns_table_names,)
+
+
+@app.cell(hide_code=True)
+def _(mo):
+    get_layer1, set_layer1 = mo.state({"status": "unmeasured", "sources": [], "ran_at": None})
+    return get_layer1, set_layer1
+
+
+@app.cell(hide_code=True)
+def _(mo):
+    capture_baseline = mo.ui.run_button(label="Capture source baseline (enables completeness)")
+    return (capture_baseline,)
+
+
+@app.cell(hide_code=True)
+def _(cat, l1, ns_selector, ns_table_names, run_health, set_layer1):
+    # Runs on the same button as Layer 3, across all sources in the namespace. Tables are
+    # loaded HERE (on the button press), not on namespace selection. Loads the baseline
+    # sidecar if present (else completeness reads PENDING). Never fabricates.
+    if run_health.value and ns_table_names and cat and isinstance(getattr(ns_selector, "value", None), str):
+        import datetime as _dt
+        _tables = {}
+        for _n in ns_table_names:
+            try:
+                _tables[_n] = cat.load_table(f"{ns_selector.value}.{_n}")
+            except Exception:
+                continue
+        if _tables:
+            _now_ms = int(_dt.datetime.now(_dt.timezone.utc).timestamp() * 1000)
+            _res = l1.audit_sources(_tables, now_ms=_now_ms, baseline=l1.load_baseline("layer1-baseline.json"))
+            _res["ran_at"] = _dt.datetime.now(_dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+            _res["namespace"] = ns_selector.value
+            set_layer1(_res)
+    return
+
+
+@app.cell(hide_code=True)
+def _(capture_baseline, cat, l1, mo, ns_selector, ns_table_names):
+    baseline_status = mo.md("")
+    if capture_baseline.value and ns_table_names and cat and isinstance(getattr(ns_selector, "value", None), str):
+        _tables = {}
+        for _n in ns_table_names:
+            try:
+                _tables[_n] = cat.load_table(f"{ns_selector.value}.{_n}")
+            except Exception:
+                continue
+        _counts = l1.source_row_counts(_tables)
+        l1.save_baseline("layer1-baseline.json", _counts)
+        baseline_status = mo.md(f"**Baseline captured** for {len(_counts)} source(s) — completeness "
+                                "is measured on the next audit.")
+    return (baseline_status,)
+
+
+@app.cell(hide_code=True)
+def _(dk, get_layer1):
+    import datetime as _dt
+    _l1 = get_layer1()
+    layer1 = dict(_l1)
+    layer1["effective_status"] = dk.effective_status(
+        _l1.get("status", "unmeasured"), _l1.get("ran_at"),
+        _dt.datetime.now(_dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"), dk.DEFAULT_TTL_SECONDS)
+    return (layer1,)
+
+
+@app.cell(hide_code=True)
+def _(baseline_status, gl, layer1, mo, ns_selector, ui):
+    _srcs = layer1.get("sources", [])
+    _cur_ns = getattr(ns_selector, "value", None)
+    _stale_note = ("" if layer1.get("namespace") in (None, _cur_ns)
+                   else f"\n\n*Verdict is for namespace `{layer1.get('namespace')}`; re-run for `{_cur_ns}`.*")
+    if not _srcs:
+        layer1_panel = ui.panel(mo,
+            ui.header(mo, "Layer 1 — source health"),
+            mo.md("*No sources audited yet. Deploy the stack, land data, select a namespace in the "
+                  "Metadata Inspector, then press **Run Data Health Audits**. With no baseline, "
+                  "completeness reads PENDING — you can't measure a drop with nothing to compare to.*"),
+            baseline_status,
+        )
+    else:
+        _eff = layer1.get("effective_status", layer1.get("status"))
+        _color = {"pass": "var(--color-teal-500)", "fail": "#c14a4a",
+                  "stale": "var(--color-orange-500)"}.get(_eff, "var(--color-orange-500)")
+        _lines = []
+        for _s in _srcs:
+            _c = _s.get("completeness") or {}
+            _fresh = next((c for c in _s["checks"] if c.name == "freshness"), None)
+            _lines.append(f"- {gl.ICON.get(_s['status'], '⚪')} **{_s['name']}** ({_s['status']}) — "
+                          f"{_s.get('rows', '?')} rows · completeness {_c.get('status', '?')}"
+                          + (f" · {_fresh.detail}" if _fresh else ""))
+        layer1_panel = ui.panel(mo,
+            ui.header(mo, "Layer 1 — source health (measured)"),
+            mo.md(f"**<span style='color:{_color};'>Layer 1 status: {_eff}</span>** · "
+                  f"last run `{layer1.get('ran_at')}`"),
+            mo.md("\n".join(_lines) + _stale_note),
+            baseline_status,
+            mo.md(f"*{layer1.get('label', '')}: a source that never sent and one dropped upstream look "
+                  "identical here. Completeness compares to a captured baseline; freshness/conformance "
+                  "are measured now. Tier B, single host.*"),
+            **{"border": f"1px solid {_color}"},
+        )
+    return (layer1_panel,)
+
+
+# ----- Layer 4 — cross-tool gap ---------------------------------------------
+@app.cell(hide_code=True)
+def _(mo, ns_table_names):
+    _names = sorted(ns_table_names)
+    l4_sources_select = mo.ui.multiselect(
+        options=_names, value=_names[:3],
+        label="Inventory sources (>=2 tables sharing an identity column)")
+    l4_primary = mo.ui.dropdown(
+        options=_names or ["(no tables)"], value=(_names[0] if _names else "(no tables)"),
+        label="Authoritative (primary) source")
+    l4_idcol = mo.ui.text(value="asset_id", label="Identity column")
+    l4_tolerance = mo.ui.number(start=0, stop=1000000, value=0, label="Coverage tolerance (max allowed gap)")
+    run_layer4 = mo.ui.run_button(label="Run Cross-Tool Gap", kind="success")
+    return l4_idcol, l4_primary, l4_sources_select, l4_tolerance, run_layer4
+
+
+@app.cell(hide_code=True)
+def _(mo):
+    get_layer4, set_layer4 = mo.state({"status": "unmeasured", "gaps": [], "ran_at": None})
+    return get_layer4, set_layer4
+
+
+@app.cell(hide_code=True)
+def _(cat, l4, l4_idcol, l4_primary, l4_sources_select, l4_tolerance, ns_selector, run_layer4, set_layer4):
+    # Load only the selected source tables (on the button press), extract the identity
+    # column per source (one column only; values are never rendered), and compute coverage
+    # gaps from the primary. Needs >=2 selected sources.
+    if run_layer4.value and len(l4_sources_select.value) >= 2 and cat and isinstance(getattr(ns_selector, "value", None), str):
+        import datetime as _dt
+        _idcol = (l4_idcol.value or "asset_id").strip()
+        _sources = {}
+        for _n in l4_sources_select.value:
+            try:
+                _t = cat.load_table(f"{ns_selector.value}.{_n}")
+            except Exception:
+                _t = None
+            _sources[_n] = l4.extract_ids(_t, _idcol) if _t is not None else None
+        _res = l4.cross_tool_gap(l4_primary.value, _sources, tolerance=int(l4_tolerance.value or 0))
+        _res["ran_at"] = _dt.datetime.now(_dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+        _res["sources_sig"] = sorted(l4_sources_select.value)
+        set_layer4(_res)
+    return
+
+
+@app.cell(hide_code=True)
+def _(dk, get_layer4):
+    import datetime as _dt
+    _l4 = get_layer4()
+    layer4 = dict(_l4)
+    layer4["effective_status"] = dk.effective_status(
+        _l4.get("status", "unmeasured"), _l4.get("ran_at"),
+        _dt.datetime.now(_dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"), dk.DEFAULT_TTL_SECONDS)
+    return (layer4,)
+
+
+@app.cell(hide_code=True)
+def _(l4_primary, l4_sources_select, layer4, mo, ui):
+    _gaps = layer4.get("gaps", [])
+    _status = layer4.get("status", "unmeasured")
+    _cur_sig = sorted(l4_sources_select.value)
+    _stale_note = ("" if (layer4.get("sources_sig") in (None, _cur_sig)
+                          and layer4.get("primary") in (None, l4_primary.value))
+                   else "\n\n*Verdict is for a different source set / primary; re-run for the current selection.*")
+    if _status == "unmeasured" and not _gaps:
+        layer4_panel = ui.panel(mo,
+            ui.header(mo, "Layer 4 — cross-tool gap analysis"),
+            mo.md("*Pick >=2 inventory tables, an authoritative primary source, and the shared "
+                  "identity column, then **Run Cross-Tool Gap**. Exact-match set membership only — "
+                  "not entity resolution (deferred). Counts only; identities are never rendered.*"),
+        )
+    else:
+        _eff = layer4.get("effective_status", _status)
+        _color = {"pass": "var(--color-teal-500)", "fail": "#c14a4a",
+                  "stale": "var(--color-orange-500)"}.get(_eff, "var(--color-orange-500)")
+        _primary = layer4.get("primary")
+        _lines = [f"- {'🔴' if g['over_tolerance'] else '🟢'} **{_primary} → {g['to']}**: "
+                  f"{g['gap_count']} asset(s) in {_primary} missing from {g['to']} "
+                  f"({g['primary_count']} vs {g['to_count']})" for g in _gaps]
+        layer4_panel = ui.panel(mo,
+            ui.header(mo, "Layer 4 — cross-tool gap analysis (measured)"),
+            mo.md(f"**<span style='color:{_color};'>Layer 4 status: {_eff}</span>** · "
+                  f"primary `{_primary}` · tolerance {layer4.get('tolerance')} · "
+                  f"last run `{layer4.get('ran_at')}`"),
+            mo.md(("\n".join(_lines) if _lines else "*No gaps computed.*") + _stale_note),
+            mo.md(f"*{layer4.get('note', '')}. Counts only — identities are not rendered "
+                  "(telemetry-injection rule). Tier B, single host.*"),
+            **{"border": f"1px solid {_color}"},
+        )
+    return (layer4_panel,)
+
+
+@app.cell(hide_code=True)
+def _(capture_baseline, docs_panel, evidence_panel, evidence_select, health_compaction, health_crc, health_orphan, health_panel, health_schema, health_tombstone, l4_idcol, l4_primary, l4_sources_select, l4_tolerance, layer1_panel, layer4_panel, mo, okf_panel, run_evidence, run_health, run_layer4, scorecard_panel, ui):
     tab_vault = mo.vstack([
         okf_panel,
         mo.hstack([docs_panel], gap=2),
         scorecard_panel,
         ui.panel(mo,
-            ui.header(mo, "Data Health & Schema Validation"),
-            mo.md("Select which audits to enforce on the storage and catalog paths:"),
+            ui.header(mo, "Data Health & Schema Validation (Layers 1 & 3)"),
+            mo.md("Run the data-quality audit (Layer 3, on the selected table) and the source-health "
+                  "audit (Layer 1, across the namespace's sources) together:"),
             mo.hstack([
                 mo.vstack([health_crc, health_schema]),
                 mo.vstack([health_tombstone, health_orphan]),
                 mo.vstack([health_compaction]),
             ], gap=3),
-            mo.hstack([run_health]),
+            mo.hstack([run_health, capture_baseline]),
             health_panel,
+            layer1_panel,
+        ),
+        ui.panel(mo,
+            ui.header(mo, "Cross-Tool Gap Analysis (Layer 4)"),
+            mo.md("Coverage gaps from an authoritative inventory source to the other tools — "
+                  "exact-match set membership only (entity resolution deferred):"),
+            mo.hstack([l4_sources_select, l4_primary], gap=2),
+            mo.hstack([l4_idcol, l4_tolerance], gap=2),
+            mo.hstack([run_layer4]),
+            layer4_panel,
         ),
         ui.panel(mo,
             ui.header(mo, "Thesis Evidence Runner"),

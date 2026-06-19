@@ -156,12 +156,13 @@ def main():
         # Isolating Layer 3: hold every other layer green and Layer 3 alone flips the
         # GREEN certification on and off — proof that Layer 3 controls all_green.
         print("\nPart 2b — isolating Layer 3 (all other layers green): GREEN <-> not-GREEN")
+        _others = dict(layer1_status="pass", layer4_status="pass")
         check("healthy + others green -> gate GREEN",
-              gate_for(h["status"], layer4_status="pass")["all_green"] is True)
+              gate_for(h["status"], **_others)["all_green"] is True)
         check("broken + others green -> NOT green",
-              gate_for(b["status"], layer4_status="pass")["all_green"] is False)
+              gate_for(b["status"], **_others)["all_green"] is False)
         check("remediated + others green -> GREEN again",
-              gate_for(f["status"], layer4_status="pass")["all_green"] is True)
+              gate_for(f["status"], **_others)["all_green"] is True)
 
         print()
         if _failures:
