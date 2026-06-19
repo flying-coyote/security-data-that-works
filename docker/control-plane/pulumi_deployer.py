@@ -19,6 +19,7 @@ def create_moar_program(config_dict):
     
     vector_observe_port = int(config_dict.get("components", {}).get("pipeline", {}).get("observe_port", 8686))
     vector_ingest_port = int(config_dict.get("components", {}).get("pipeline", {}).get("ingest_port", 514))
+    vector_metrics_port = int(config_dict.get("components", {}).get("pipeline", {}).get("metrics_port", 9598))
     vrl_transform = config_dict.get("components", {}).get("pipeline", {}).get("vrl_transform", "")
     
     fluentbit_observe_port = int(config_dict.get("components", {}).get("pipeline", {}).get("fluentbit_observe_port", 2020))
@@ -143,6 +144,8 @@ sources:
     type: syslog
     address: 0.0.0.0:{vector_ingest_port}
     mode: tcp
+  internal_metrics:
+    type: internal_metrics
 
 transforms:
   process_logs:
@@ -164,6 +167,10 @@ sinks:
     auth:
       access_key_id: aws_access_key
       secret_access_key: aws_secret_key
+  metrics:
+    type: prometheus_exporter
+    inputs: ["internal_metrics"]
+    address: 0.0.0.0:9598
 """
         config_dir = os.path.abspath("./temp_config")
         os.makedirs(config_dir, exist_ok=True)
@@ -173,7 +180,7 @@ sinks:
 
         vector = docker.Container("vector-service",
             name="vector",
-            image="vectordotdev/vector:0.36.0-alpine",
+            image="timberio/vector:0.56.0-alpine",
             command=["--config", "/etc/vector/vector.yaml"],
             networks_advanced=[docker.ContainerNetworksAdvancedArgs(name=network.name)],
             mounts=[docker.ContainerMountArgs(
@@ -183,7 +190,8 @@ sinks:
             )],
             ports=[
                 docker.ContainerPortArgs(internal=vector_ingest_port, external=vector_ingest_port),
-                docker.ContainerPortArgs(internal=8686, external=vector_observe_port)
+                docker.ContainerPortArgs(internal=8686, external=vector_observe_port),
+                docker.ContainerPortArgs(internal=9598, external=vector_metrics_port)
             ],
             opts=pulumi.ResourceOptions(depends_on=[storage_container, catalog_container]),
             restart="unless-stopped"

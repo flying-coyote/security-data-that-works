@@ -7,6 +7,10 @@ sources:
     type: file
     include: ["/etc/vector/sample.ndjson"]
     read_from: beginning
+  # Vector has no control/REST API for throughput, so the honest source of real
+  # per-component counters is its own internal_metrics, exported for Prometheus scrape.
+  internal_metrics:
+    type: internal_metrics
 transforms:
   ocsf:
     type: remap
@@ -26,6 +30,13 @@ sinks:
     type: console
     inputs: [ocsf]
     encoding: {codec: json}
+  # Real throughput counters: component_{received,sent}_events_total + component_errors_total,
+  # tagged by component_id, served at :9598/metrics. The console scrapes this; when the scrape
+  # fails the panel shows "—" (unmeasured), never a fabricated count.
+  metrics:
+    type: prometheus_exporter
+    inputs: [internal_metrics]
+    address: "0.0.0.0:9598"
 tests:
   - name: okta_auth_to_ocsf
     inputs:
