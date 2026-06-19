@@ -23,10 +23,12 @@ def _():
     import providers as P
     import okf_reader as okf
     import ui_helpers as ui
+    import gate_logic as gl
+    import layer3_audit as l3
 
     # Tolaria convention: point VAULT_PATH at the OKF vault (project1).
     VAULT_PATH = os.environ.get("VAULT_PATH", os.path.expanduser("~/project1"))
-    return P, RestCatalog, VAULT_PATH, deployer, mo, okf, os, subprocess, textwrap, ui, yaml
+    return P, RestCatalog, VAULT_PATH, deployer, gl, l3, mo, okf, os, subprocess, textwrap, ui, yaml
 
 
 @app.cell(hide_code=True)
@@ -473,57 +475,29 @@ def _(mo):
 
 
 @app.cell(hide_code=True)
-def _(P, cat, config_path, deployer, mo, os, sel_catalog, sel_ingest, sel_query, sel_schema, sel_storage, ui):
-    # The composite data-health gate — the spine of the console. A pure verdict over
-    # the layers we can actually measure today. Config integrity (a compatible
-    # selection plus a saved spec) is a HARD gate on deploy; stack reachability is
-    # observed; the Layer-3 data-quality audit and Layer-4 cross-tool view are not
-    # wired yet, so the gate refuses to certify GREEN and says so plainly rather than
-    # bluffing a pass. It never fabricates a result.
+def _(P, cat, config_path, deployer, gl, layer3, mo, os, sel_catalog, sel_ingest, sel_query, sel_schema, sel_storage, ui):
+    # The composite data-health gate — the spine of the console. The verdict logic
+    # lives in gate_logic.compute_gate (a pure function the proof harness exercises
+    # through a healthy -> broken -> healthy arc), so this cell only gathers the
+    # layer inputs and renders. Config integrity is a HARD deploy gate; Layer 1-2 is
+    # observed; Layer 3 is now MEASURED by the data-quality audit below; Layer 4 is
+    # still unwired and stays labeled unmeasured rather than bluffing a pass.
     _warns = [t for lvl, t, _b in P.compat_notes(sel_storage, sel_catalog, sel_query, sel_ingest, sel_schema) if lvl == "warn"]
-    _spec_saved = os.path.exists(config_path)
-    _docker = deployer.is_docker_available()
-    _catalog_live = cat is not None
+    gate = gl.compute_gate(
+        warns=_warns,
+        spec_saved=os.path.exists(config_path),
+        docker_up=deployer.is_docker_available(),
+        catalog_live=cat is not None,
+        layer3_status=layer3.get("status", "unmeasured"),
+        layer4_status="unmeasured",
+    )
 
-    _blockers = []
-    _blockers += [f"Incompatible selection: {w}" for w in _warns]
-    if not _spec_saved:
-        _blockers.append("No moar-spec.yaml saved yet (Configuration → Save Configuration Spec).")
-
-    _layers = [
-        ("Config integrity (compatible selection)", "fail" if _warns else "pass"),
-        ("Spec persisted", "pass" if _spec_saved else "fail"),
-        ("Layer 1-2 — stack reachable", "pass" if _catalog_live else ("fail" if _docker else "unmeasured")),
-        ("Layer 3 — data-quality audit", "unmeasured"),   # not wired (NEXT build)
-        ("Layer 4 — cross-tool gap analysis", "unmeasured"),  # not wired (LATER)
-    ]
-    _deploy_ok = not _blockers
-    _all_green = _deploy_ok and all(_s == "pass" for _n, _s in _layers)
-
-    gate = {
-        "deploy_ok": _deploy_ok,
-        "all_green": _all_green,
-        "blockers": _blockers,
-        "layers": _layers,
-        "unmeasured": [_n for _n, _s in _layers if _s == "unmeasured"],
-    }
-
-    _icon = {"pass": "🟢", "fail": "🔴", "unmeasured": "⚪"}
-    if _all_green:
-        _verdict = "🟢 Gate GREEN — every measurable layer passes."
-        _vcolor = "var(--color-teal-500)"
-    elif _deploy_ok:
-        _verdict = ("🟡 Deploy permitted — config integrity holds, but the gate cannot certify GREEN "
-                    "until the unproven layers run.")
-        _vcolor = "var(--color-orange-500)"
-    else:
-        _verdict = "🔴 Deploy blocked — clear the config-integrity blockers, or log an override."
-        _vcolor = "#c14a4a"
-
-    _rows = "\n".join(f"- {_icon[_s]} **{_n}** — {_s}" for _n, _s in _layers)
-    _blk = ("\n\n**Blockers:**\n" + "\n".join(f"- {_b}" for _b in _blockers)) if _blockers else ""
-    _unm = ("\n\n*Unproven layers are labeled, never shown as a pass; wire the Layer-3/4 audits to turn "
-            "them green. A green gate is the deploy/inspect authorization, not a slide.*") if gate["unmeasured"] else ""
+    _verdict, _vcolor = gl.verdict_line(gate)
+    _rows = "\n".join(f"- {gl.ICON.get(_s, '⚪')} **{_n}** — {_s}" for _n, _s in gate["layers"])
+    _blk = ("\n\n**Blockers:**\n" + "\n".join(f"- {_b}" for _b in gate["blockers"])) if gate["blockers"] else ""
+    _unm = ("\n\n*Unproven layers are labeled, never shown as a pass; run the Layer-3 audit "
+            "(Strategy Vault → Data Health) to turn it green. A green gate is the deploy/inspect "
+            "authorization, not a slide.*") if gate["unmeasured"] else ""
     gate_panel = ui.panel(mo,
         ui.header(mo, "Data-Health Gate"),
         mo.md(f"**<span style='color:{_vcolor}; font-size:1.05rem;'>{_verdict}</span>**"),
@@ -649,10 +623,14 @@ def _(cat, mo, ns_selector):
 
 @app.cell(hide_code=True)
 def _(cat, mo, ns_selector, table_selector):
+    loaded_table = None
+    loaded_table_id = None
     if cat and table_selector and hasattr(table_selector, "value") and isinstance(table_selector.value, str):
         try:
             _id = f"{ns_selector.value}.{table_selector.value}"
             _tbl = cat.load_table(_id)
+            loaded_table = _tbl
+            loaded_table_id = _id
             import pandas as pd
             _schema_df = pd.DataFrame([
                 {"Field": f.name, "Type": str(f.field_type), "Required": "Yes" if f.required else "No"}
@@ -688,7 +666,7 @@ def _(cat, mo, ns_selector, table_selector):
             inspect_output = mo.md(f"**Failed to load table metadata:** {e}")
     else:
         inspect_output = mo.md("*Select a namespace and table to inspect.*")
-    return (inspect_output,)
+    return inspect_output, loaded_table, loaded_table_id
 
 
 @app.cell(hide_code=True)
@@ -915,37 +893,107 @@ def _(mo, okf, okf_search, ui, vault_error, vault_notes):
 
 
 @app.cell(hide_code=True)
+def _(mo):
+    # Persist the last Layer-3 audit result so the gate holds its verdict across
+    # reactive ticks (the run-button only fires for one cycle). The runner cell
+    # writes; the reader cell publishes `layer3` for the gate and health panel.
+    get_layer3, set_layer3 = mo.state({"status": "unmeasured", "checks": [], "table": None})
+    return get_layer3, set_layer3
+
+
+@app.cell(hide_code=True)
 def _(
     health_compaction,
     health_crc,
     health_orphan,
     health_schema,
     health_tombstone,
-    mo,
+    l3,
+    loaded_table,
+    loaded_table_id,
     run_health,
-    sel_schema,
-    ui,
-    P,
+    set_layer3,
+    storage_bucket,
+    storage_port,
 ):
-    _checks = [
-        (health_crc.value, "Parquet CRC checksum", "recompute each file's CRC and compare to the manifest to catch bit-flips"),
-        (health_schema.value, f"Schema conformity ({P.label_for(P.SCHEMA, sel_schema)})", "validate columns against the schema and flag NULLs in required fields"),
-        (health_tombstone.value, "Tombstone audit (#1215)", "check no deleted rows resurrected via the DuckLake/Postgres delete-conflict bug"),
-        (health_orphan.value, "S3 orphan audit", "diff object-store keys against the catalog manifest registry"),
-        (health_compaction.value, "Compaction threshold", "flag data files under 128MB that should be compacted"),
-    ]
-    if run_health.value:
-        _lines = [f"- **{name}** — will {desc} *(not yet wired — the Layer-3 audit lands in the next build)*"
-                  for on, name, desc in _checks if on]
+    # The Layer-3 audit runner. Runs only when the audit button fires AND a table is
+    # loaded; computes the real audit and stores it. It never runs reactively on
+    # every keystroke (it does manifest + object-store I/O), and never fabricates a
+    # result — if it cannot list the store, the orphan check reports unmeasured.
+    if run_health.value and loaded_table is not None:
+        _enabled = set()
+        if health_compaction.value:
+            _enabled.add("small_files")
+        if health_orphan.value:
+            _enabled.add("orphans")
+        if health_schema.value:
+            _enabled.add("schema_conformance")
+        if health_crc.value:
+            _enabled.add("crc")
+        if health_tombstone.value:
+            _enabled.add("tombstone")
+
+        # The orphan diff needs the parquet basenames under this table's data prefix
+        # in the object store. Derive the key prefix from the table location; on any
+        # failure the lister returns None and the orphan check degrades honestly.
+        _store = None
+        if health_orphan.value:
+            try:
+                _loc = loaded_table.location()  # e.g. s3://bucket/ns/table
+                _prefix = _loc.split("/", 3)[3] if _loc.count("/") >= 3 else ""
+                _store = l3.list_s3_parquet_basenames(
+                    f"http://localhost:{storage_port.value}",
+                    storage_bucket.value or "moar-warehouse",
+                    _prefix,
+                    "aws_access_key", "aws_secret_key",
+                )
+            except Exception:
+                _store = None
+
+        _result = l3.audit_table(loaded_table, store_basenames=_store, enabled=_enabled)
+        _result["table"] = loaded_table_id
+        set_layer3(_result)
+    return
+
+
+@app.cell(hide_code=True)
+def _(get_layer3):
+    layer3 = get_layer3()
+    return (layer3,)
+
+
+@app.cell(hide_code=True)
+def _(gl, layer3, loaded_table_id, mo, ui):
+    # Render the Layer-3 audit result. Honest empty/stale states: nothing measured
+    # until you run it; a note when the stored verdict is for a different table.
+    _checks = layer3.get("checks", [])
+    if not _checks:
         health_panel = ui.panel(mo,
-            ui.header(mo, "Audit plan — not yet executed"),
-            mo.md("These are the checks the Layer-3 data-quality audit will run against the deployed "
-                  "bucket and catalog. They are **not wired to live storage yet**, so nothing here is a "
-                  "measured result — the data-health gate treats Layer 3 as unproven until this runs for real."),
-            mo.md("\n".join(_lines) if _lines else "*No audits selected.*"),
+            ui.header(mo, "Layer 3 — data-quality audit"),
+            mo.md("*No audit run yet. Deploy the stack, land data, pick a table in the Metadata "
+                  "Inspector, then press **Run Data Health Audits**. Until then the gate treats "
+                  "Layer 3 as unproven — it never shows an unrun check as a pass.*"),
         )
     else:
-        health_panel = mo.md("*Toggle the audits and run to see the plan (Layer-3 execution lands next build).*")
+        _lines = []
+        for _c in _checks:
+            _m = ", ".join(f"{_k}={_v}" for _k, _v in (_c.measured or {}).items())
+            _lines.append(f"- {gl.ICON.get(_c.status, '⚪')} **{_c.name}** ({_c.status}) — {_c.detail}"
+                          + (f"  \n&nbsp;&nbsp;`{_m}`" if _m else ""))
+        _stale = ("" if layer3.get("table") in (None, loaded_table_id)
+                  else f"\n\n*Verdict is for `{layer3.get('table')}`; re-run for the selected table.*")
+        _status = layer3.get("status", "unmeasured")
+        _color = {"pass": "var(--color-teal-500)", "fail": "#c14a4a"}.get(_status, "var(--color-orange-500)")
+        health_panel = ui.panel(mo,
+            ui.header(mo, "Layer 3 — data-quality audit (measured)"),
+            mo.md(f"**<span style='color:{_color};'>Layer 3 status: {_status}</span>** "
+                  f"· table `{layer3.get('table')}`"),
+            mo.md("\n".join(_lines) + _stale),
+            mo.md("*Tier B, single host. `crc` and `tombstone` are reported as unwired — no machinery "
+                  "yet, so they are never counted as a pass. Freshness, small-files, orphans, and schema "
+                  "conformance are measured against the live catalog and object store.*"),
+            **{"border": f"1px solid {_color}"},
+        )
     return (health_panel,)
 
 
