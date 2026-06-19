@@ -253,6 +253,31 @@ Each tier is exercised by a corresponding SDW Lab benchmark, so the stack ships 
 `core`+`engine` ↔ the multi-engine answer-equivalence probe; `route`+`detection` ↔ the OCSF context-collapse
 de-gaming (real APT29 + upstream SigmaHQ); `ai` ↔ the air-gapped agentic hunt. See `sdw-lab-benchmarks`.
 
+### bench-lab
+
+`./moar bench-lab <name|tier1|tier2|tier3|all>` runs the SDW Lab benchmarks unattended and writes one
+manifest plus one full log per run under `docker/control-plane/bench-runs/`. It runs on the host against the
+lab venv (`sdw-lab-benchmarks/.venv`), not in a container, since the benches carry their own pyiceberg/duckdb
+deps there. A target is a single bench name, a tier (`tier1` = pure host / no network, `tier2` =
+timing-sensitive or a live local service, `tier3` = needs the docker compose stack), or `all`.
+
+The gate is mechanical well-formedness, not a scientific verdict: an adapter checks that the bench exited 0,
+produced a `results.json` with an `evidence_tier` and a `RESULTS.md`, and didn't contradict its own
+determinism or cross-engine-correctness invariants (the determinism benches must show
+`determinism_verified=true`; the clickhouse-vs-duckdb gate fails on disagreeing answers or a non-reproducible
+corpus). A green says only that the result is structurally complete and self-consistent, and nothing more.
+Promotion of a clean run to hypothesis evidence is a separate human gate (karen-evaluator → hypothesis-validator → contradiction-detector), and every manifest says
+so in its `notes`.
+
+Timing is only as honest as the host. A tier-2/3 pass on a machine without a High-Performance power plan is
+downgraded to `invalid-environment` rather than reported as a result, because a throttled CPU moves the
+numbers; the manifest records the power plan, the lab DuckDB/chdb versions, RAM, and the spoke + lab git heads
+so a run is reproducible. Tier-3 benches are registered but marked not auto-runnable — they need the compose
+stack up, so the runner records them as `not-wired` instead of shelling them out blind. Bench output is bounded
+and control-char-sanitized before it lands in a manifest (synthetic telemetry is a prompt-injection surface);
+the full, unbounded stdout+stderr goes to the per-run `.log`. The exit code is 0 unless some bench actually
+failed — `invalid-environment`, `blocked`, and `not-wired` are honest non-results, not script failures.
+
 ## Conventions
 
 Ports are on the `91xx`/`80xx`-avoiding range so MOAR coexists with other local stacks. Dev credentials are

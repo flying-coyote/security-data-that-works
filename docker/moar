@@ -20,6 +20,7 @@
 #   ./moar observe                                    G-tier check: metrics flow push->pushgateway->prometheus; grafana/loki up
 #   ./moar healthcheck                                data-health gate over the live lakehouse (subset of the Foundation checks)
 #   ./moar bench [rows]                               workload × engine latency matrix (no single engine wins; default 1M rows)
+#   ./moar bench-lab <name|tier1|tier2|tier3|all>     gated unattended lab-bench runs → control-plane/bench-runs/ manifests
 #   ./moar correlate                                  federated cross-source correlation over the open OCSF store (well-connected)
 #   ./moar governance                                 catalog audit trail + time-travel + lineage (vs a mutable SIEM index)
 #   ./moar variant-mfa                                absence-vs-NULL: flattening hides absent-MFA logins; nested catches them (context-collapse)
@@ -392,6 +393,13 @@ cmd_bench() {
   $DC exec -T lab python /lab/workload_matrix.py
 }
 
+cmd_bench_lab() {
+  # Run lab benchmarks unattended with mechanical well-formedness gating + manifests
+  # (promotion to evidence stays a human gate). Runs on the HOST against the lab venv,
+  # not in a container. Target: a bench name, a tier (tier1|tier2|tier3), or all.
+  python3 control-plane/bench_lab.py "$@"
+}
+
 cmd_correlate() {
   # Federated cross-source correlation (H-NDR-FEDERATION-01, the well-connected pillar): two OCSF sources in one
   # open store, joined on a shared entity (src_ip) to surface an attack chain no single source reveals. A SIEM
@@ -517,6 +525,7 @@ case "${1:-}" in
   cidr) shift; cmd_cidr "$@";;
   commit-tax) shift; cmd_commit_tax "$@";;
   concurrency-sweep) cmd_concurrency_sweep;;
+  bench-lab) shift; cmd_bench_lab "$@";;
   logs) shift; cmd_logs "$@";;
-  *) sed -n '2,30p' "$0" | sed 's/^# \{0,1\}//'; exit 0;;
+  *) sed -n '2,31p' "$0" | sed 's/^# \{0,1\}//'; exit 0;;
 esac
