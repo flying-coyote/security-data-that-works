@@ -25,10 +25,11 @@ def _():
     import ui_helpers as ui
     import gate_logic as gl
     import layer3_audit as l3
+    import evidence_runner as ev
 
     # Tolaria convention: point VAULT_PATH at the OKF vault (project1).
     VAULT_PATH = os.environ.get("VAULT_PATH", os.path.expanduser("~/project1"))
-    return P, RestCatalog, VAULT_PATH, deployer, gl, l3, mo, okf, os, subprocess, textwrap, ui, yaml
+    return P, RestCatalog, VAULT_PATH, deployer, ev, gl, l3, mo, okf, os, subprocess, textwrap, ui, yaml
 
 
 @app.cell(hide_code=True)
@@ -475,7 +476,7 @@ def _(mo):
 
 
 @app.cell(hide_code=True)
-def _(P, cat, config_path, deployer, gl, layer3, mo, os, sel_catalog, sel_ingest, sel_query, sel_schema, sel_storage, ui):
+def _(P, cat, config_path, deployer, ev, evidence, gl, layer3, mo, os, sel_catalog, sel_ingest, sel_query, sel_schema, sel_storage, ui):
     # The composite data-health gate — the spine of the console. The verdict logic
     # lives in gate_logic.compute_gate (a pure function the proof harness exercises
     # through a healthy -> broken -> healthy arc), so this cell only gathers the
@@ -498,10 +499,17 @@ def _(P, cat, config_path, deployer, gl, layer3, mo, os, sel_catalog, sel_ingest
     _unm = ("\n\n*Unproven layers are labeled, never shown as a pass; run the Layer-3 audit "
             "(Strategy Vault → Data Health) to turn it green. A green gate is the deploy/inspect "
             "authorization, not a slide.*") if gate["unmeasured"] else ""
+    # Thesis-evidence verbs feed the gate as an informational line, not a blocking
+    # layer — they re-prove the pillars on demand and need a live stack to run.
+    _evs = ev.summarize(evidence)
+    _evline = (f"\n\n*Thesis-evidence verbs: {_evs['passing']} passing / {_evs['total']} run"
+               + (f", {_evs['blocked']} blocked" if _evs['blocked'] else "")
+               + (f" (last run {_evs['last_run']})" if _evs['last_run'] else "")
+               + " — informational, not a gate layer.*") if _evs["total"] else ""
     gate_panel = ui.panel(mo,
         ui.header(mo, "Data-Health Gate"),
         mo.md(f"**<span style='color:{_vcolor}; font-size:1.05rem;'>{_verdict}</span>**"),
-        mo.md(_rows + _blk + _unm),
+        mo.md(_rows + _blk + _unm + _evline),
         **{"border": f"1px solid {_vcolor}"},
     )
     return gate, gate_panel
@@ -998,7 +1006,79 @@ def _(gl, layer3, loaded_table_id, mo, ui):
 
 
 @app.cell(hide_code=True)
-def _(docs_panel, health_compaction, health_crc, health_orphan, health_panel, health_schema, health_tombstone, mo, okf_panel, run_health, scorecard_panel, ui):
+def _(ev, mo):
+    evidence_select = mo.ui.multiselect(
+        options=[v["verb"] for v in ev.VERBS],
+        value=["verify"],
+        label="Evidence verbs (each re-proves a thesis claim against the live stack)")
+    run_evidence = mo.ui.run_button(label="Run Evidence Verbs", kind="success")
+    return evidence_select, run_evidence
+
+
+@app.cell(hide_code=True)
+def _(mo):
+    # Persist the last evidence-verb run so the gate's informational line and the
+    # panel survive reactive ticks (the run-button fires for one cycle).
+    get_evidence, set_evidence = mo.state([])
+    return get_evidence, set_evidence
+
+
+@app.cell(hide_code=True)
+def _(deployer, ev, evidence_select, os, run_evidence, set_evidence):
+    # Run the selected ./moar verbs only on the button press, gated on a reachable
+    # Docker daemon — verbs degrade to "blocked" otherwise, never a fabricated pass.
+    # Output is bounded + sanitized inside evidence_runner (telemetry-injection rule).
+    if run_evidence.value and evidence_select.value:
+        import datetime as _dt
+        _now = _dt.datetime.now(_dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+        _avail = deployer.is_docker_available()
+        _docker_dir = os.path.abspath("..")  # ./moar lives in docker/, app runs in docker/control-plane
+        _results = [ev.run_verb(_v, docker_dir=_docker_dir, available=_avail, now_iso=_now)
+                    for _v in evidence_select.value]
+        set_evidence(_results)
+    return
+
+
+@app.cell(hide_code=True)
+def _(get_evidence):
+    evidence = get_evidence()
+    return (evidence,)
+
+
+@app.cell(hide_code=True)
+def _(ev, evidence, mo, ui):
+    _ic = {"pass": "🟢", "fail": "🔴", "blocked": "⚪", "error": "🟠"}
+    if not evidence:
+        evidence_panel = ui.panel(mo,
+            ui.header(mo, "Thesis-evidence verbs (./moar)"),
+            mo.md("*Select verbs and press **Run Evidence Verbs**. Each shells out to a "
+                  "`./moar` verb that re-proves a thesis claim against the live stack — "
+                  "answer-equality, the four portability (swap) proofs, and the single-"
+                  "hypothesis checks. With no Docker daemon they report `blocked`, never a "
+                  "fabricated pass.*"),
+        )
+    else:
+        _s = ev.summarize(evidence)
+        _lines = [
+            f"- {_ic.get(_r['status'], '⚪')} **{_r['verb']}** ({_r['status']}) · `{_r['hypothesis']}` — "
+            + ((_r['summary'].splitlines() or [''])[-1])
+            for _r in evidence
+        ]
+        evidence_panel = ui.panel(mo,
+            ui.header(mo, "Thesis-evidence verbs (./moar) — measured"),
+            mo.md(f"**{_s['passing']} passing · {_s['failing']} failing · {_s['blocked']} blocked · "
+                  f"{_s['errored']} error** · last run `{_s['last_run']}` · Tier B, single host"),
+            mo.md("\n".join(_lines)),
+            mo.accordion({
+                f"{_r['verb']} — bounded output":
+                mo.Html(f"<pre style='max-height:200px;overflow:auto;'>{_r['summary']}</pre>")
+                for _r in evidence}),
+        )
+    return (evidence_panel,)
+
+
+@app.cell(hide_code=True)
+def _(docs_panel, evidence_panel, evidence_select, health_compaction, health_crc, health_orphan, health_panel, health_schema, health_tombstone, mo, okf_panel, run_evidence, run_health, scorecard_panel, ui):
     tab_vault = mo.vstack([
         okf_panel,
         mo.hstack([docs_panel], gap=2),
@@ -1013,6 +1093,15 @@ def _(docs_panel, health_compaction, health_crc, health_orphan, health_panel, he
             ], gap=3),
             mo.hstack([run_health]),
             health_panel,
+        ),
+        ui.panel(mo,
+            ui.header(mo, "Thesis Evidence Runner"),
+            mo.md("Re-prove the thesis pillars on demand: each verb runs a `./moar` command "
+                  "against the live stack and reports a dated, Tier-B result (bounded output "
+                  "only — never raw rows)."),
+            evidence_select,
+            mo.hstack([run_evidence]),
+            evidence_panel,
         ),
     ])
     return (tab_vault,)
