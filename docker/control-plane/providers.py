@@ -124,7 +124,7 @@ QUERY = [
              claims=("H-ARROW-SECURITY-STACK-01",)),
     Provider("dremio", "Dremio",
              pros="Reflections-based acceleration, semantic layer, Arrow Flight native.",
-             cons="Reflections don't persist over an external Nessie catalog on OSS 26.0; de-selected from the SDW reference stack.",
+             cons="Reflections don't persist over an external Nessie catalog on OSS 26.0; DataFusion leads the default reference stack, but Dremio is fully deployable here.",
              swap_cost="Medium-high — base tables port, but Reflections are Dremio-specific acceleration that must be rebuilt on the next engine.",
              claims=("H-TIERED-REALIZATION-01", "H-ICEBERG-INTERFACE-01")),
     Provider("duckdb", "DuckDB",
@@ -175,8 +175,11 @@ CATEGORIES = {
 }
 
 # Defaults: the SeaweedFS + Polaris + Vector + DataFusion + OCSF reference stack.
-# DataFusion leads (no-JVM, Arrow-native, and the Dremio reference pick was
-# removed under the DeWitt clause); Dremio stays selectable.
+# DataFusion leads the default on technical merit (no-JVM, Arrow-native) and because
+# its benchmarks are freely publishable; Dremio is fully selectable and deployable
+# here. The DeWitt clause restricts publishing Dremio *benchmark results*, not
+# offering Dremio as a component — "the engine as a product option in an
+# architecture" is explicitly clause-free (BENCHMARK-CODEWORD-SCHEME-SPEC scope rules).
 DEFAULTS = {
     "storage": "seaweedfs",
     "catalog": "polaris",

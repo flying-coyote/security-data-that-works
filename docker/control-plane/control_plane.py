@@ -793,6 +793,69 @@ def _(P, mo, okf, sel_catalog, sel_ingest, sel_query, sel_schema, sel_storage, u
 
 
 @app.cell(hide_code=True)
+def _(mo):
+    import paid_scoring as paid
+    archetype_selector = mo.ui.dropdown(
+        options=["A", "B", "C"], value="A", label="Capability Matrix archetype")
+    return archetype_selector, paid
+
+
+@app.cell(hide_code=True)
+def _(P, archetype_selector, mo, paid, sel_catalog, sel_ingest, sel_query, ui):
+    # The paid Capability Matrix scorecard. PAID_MODE off (the public default, and what
+    # any clone gets) shows NO scores. PAID_MODE on loads the named per-criterion 1-5
+    # scores from the private vault (never this repo) for the consultant's live delivery.
+    if not paid.paid_mode():
+        scorecard_panel = ui.panel(mo,
+            ui.header(mo, "Capability Matrix scores — paid tier (not shown)"),
+            mo.md(
+                "Per-criterion 1-5 scores, weighted archetype totals, and claim-vs-shipped "
+                "deltas are paid SDW IP and are **not** rendered in the public console. Run with "
+                "`MOAR_PAID_MODE=1` (scores load from the private vault, never this repo) for the "
+                "scored view, or see the public codeworded summary at "
+                "[securitydataworks.com/matrix](https://securitydataworks.com/matrix)."),
+        )
+    else:
+        _arch = archetype_selector.value
+        try:
+            _scores = paid.load_scores(_arch)
+            _err = None
+        except paid.PaidScoreLeak as _e:
+            _scores, _err = {}, str(_e)
+        _sel = ([("query", c) for c in sel_query]
+                + [("catalog", sel_catalog)]
+                + [("ingest", c) for c in sel_ingest])
+        _groups = {"query": P.QUERY, "catalog": P.CATALOG, "ingest": P.INGEST}
+        _blocks = []
+        for _cat, _code in _sel:
+            _lbl = P.label_for(_groups[_cat], _code)
+            _rec = paid.find(_scores, _lbl)
+            if not _rec:
+                _blocks.append(mo.md(f"**{_lbl}** — *not scored for archetype {_arch}.*"))
+                continue
+            import pandas as _pd
+            _df = _pd.DataFrame([
+                {"Criterion": _c["name"], "Score": _c["score"],
+                 "Weight": _c["weight"], "Tier": _c["tier"]}
+                for _c in _rec["criteria"]
+            ])
+            _blocks.append(mo.vstack([
+                mo.md(f"**{_lbl}** — weighted **{_rec['weighted']}/5** (archetype {_arch})"),
+                mo.as_html(_df),
+            ]))
+        scorecard_panel = ui.panel(mo,
+            ui.header(mo, f"Capability Matrix scores — PAID MODE · archetype {_arch}"),
+            mo.md("⚠️ **Paid IP** — for the consultant's live delivery only; not a public surface. "
+                  "The public Matrix shows codeworded scores; this shows the named detail."),
+            *([mo.md(f"*Score-source error: {_err}*")] if _err else []),
+            archetype_selector,
+            *_blocks,
+            **{"border": "1px solid var(--color-orange-500)"},
+        )
+    return (scorecard_panel,)
+
+
+@app.cell(hide_code=True)
 def _(VAULT_PATH, okf):
     # Read the project1 strategy vault as an OKF bundle (decisions + assumptions).
     try:
@@ -887,10 +950,11 @@ def _(
 
 
 @app.cell(hide_code=True)
-def _(docs_panel, health_compaction, health_crc, health_orphan, health_panel, health_schema, health_tombstone, mo, okf_panel, run_health, ui):
+def _(docs_panel, health_compaction, health_crc, health_orphan, health_panel, health_schema, health_tombstone, mo, okf_panel, run_health, scorecard_panel, ui):
     tab_vault = mo.vstack([
         okf_panel,
         mo.hstack([docs_panel], gap=2),
+        scorecard_panel,
         ui.panel(mo,
             ui.header(mo, "Data Health & Schema Validation"),
             mo.md("Select which audits to enforce on the storage and catalog paths:"),
