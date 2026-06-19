@@ -108,6 +108,12 @@ def by_type(notes) -> dict[str, list[OKFNote]]:
     return grouped
 
 
+def index_by_id(notes) -> dict[str, OKFNote]:
+    """Map each note's id -> note, so a provenance ref (A-03, H-xxx) resolves to its
+    title/confidence/last-reviewed. Last note wins on a duplicate id."""
+    return {n.id: n for n in notes}
+
+
 def search(notes, query: str) -> list[OKFNote]:
     """Substring match over id, title, the `claim` field, and the body."""
     q = query.strip().lower()

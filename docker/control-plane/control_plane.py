@@ -468,11 +468,73 @@ def _(mo, os, subprocess, test_btn, textwrap, vrl_transform):
 def _(mo):
     deploy_btn = mo.ui.run_button(label="Deploy Stack via Pulumi", kind="success")
     destroy_btn = mo.ui.run_button(label="Tear Down Stack", kind="danger")
-    return deploy_btn, destroy_btn
+    gate_override = mo.ui.switch(value=False, label="Override the data-health gate (logged on deploy)")
+    return deploy_btn, destroy_btn, gate_override
 
 
 @app.cell(hide_code=True)
-def _(config_path, deploy_btn, deployer, destroy_btn, mo, yaml):
+def _(P, cat, config_path, deployer, mo, os, sel_catalog, sel_ingest, sel_query, sel_schema, sel_storage, ui):
+    # The composite data-health gate — the spine of the console. A pure verdict over
+    # the layers we can actually measure today. Config integrity (a compatible
+    # selection plus a saved spec) is a HARD gate on deploy; stack reachability is
+    # observed; the Layer-3 data-quality audit and Layer-4 cross-tool view are not
+    # wired yet, so the gate refuses to certify GREEN and says so plainly rather than
+    # bluffing a pass. It never fabricates a result.
+    _warns = [t for lvl, t, _b in P.compat_notes(sel_storage, sel_catalog, sel_query, sel_ingest, sel_schema) if lvl == "warn"]
+    _spec_saved = os.path.exists(config_path)
+    _docker = deployer.is_docker_available()
+    _catalog_live = cat is not None
+
+    _blockers = []
+    _blockers += [f"Incompatible selection: {w}" for w in _warns]
+    if not _spec_saved:
+        _blockers.append("No moar-spec.yaml saved yet (Configuration → Save Configuration Spec).")
+
+    _layers = [
+        ("Config integrity (compatible selection)", "fail" if _warns else "pass"),
+        ("Spec persisted", "pass" if _spec_saved else "fail"),
+        ("Layer 1-2 — stack reachable", "pass" if _catalog_live else ("fail" if _docker else "unmeasured")),
+        ("Layer 3 — data-quality audit", "unmeasured"),   # not wired (NEXT build)
+        ("Layer 4 — cross-tool gap analysis", "unmeasured"),  # not wired (LATER)
+    ]
+    _deploy_ok = not _blockers
+    _all_green = _deploy_ok and all(_s == "pass" for _n, _s in _layers)
+
+    gate = {
+        "deploy_ok": _deploy_ok,
+        "all_green": _all_green,
+        "blockers": _blockers,
+        "layers": _layers,
+        "unmeasured": [_n for _n, _s in _layers if _s == "unmeasured"],
+    }
+
+    _icon = {"pass": "🟢", "fail": "🔴", "unmeasured": "⚪"}
+    if _all_green:
+        _verdict = "🟢 Gate GREEN — every measurable layer passes."
+        _vcolor = "var(--color-teal-500)"
+    elif _deploy_ok:
+        _verdict = ("🟡 Deploy permitted — config integrity holds, but the gate cannot certify GREEN "
+                    "until the unproven layers run.")
+        _vcolor = "var(--color-orange-500)"
+    else:
+        _verdict = "🔴 Deploy blocked — clear the config-integrity blockers, or log an override."
+        _vcolor = "#c14a4a"
+
+    _rows = "\n".join(f"- {_icon[_s]} **{_n}** — {_s}" for _n, _s in _layers)
+    _blk = ("\n\n**Blockers:**\n" + "\n".join(f"- {_b}" for _b in _blockers)) if _blockers else ""
+    _unm = ("\n\n*Unproven layers are labeled, never shown as a pass; wire the Layer-3/4 audits to turn "
+            "them green. A green gate is the deploy/inspect authorization, not a slide.*") if gate["unmeasured"] else ""
+    gate_panel = ui.panel(mo,
+        ui.header(mo, "Data-Health Gate"),
+        mo.md(f"**<span style='color:{_vcolor}; font-size:1.05rem;'>{_verdict}</span>**"),
+        mo.md(_rows + _blk + _unm),
+        **{"border": f"1px solid {_vcolor}"},
+    )
+    return gate, gate_panel
+
+
+@app.cell(hide_code=True)
+def _(config_path, deploy_btn, deployer, destroy_btn, gate, gate_override, mo, yaml):
     logs = []
 
     def _log(message):
@@ -484,24 +546,39 @@ def _(config_path, deploy_btn, deployer, destroy_btn, mo, yaml):
 
     deployment_status = mo.md("*Deployer idle.*")
     if deploy_btn.value:
-        with open(config_path, "r") as _f:
-            _cfg = yaml.safe_load(_f) or {}
-        try:
-            _out = deployer.deploy_stack(_cfg, log_callback=_log)
+        if not gate["deploy_ok"] and not gate_override.value:
             deployment_status = mo.md(
-                "**Stack deployed.** Endpoints:\n"
-                f"- Storage (S3): {_endpoint(_out, 'storage_endpoint')}\n"
-                f"- Catalog: {_endpoint(_out, 'catalog_endpoint')}\n"
-                f"- Observability: {_endpoint(_out, 'vector_observe')}"
+                "**Deploy blocked by the data-health gate.**\n"
+                + "\n".join(f"- {_b}" for _b in gate["blockers"])
+                + "\n\nClear the blockers above, or toggle **Override the data-health gate** to proceed anyway."
             )
-        except Exception as _e:
-            deployment_status = mo.md(f"**Deployment failed:** {_e}")
+        else:
+            if not gate["deploy_ok"] and gate_override.value:
+                import datetime as _dt
+                _stamp = _dt.datetime.now(_dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+                _log(f"[GATE OVERRIDE {_stamp}] deploying despite: {'; '.join(gate['blockers'])}\n")
+            with open(config_path, "r") as _f:
+                _cfg = yaml.safe_load(_f) or {}
+            try:
+                _out = deployer.deploy_stack(_cfg, log_callback=_log)
+                deployment_status = mo.md(
+                    "**Stack deployed.** Endpoints:\n"
+                    f"- Storage (S3): {_endpoint(_out, 'storage_endpoint')}\n"
+                    f"- Catalog: {_endpoint(_out, 'catalog_endpoint')}\n"
+                    f"- Observability: {_endpoint(_out, 'vector_observe')}"
+                )
+            except deployer.DockerUnavailable as _e:
+                deployment_status = mo.md(f"**Not deployed — {_e}**")
+            except Exception as _e:
+                deployment_status = mo.md(f"**Deployment failed:** {_e}")
     elif destroy_btn.value:
         with open(config_path, "r") as _f:
             _cfg = yaml.safe_load(_f) or {}
         try:
             deployer.destroy_stack(_cfg, log_callback=_log)
             deployment_status = mo.md("**Stack destroyed.**")
+        except deployer.DockerUnavailable as _e:
+            deployment_status = mo.md(f"**Nothing destroyed — {_e}**")
         except Exception as _e:
             deployment_status = mo.md(f"**Stack destruction failed:** {_e}")
     return deployment_status, logs
@@ -583,17 +660,29 @@ def _(cat, mo, ns_selector, table_selector):
             ])
             try:
                 _arrow = _tbl.scan().to_arrow()
-                _preview = mo.as_html(_arrow.to_pandas().tail(10))
                 _rows = _arrow.num_rows
+                # Counts only — never render raw telemetry rows. Real security data
+                # is a prompt-injection and control-char surface; the inspector
+                # reports field population, not values.
+                _fill_df = pd.DataFrame([
+                    {"Field": _arrow.field(_i).name,
+                     "Non-null": _arrow.num_rows - _arrow.column(_i).null_count,
+                     "Null": _arrow.column(_i).null_count}
+                    for _i in range(_arrow.num_columns)
+                ])
+                _summary = mo.as_html(_fill_df)
+                _summary_caption = ("##### Field population — counts only "
+                                    "(raw rows are not rendered: telemetry is a prompt-injection / control-char surface)")
             except Exception as _scan_err:
-                _preview = mo.md(f"*No records yet, or scan failed: {_scan_err}*")
+                _summary = mo.md(f"*No records yet, or scan failed: {_scan_err}*")
+                _summary_caption = "##### Field population"
                 _rows = 0
             inspect_output = mo.vstack([
                 mo.md(f"#### Table `{_id}` ({_rows} rows)"),
                 mo.md("##### Schema"),
                 mo.as_html(_schema_df),
-                mo.md("##### Last 10 records"),
-                _preview,
+                mo.md(_summary_caption),
+                _summary,
             ])
         except Exception as e:
             inspect_output = mo.md(f"**Failed to load table metadata:** {e}")
@@ -653,12 +742,36 @@ def _(mo, sel_schema, P):
 
 
 @app.cell(hide_code=True)
-def _(P, mo, sel_catalog, sel_ingest, sel_query, sel_schema, sel_storage, ui):
+def _(P, mo, okf, sel_catalog, sel_ingest, sel_query, sel_schema, sel_storage, ui, vault_notes):
+    # Resolve provenance refs against the loaded OKF bundle. A ref that resolves to
+    # a note renders rich (title + tier + confidence + reviewed); a ref that exists
+    # only in the hypothesis tracker renders as a plain verified pointer. Every ref
+    # is checked to exist — the chip never fabricates a link.
+    _by_id = okf.index_by_id(vault_notes)
+
+    def _chip(ref):
+        n = _by_id.get(ref)
+        if n is None:
+            return f"&nbsp;&nbsp;📎 `{ref}` — verified in MASTER-HYPOTHESIS-TRACKER.md"
+        fm = n.frontmatter
+        title = n.title or str(fm.get("claim", ""))[:90]
+        tier = fm.get("evidence-level") or fm.get("basis") or "?"
+        conf = fm.get("confidence", "?")
+        reviewed = fm.get("last_reviewed") or fm.get("updated") or ""
+        tail = f", reviewed {reviewed}" if reviewed else ""
+        return f"&nbsp;&nbsp;📎 `{ref}` — {title} (Tier {tier}, confidence {conf}{tail}) · `{n.path.name}`"
+
     def _doc(group, code):
         p = P.find(group, code)
         if not p:
             return None
-        return mo.md(f"**{p.label}**  \n*Pros:* {p.pros}  \n*Cons:* {p.cons}")
+        lines = [f"**{p.label}**", f"*Pros:* {p.pros}", f"*Cons:* {p.cons}"]
+        if p.swap_cost:
+            lines.append(f"*Swap cost (reversibility):* {p.swap_cost}")
+        if p.claims:
+            lines.append("*Provenance:*")
+            lines.extend(_chip(c) for c in p.claims)
+        return mo.md("  \n".join(lines))
 
     _blocks = [
         _doc(P.STORAGE, sel_storage),
@@ -668,10 +781,13 @@ def _(P, mo, sel_catalog, sel_ingest, sel_query, sel_schema, sel_storage, ui):
         _doc(P.SCHEMA, sel_schema),
     ]
     docs_panel = ui.panel(mo,
-        ui.header(mo, "Selected components — pros & cons (from the Capability Matrix)"),
+        ui.header(mo, "Selected components — pros, cons, reversibility & provenance"),
         *[b for b in _blocks if b is not None],
-        mo.md("*Deep dives: [securitydataworks.com/writing](https://securitydataworks.com/writing) · "
-              "Matrix: [securitydataworks.com/matrix](https://securitydataworks.com/matrix)*"),
+        mo.md("*Swap cost = what swapping that component out costs (a config change vs. a data re-land). "
+              "Provenance chips tie the pick to a sourced assumption/hypothesis — the public method, "
+              "not the paid per-vendor Matrix score. Deep dives: "
+              "[securitydataworks.com/writing](https://securitydataworks.com/writing) · "
+              "[Matrix](https://securitydataworks.com/matrix)*"),
     )
     return (docs_panel,)
 
@@ -683,7 +799,9 @@ def _(VAULT_PATH, okf):
         vault_notes = okf.load_bundle(
             VAULT_PATH,
             subdirs=["02-projects/securitydataworks/decisions",
-                     "02-projects/securitydataworks/assumptions"],
+                     "02-projects/securitydataworks/assumptions",
+                     "01-knowledge-base/hypotheses",
+                     "01-knowledge-base/contradictions"],
         )
         vault_error = None
     except Exception as _e:  # noqa: BLE001 - surface any read failure to the UI
@@ -754,14 +872,17 @@ def _(
         (health_compaction.value, "Compaction threshold", "flag data files under 128MB that should be compacted"),
     ]
     if run_health.value:
-        _lines = [f"- **{name}** — would {desc} *(simulated — wire to live storage to run)*"
+        _lines = [f"- **{name}** — will {desc} *(not yet wired — the Layer-3 audit lands in the next build)*"
                   for on, name, desc in _checks if on]
         health_panel = ui.panel(mo,
-            ui.header(mo, "Audit plan"),
+            ui.header(mo, "Audit plan — not yet executed"),
+            mo.md("These are the checks the Layer-3 data-quality audit will run against the deployed "
+                  "bucket and catalog. They are **not wired to live storage yet**, so nothing here is a "
+                  "measured result — the data-health gate treats Layer 3 as unproven until this runs for real."),
             mo.md("\n".join(_lines) if _lines else "*No audits selected.*"),
         )
     else:
-        health_panel = mo.md("*Toggle the audits and run to see the plan.*")
+        health_panel = mo.md("*Toggle the audits and run to see the plan (Layer-3 execution lands next build).*")
     return (health_panel,)
 
 
@@ -792,6 +913,8 @@ def _(
     deploy_btn,
     deployment_status,
     destroy_btn,
+    gate_override,
+    gate_panel,
     inspect_output,
     logs,
     mo,
@@ -825,9 +948,11 @@ def _(
     tab_pulumi = mo.vstack([
         ui.panel(mo,
             ui.header(mo, "Infrastructure Lifecycle Manager"),
-            mo.md("Spin up or tear down the selected MOAr stack locally in Docker via Pulumi."),
+            mo.md("Spin up or tear down the selected MOAr stack locally in Docker via Pulumi. "
+                  "The data-health gate below authorizes the deploy."),
         ),
-        mo.hstack([deploy_btn, destroy_btn]),
+        gate_panel,
+        mo.hstack([deploy_btn, destroy_btn, gate_override]),
         deployment_status,
         mo.accordion({"Deployment Execution Logs":
                       mo.Html(f"<pre style='max-height:250px; overflow-y:auto;'>{''.join(logs)}</pre>")}),
@@ -838,8 +963,10 @@ def _(
     tab_inspector = mo.vstack([
         ui.panel(mo,
             ui.header(mo, "Iceberg Metadata Inspector"),
-            mo.md("List tables and inspect schema/data from the active REST catalog."),
+            mo.md("List tables and inspect schema/field population from the active REST catalog "
+                  "(counts only — raw rows are never rendered)."),
         ),
+        gate_panel,
         _inspector_selectors,
         inspect_output,
     ])

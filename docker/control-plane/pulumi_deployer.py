@@ -208,43 +208,22 @@ def is_docker_available():
     except Exception:
         return False
 
-class MockOutput:
-    def __init__(self, value):
-        self.value = value
+
+class DockerUnavailable(RuntimeError):
+    """Raised when a deploy/destroy is attempted with no Docker daemon reachable.
+
+    The console must say 'nothing was deployed' plainly rather than print a
+    fabricated 'Simulation Mode' log and hand back mock endpoints — a console that
+    bluffs a deploy refutes the empirical-skepticism thesis it exists to show.
+    """
+
 
 def deploy_stack(config_dict, log_callback=None):
     if not is_docker_available():
-        if log_callback:
-            log_callback("Initializing Pulumi program...\n")
-            log_callback("Selecting stack 'dev'...\n")
-            log_callback("Running stack update (Simulation Mode)...\n")
-            log_callback("Creating docker network 'moar-network'...\n")
-            log_callback("Creating container 'postgres-db'...\n")
-            
-            storage_prov = config_dict.get("components", {}).get("storage", {}).get("provider", "seaweedfs")
-            storage_port = config_dict.get("components", {}).get("storage", {}).get("port", 8333)
-            log_callback(f"Creating container '{storage_prov}' on port {storage_port}...\n")
-            
-            catalog_prov = config_dict.get("components", {}).get("catalog", {}).get("provider", "polaris")
-            catalog_port = config_dict.get("components", {}).get("catalog", {}).get("port", 8181)
-            log_callback(f"Creating container '{catalog_prov}' on port {catalog_port}...\n")
-            
-            pipeline_provs = config_dict.get("components", {}).get("pipeline", {}).get("provider", ["vector"])
-            for p in pipeline_provs:
-                log_callback(f"Creating container '{p}'...\n")
-                
-            log_callback("Stack update complete.\n")
-        
-        # Build mock outputs matching the expected structure
-        outputs = {
-            "storage_endpoint": MockOutput(f"http://localhost:{config_dict.get('components', {}).get('storage', {}).get('port', 8333)}"),
-            "catalog_endpoint": MockOutput(f"http://localhost:{config_dict.get('components', {}).get('catalog', {}).get('port', 8181)}")
-        }
-        if "vector" in pipeline_provs:
-            outputs["vector_observe"] = MockOutput(f"http://localhost:{config_dict.get('components', {}).get('pipeline', {}).get('observe_port', 8686)}")
-        if "fluentbit" in pipeline_provs:
-            outputs["fluentbit_observe"] = MockOutput(f"http://localhost:{config_dict.get('components', {}).get('pipeline', {}).get('fluentbit_observe_port', 2020)}")
-        return outputs
+        raise DockerUnavailable(
+            "No Docker daemon reachable at /var/run/docker.sock — nothing was deployed. "
+            "Start Docker and retry."
+        )
 
     project_name = "moar_control_plane"
     stack_name = "dev"
@@ -257,22 +236,17 @@ def deploy_stack(config_dict, log_callback=None):
         project_name=project_name,
         program=program
     )
-    
+
     # Run the deployment
     up_result = stack.up(on_output=log_callback)
     return up_result.outputs
 
 def destroy_stack(config_dict, log_callback=None):
     if not is_docker_available():
-        if log_callback:
-            log_callback("Selecting stack 'dev'...\n")
-            log_callback("Running stack destruction (Simulation Mode)...\n")
-            log_callback("Destroying container 'postgres-db'...\n")
-            log_callback("Destroying container 'seaweedfs'...\n")
-            log_callback("Destroying container 'polaris'...\n")
-            log_callback("Destroying network 'moar-network'...\n")
-            log_callback("Stack destroyed.\n")
-        return None
+        raise DockerUnavailable(
+            "No Docker daemon reachable at /var/run/docker.sock — nothing was destroyed. "
+            "Start Docker and retry."
+        )
 
     project_name = "moar_control_plane"
     stack_name = "dev"
@@ -285,7 +259,7 @@ def destroy_stack(config_dict, log_callback=None):
         project_name=project_name,
         program=program
     )
-    
+
     # Run destruction
     destroy_result = stack.destroy(on_output=log_callback)
     return destroy_result
