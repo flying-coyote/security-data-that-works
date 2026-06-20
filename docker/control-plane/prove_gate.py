@@ -182,6 +182,20 @@ def main():
         check("answer_equality=unmeasured -> not green, listed unmeasured (no bluff)",
               g7u["all_green"] is False and "Cross-engine answer equality" in g7u["unmeasured"])
 
+        # Part 2d — the optional 8th row: OCSF round-trip (mapping fidelity). Same rules:
+        # omitted by default, a fail blocks certification, unmeasured is never a bluffed pass.
+        print("\nPart 2d — OCSF round-trip mapping-fidelity row (optional 8th gate row)")
+        _g7 = gate_for(h["status"], **_others, answer_equality_status="pass")
+        check("roundtrip omitted -> stays at 7 rows", len(_g7["layers"]) == 7)
+        _g8p = gate_for(h["status"], **_others, answer_equality_status="pass", ocsf_roundtrip_status="pass")
+        check("roundtrip=pass -> 8 rows, still GREEN", len(_g8p["layers"]) == 8 and _g8p["all_green"] is True)
+        _g8f = gate_for(h["status"], **_others, ocsf_roundtrip_status="fail")
+        check("roundtrip=fail -> NOT green, named a cert blocker",
+              _g8f["all_green"] is False and "OCSF round-trip (mapping fidelity)" in _g8f["cert_blockers"])
+        _g8u = gate_for(h["status"], **_others, ocsf_roundtrip_status="unmeasured")
+        check("roundtrip=unmeasured -> not green, listed unmeasured (no bluff)",
+              _g8u["all_green"] is False and "OCSF round-trip (mapping fidelity)" in _g8u["unmeasured"])
+
         print()
         if _failures:
             print(f"\033[91m{len(_failures)} assertion(s) FAILED:\033[0m " + "; ".join(_failures))

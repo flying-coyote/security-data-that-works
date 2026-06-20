@@ -119,11 +119,13 @@ owner-gated upgrade, not the reason for amber.
 - `prove_flow_reconcile.py`, `prove_ocsf_roundtrip.py` — the cluster-5 deepening engines.
 - `prove_panels_smoke.py` — headless construction of the Startup-tab panels.
 
-## Cluster-5 deepening (2026-06-20) — answer-equality wired live; flow / round-trip logic proven, collection deferred
+## Cluster-5 deepening (2026-06-20) — answer-equality + OCSF round-trip wired live; flow reconciliation collection deferred
 
 Three deepenings extend the gate beyond Layers 1–4, each a pure engine with a proof.
-Cross-engine answer-equality is now wired to the live stack; the other two stay logic-only
-until their live collection is built (it needs a running stack, exactly as Layers 1/3/4 are):
+Cross-engine answer-equality and the OCSF round-trip are now wired to the live stack; flow
+reconciliation stays logic-only until its live per-class hop counts exist — that needs a routed
+ingest pipeline, not just the one-shot routers, because the seed-only stack writes directly and
+so has no upstream count to reconcile:
 
 - **Cross-engine answer equality** — `compute_gate` carries an optional seventh row
   (`answer_equality_status`, default `None` = omitted for back-compat). It is a cert-bearing
@@ -139,6 +141,14 @@ until their live collection is built (it needs a running stack, exactly as Layer
   (emitted → ingested → landed) and fails on a silent drop beyond tolerance, so a pipeline
   that quietly loses a fraction of one class surfaces rather than hiding behind a reachable
   Layer 2.
-- **OCSF round-trip** (`ocsf_roundtrip.py`) — value-level check on top of schema conformance:
-  known-good test events run through the transform must produce the expected OCSF field
-  values, catching a mapping that is schema-valid but semantically wrong.
+- **OCSF round-trip** (`ocsf_roundtrip.py` pure + `ocsf_roundtrip_live.py` live arm) — value-level
+  check on top of schema conformance: the deployed router transform runs over the known raw Okta
+  sample and each produced OCSF record must carry the Authentication contract values (class 3002,
+  the identity in `user`, the source in `src_ip`), catching a mapping that is schema-valid but
+  semantically wrong. **Wired live (2026-06-20):** `compute_gate` carries an optional eighth row
+  (`ocsf_roundtrip_status`, default `None`); the *Flow › Health* tab runs it on a button press,
+  `expected` is derived from the raw event independently of the transform (so a regression fails it —
+  verified by a wrong-`class_uid` negative control), pass/fail is cert-bearing, blocked/errored →
+  `unmeasured`, and a stale pass decays like the layers. Proven live against the Tenzir router
+  (8 events faithful) in `prove_ocsf_roundtrip_live.py` + the 8th-row behavior in `prove_gate.py`
+  Part 2d.

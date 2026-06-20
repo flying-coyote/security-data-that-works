@@ -33,10 +33,11 @@ def _():
     import layer4_audit as l4
     import decay as dk
     import evidence_runner as ev
+    import ocsf_roundtrip_live as rl
 
     # Tolaria convention: point VAULT_PATH at the OKF vault (project1).
     VAULT_PATH = os.environ.get("VAULT_PATH", os.path.expanduser("~/project1"))
-    return P, RestCatalog, VAULT_PATH, antip, ca, cf, deployer, dk, ev, gl, l1, l3, l4, mo, okf, os, rp, subprocess, textwrap, ui, yaml
+    return P, RestCatalog, VAULT_PATH, antip, ca, cf, deployer, dk, ev, gl, l1, l3, l4, mo, okf, os, rl, rp, subprocess, textwrap, ui, yaml
 
 
 @app.cell(hide_code=True)
@@ -604,7 +605,7 @@ def _(mo):
 
 
 @app.cell(hide_code=True)
-def _(P, cat, config_path, deployer, ev, evidence, gl, layer1, layer3, layer4, mo, os, sel_catalog, sel_ingest, sel_query, sel_schema, sel_storage, ui):
+def _(P, cat, config_path, deployer, ev, evidence, gl, layer1, layer3, layer4, mo, ocsf_roundtrip, os, rl, sel_catalog, sel_ingest, sel_query, sel_schema, sel_storage, ui):
     # The composite data-health gate — the spine of the console. The verdict logic
     # lives in gate_logic.compute_gate (a pure function the proof harnesses exercise
     # through healthy -> broken -> healthy arcs), so this cell only gathers the layer
@@ -628,6 +629,10 @@ def _(P, cat, config_path, deployer, ev, evidence, gl, layer1, layer3, layer4, m
         # -> unmeasured, never a bluffed pass; and a pass older than the TTL decays to stale
         # (now_iso), the same last-validated rule layers 1/3/4 get. Pure, proven function.
         answer_equality_status=ev.answer_equality_status(evidence, now_iso=_now_iso),
+        # OCSF round-trip — value-level mapping fidelity from the deployed router transform.
+        # Same optional/decay rules: run -> pass/fail cert row; blocked/errored -> unmeasured;
+        # never run -> None -> row omitted. Eighth gate row.
+        ocsf_roundtrip_status=rl.gate_status(ocsf_roundtrip, now_iso=_now_iso),
     )
 
     _verdict, _vcolor = gl.verdict_line(gate)
@@ -1237,6 +1242,65 @@ def _(ev, evidence, mo, ui):
     return (evidence_panel,)
 
 
+@app.cell(hide_code=True)
+def _(mo):
+    run_roundtrip_btn = mo.ui.run_button(label="Run OCSF Round-trip", kind="success")
+    return (run_roundtrip_btn,)
+
+
+@app.cell(hide_code=True)
+def _(mo):
+    # Persist the last round-trip run so the gate row + panel survive reactive ticks.
+    get_roundtrip, set_roundtrip = mo.state(None)
+    return get_roundtrip, set_roundtrip
+
+
+@app.cell(hide_code=True)
+def _(deployer, os, rl, run_roundtrip_btn, set_roundtrip):
+    # Run the deployed router over the known raw Okta sample and validate the produced OCSF
+    # against the Authentication contract — value-level mapping fidelity on top of Layer-3
+    # schema shape. Blocked (never a pass) with no Docker; bounded/sanitized in the runner.
+    if run_roundtrip_btn.value:
+        import datetime as _dt
+        _now = _dt.datetime.now(_dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+        _docker_dir = os.path.abspath("..")  # app runs in docker/control-plane; routers live in docker/
+        _sample = os.path.join(_docker_dir, "config", "vector", "sample.ndjson")
+        set_roundtrip(rl.run_roundtrip(docker_dir=_docker_dir, sample_path=_sample,
+                                       available=deployer.is_docker_available(), now_iso=_now))
+    return
+
+
+@app.cell(hide_code=True)
+def _(get_roundtrip):
+    ocsf_roundtrip = get_roundtrip()
+    return (ocsf_roundtrip,)
+
+
+@app.cell(hide_code=True)
+def _(mo, ocsf_roundtrip, ui):
+    _ic = {"pass": "🟢", "fail": "🔴", "unmeasured": "⚪", "blocked": "⚪", "error": "🟠", "stale": "⏳"}
+    if not ocsf_roundtrip:
+        roundtrip_panel = ui.panel(mo,
+            ui.header(mo, "OCSF round-trip (mapping fidelity)"),
+            mo.md("*Press **Run OCSF Round-trip**. The deployed router transform runs over the known "
+                  "raw Okta sample, and each produced OCSF record is checked against the Authentication "
+                  "contract (class 3002, the identity in `user`, the source in `src_ip`) — the value-level "
+                  "meaning a schema-shape pass (Layer 3) can miss. With no Docker it reports `blocked`, "
+                  "never a fabricated pass.*"),
+        )
+    else:
+        _r = ocsf_roundtrip
+        _bad = [e for e in _r.get("events", []) if e.get("status") == "fail"]
+        roundtrip_panel = ui.panel(mo,
+            ui.header(mo, "OCSF round-trip (mapping fidelity) — measured"),
+            mo.md(f"{_ic.get(_r['status'], '⚪')} **{_r['status']}** · {_r.get('note', '')} · "
+                  f"router `{_r.get('router', '?')}` · last run `{_r.get('ran_at', '?')}` · Tier B, single host"),
+            mo.md("*Every produced record carried the contract values.*" if not _bad
+                  else f"*{len(_bad)} record(s) broke the contract — a schema-valid but semantically wrong mapping.*"),
+        )
+    return (roundtrip_panel,)
+
+
 # ----- Layer 1 — source health ----------------------------------------------
 @app.cell(hide_code=True)
 def _(cat, ns_selector):
@@ -1446,7 +1510,7 @@ def _(l4_primary, l4_sources_select, layer4, mo, ui):
 
 
 @app.cell(hide_code=True)
-def _(capture_baseline, docs_panel, evidence_panel, evidence_select, health_compaction, health_crc, health_orphan, health_panel, health_schema, health_tombstone, l4_idcol, l4_primary, l4_sources_select, l4_tolerance, layer1_panel, layer4_panel, mo, okf_panel, run_evidence, run_health, run_layer4, scorecard_panel, ui):
+def _(capture_baseline, docs_panel, evidence_panel, evidence_select, health_compaction, health_crc, health_orphan, health_panel, health_schema, health_tombstone, l4_idcol, l4_primary, l4_sources_select, l4_tolerance, layer1_panel, layer4_panel, mo, okf_panel, roundtrip_panel, run_evidence, run_health, run_layer4, run_roundtrip_btn, scorecard_panel, ui):
     # Startup › Strategy — OKF strategy vault + paid Matrix scorecard + thesis-evidence proof
     strategy_view = mo.vstack([
         okf_panel,
@@ -1485,6 +1549,14 @@ def _(capture_baseline, docs_panel, evidence_panel, evidence_select, health_comp
             mo.hstack([l4_idcol, l4_tolerance], gap=2),
             mo.hstack([run_layer4]),
             layer4_panel,
+        ),
+        ui.panel(mo,
+            ui.header(mo, "OCSF Round-trip — Mapping Fidelity (value-level)"),
+            mo.md("Run the deployed router transform over the known raw Okta sample and check each "
+                  "produced OCSF record against the Authentication contract — the value-level meaning a "
+                  "schema-shape pass (Layer 3) can miss. Feeds the data-health gate as a cert-bearing row."),
+            mo.hstack([run_roundtrip_btn]),
+            roundtrip_panel,
         ),
     ])
     return (health_view, strategy_view)

@@ -30,7 +30,8 @@ ICON = {"pass": "🟢", "fail": "🔴", "unmeasured": "⚪", "unwired": "⚫", "
 
 def compute_gate(*, warns, spec_saved, docker_up, catalog_live,
                  layer1_status="unmeasured", layer3_status="unmeasured",
-                 layer4_status="unmeasured", answer_equality_status=None) -> dict:
+                 layer4_status="unmeasured", answer_equality_status=None,
+                 ocsf_roundtrip_status=None) -> dict:
     """Return the gate verdict dict.
 
     warns: list of incompatible-selection warning titles (config-integrity blockers).
@@ -42,6 +43,10 @@ def compute_gate(*, warns, spec_saved, docker_up, catalog_live,
     An engine that returns a filtered count short of the others over byte-identical data is
     a silent-wrong-answer, so a `fail` here blocks certification. `None` omits the row
     entirely (back-compat); any status value adds it as a seventh, cert-bearing gate row.
+    ocsf_roundtrip_status: optional value-level mapping-fidelity result (the deployed router
+    transform turns known raw events into OCSF records that carry the contract values). A
+    mapping can be schema-valid yet semantically wrong, so a `fail` here blocks certification.
+    `None` omits the row (back-compat); any status adds it as an eighth, cert-bearing row.
     """
     blockers = [f"Incompatible selection: {w}" for w in warns]
     if not spec_saved:
@@ -58,6 +63,8 @@ def compute_gate(*, warns, spec_saved, docker_up, catalog_live,
     ]
     if answer_equality_status is not None:
         layers.append(("Cross-engine answer equality", answer_equality_status))
+    if ocsf_roundtrip_status is not None:
+        layers.append(("OCSF round-trip (mapping fidelity)", ocsf_roundtrip_status))
 
     deploy_ok = not blockers
     all_green = deploy_ok and all(s == "pass" for _n, s in layers)
