@@ -137,6 +137,22 @@ def main():
     check("no declared constraint -> the full catalog is reachable",
           cf.funnel_viz({}, _cats)["reachable"] == 7 and cf.funnel_viz({}, _cats)["declared"] == 0)
 
+    print("\n=== T3: verdict 'why' — the triggering constraint threaded through ===\n")
+    _air = {"deployment": "on_prem_airgap"}
+    check("verdict_for names the triggering constraint (Deployment = On-prem / air-gapped)",
+          ("Deployment", "On-prem / air-gapped") in cf.verdict_for("aws_s3", _air)["triggers"])
+    check("a neutral verdict carries no triggers", cf.verdict_for("polaris", _air)["triggers"] == [])
+    # Precedence: caution beats favor, and the trigger names the CAUTIONING constraint only —
+    # not the workload favor it also matches (clickhouse: threat-hunting favor + immutable caution).
+    _conflict = {"workload": "threat_hunting", "compliance": ["immutable_audit"]}
+    _ct = cf.verdict_for("clickhouse", _conflict)["triggers"]
+    check("the winning (caution) verdict names only its constraint (Compliance), not the favor",
+          ("Compliance", "Immutable / WORM audit trail") in _ct
+          and all(lbl != "Primary workload" for lbl, _v in _ct))
+    _rep_t = cf.evaluate(_air, {"storage": ["aws_s3"]})
+    check("evaluate threads a 'triggered_by' string onto each picked verdict row",
+          _rep_t["picked_verdicts"][0]["triggered_by"] == "Deployment = On-prem / air-gapped")
+
     if _failures:
         print(f"\n\033[91m{len(_failures)} assertion(s) FAILED\033[0m")
         return 1
