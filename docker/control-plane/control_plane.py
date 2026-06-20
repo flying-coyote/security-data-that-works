@@ -35,10 +35,13 @@ def _():
     import evidence_runner as ev
     import ocsf_roundtrip_live as rl
     import flow_reconcile_live as fl
+    import topology as topo
+    import migrate as mig
+    import analyze as az
 
     # Tolaria convention: point VAULT_PATH at the OKF vault (project1).
     VAULT_PATH = os.environ.get("VAULT_PATH", os.path.expanduser("~/project1"))
-    return P, RestCatalog, VAULT_PATH, antip, ca, cf, deployer, dk, ev, fl, gl, l1, l3, l4, mo, okf, os, rl, rp, subprocess, textwrap, ui, yaml
+    return P, RestCatalog, VAULT_PATH, antip, az, ca, cf, deployer, dk, ev, fl, gl, l1, l3, l4, mig, mo, okf, os, rl, rp, subprocess, textwrap, topo, ui, yaml
 
 
 @app.cell(hide_code=True)
@@ -1634,8 +1637,51 @@ def _(capture_baseline, docs_panel, evidence_panel, evidence_select, flow_panel,
     return (health_view, strategy_view)
 
 
+# ----- Planned components, now built: Land topology · Migrate cockpit · Analyze -----
+@app.cell(hide_code=True)
+def _(mo, sel_catalog, sel_ingest, sel_query, sel_schema, sel_storage, topo, ui):
+    _sel = {"storage": sel_storage, "catalog": sel_catalog, "ingest": sel_ingest,
+            "query": sel_query, "schema": sel_schema}
+    land_panel = topo.topology_panel(mo, ui, _sel)
+    return (land_panel,)
+
+
+@app.cell(hide_code=True)
+def _(mig, mo):
+    migrate_intent = mo.ui.dropdown(
+        options=[_i["label"] for _i in mig.INTENTS],
+        value=mig.INTENTS[0]["label"], label="Migration intent")
+    return (migrate_intent,)
+
+
+@app.cell(hide_code=True)
+def _(mig, migrate_intent, mo, sel_catalog, sel_ingest, sel_query, sel_schema, sel_storage, ui):
+    _sel = {"storage": sel_storage, "catalog": sel_catalog, "ingest": sel_ingest,
+            "query": sel_query, "schema": sel_schema}
+    _id = next((_i["id"] for _i in mig.INTENTS if _i["label"] == migrate_intent.value), None)
+    migrate_view_panel = mig.migrate_panel(mo, ui, _id, _sel)
+    return (migrate_view_panel,)
+
+
+@app.cell(hide_code=True)
+def _(az, loaded_table, mo, ui):
+    # Aggregate-only analysis over the loaded Iceberg table (counts only — never raw rows).
+    _arrow = None
+    if loaded_table is not None:
+        try:
+            _arrow = loaded_table.scan().to_arrow()
+        except Exception:  # noqa: BLE001 - surface as the panel's load note, never crash the tab
+            _arrow = None
+    analyze_view_panel = az.analyze_panel(mo, ui, _arrow)
+    return (analyze_view_panel,)
+
+
 @app.cell(hide_code=True)
 def _(
+    analyze_view_panel,
+    land_panel,
+    migrate_intent,
+    migrate_view_panel,
     cat,
     config_panel,
     deploy_btn,
@@ -1705,18 +1751,18 @@ def _(
     })
 
     # ── FLOW ── land (topology) · health (source + flow + data-quality) · migrate (intent) ──
-    tab_land = ui.panel(mo,
-        ui.header(mo, "Land — pipeline topology"),
-        mo.md("*(planned)* The active flows as a **sources → transforms → sinks** canvas — a "
-              "node-edge graph (NiFi / Cribl / Vector-topology style) with a status dot per node and "
-              "throughput on each edge. Renders the selected components + the live Vector topology."),
-    )
+    tab_land = land_panel
     tab_health = mo.vstack([health_view, tab_metrics])
-    tab_migrate = ui.panel(mo,
-        ui.header(mo, "Migrate — intent-driven"),
-        mo.md("*(planned)* Pick a migration **intent**; the panel expands to focused direction for it "
-              "(progressive disclosure, cockpit-style). The swap-cost / migration-cockpit work routes here."),
-    )
+    tab_migrate = mo.vstack([
+        ui.panel(mo,
+            ui.header(mo, "Migrate — intent-driven"),
+            mo.md("Pick a migration **intent**; the cockpit expands to focused, verifiable direction — "
+                  "the steps, the swap cost and how to back out, and the live data-health check that "
+                  "proves the move didn't change the answer."),
+            migrate_intent,
+        ),
+        migrate_view_panel,
+    ])
     flow_tabs = mo.ui.tabs({
         "Land": tab_land,
         "Health": tab_health,
@@ -1727,11 +1773,7 @@ def _(
     _inspector_selectors = (mo.hstack([ns_selector, table_selector])
                             if (cat and hasattr(ns_selector, "value")) else ns_selector)
     tab_analyze = mo.vstack([
-        ui.panel(mo,
-            ui.header(mo, "Analyze — log analysis"),
-            mo.md("*(planned)* Log / telemetry analysis pane (the OCSF marimo-hunt workflow routes here). "
-                  "Aggregate output only — never raw rows."),
-        ),
+        analyze_view_panel,
         ui.panel(mo,
             ui.header(mo, "Iceberg Metadata Inspector"),
             mo.md("List tables and inspect schema/field population from the active REST catalog "
