@@ -1318,10 +1318,23 @@ def _(l4_primary, l4_sources_select, layer4, mo, ui):
 
 @app.cell(hide_code=True)
 def _(capture_baseline, docs_panel, evidence_panel, evidence_select, health_compaction, health_crc, health_orphan, health_panel, health_schema, health_tombstone, l4_idcol, l4_primary, l4_sources_select, l4_tolerance, layer1_panel, layer4_panel, mo, okf_panel, run_evidence, run_health, run_layer4, scorecard_panel, ui):
-    tab_vault = mo.vstack([
+    # Startup › Strategy — OKF strategy vault + paid Matrix scorecard + thesis-evidence proof
+    strategy_view = mo.vstack([
         okf_panel,
         mo.hstack([docs_panel], gap=2),
         scorecard_panel,
+        ui.panel(mo,
+            ui.header(mo, "Thesis Evidence Runner"),
+            mo.md("Re-prove the thesis pillars on demand: each verb runs a `./moar` command "
+                  "against the live stack and reports a dated, Tier-B result (bounded output "
+                  "only — never raw rows)."),
+            evidence_select,
+            mo.hstack([run_evidence]),
+            evidence_panel,
+        ),
+    ])
+    # Flow › Health — source health (Layer 1) + data quality (Layer 3) + cross-tool coverage (Layer 4)
+    health_view = mo.vstack([
         ui.panel(mo,
             ui.header(mo, "Data Health & Schema Validation (Layers 1 & 3)"),
             mo.md("Run the data-quality audit (Layer 3, on the selected table) and the source-health "
@@ -1344,17 +1357,8 @@ def _(capture_baseline, docs_panel, evidence_panel, evidence_select, health_comp
             mo.hstack([run_layer4]),
             layer4_panel,
         ),
-        ui.panel(mo,
-            ui.header(mo, "Thesis Evidence Runner"),
-            mo.md("Re-prove the thesis pillars on demand: each verb runs a `./moar` command "
-                  "against the live stack and reports a dated, Tier-B result (bounded output "
-                  "only — never raw rows)."),
-            evidence_select,
-            mo.hstack([run_evidence]),
-            evidence_panel,
-        ),
     ])
-    return (tab_vault,)
+    return (health_view, strategy_view)
 
 
 @app.cell(hide_code=True)
@@ -1366,6 +1370,7 @@ def _(
     destroy_btn,
     gate_override,
     gate_panel,
+    health_view,
     inspect_output,
     logs,
     mo,
@@ -1373,8 +1378,8 @@ def _(
     save_btn,
     save_status,
     selector_panel,
+    strategy_view,
     tab_metrics,
-    tab_vault,
     table_selector,
     test_btn,
     test_input,
@@ -1382,11 +1387,12 @@ def _(
     ui,
     warnings_panel,
 ):
-    tab_selection = mo.vstack([selector_panel, warnings_panel])
+    # ── STARTUP ── pick the stack, configure it, and the strategy surface (OKF + Matrix) ──
+    tab_pick = mo.vstack([selector_panel, warnings_panel])
 
-    tab_config = mo.vstack([config_panel, mo.hstack([save_btn, save_status])])
-
-    tab_tester = mo.vstack([
+    tab_config = mo.vstack([
+        config_panel,
+        mo.hstack([save_btn, save_status]),
         ui.panel(mo,
             ui.header(mo, "VRL Testing Console"),
             mo.md("Validate Vector transform rules before provisioning them in the container."),
@@ -1394,9 +1400,6 @@ def _(
         test_input,
         mo.hstack([test_btn]),
         test_output,
-    ])
-
-    tab_pulumi = mo.vstack([
         ui.panel(mo,
             ui.header(mo, "Infrastructure Lifecycle Manager"),
             mo.md("Spin up or tear down the selected MOAr stack locally in Docker via Pulumi. "
@@ -1409,9 +1412,40 @@ def _(
                       mo.Html(f"<pre style='max-height:250px; overflow-y:auto;'>{''.join(logs)}</pre>")}),
     ])
 
+    startup_tabs = mo.ui.tabs({
+        "Pick components": tab_pick,
+        "Setup config": tab_config,
+        "Strategy": strategy_view,
+    })
+
+    # ── FLOW ── land (topology) · health (source + flow + data-quality) · migrate (intent) ──
+    tab_land = ui.panel(mo,
+        ui.header(mo, "Land — pipeline topology"),
+        mo.md("*(planned)* The active flows as a **sources → transforms → sinks** canvas — a "
+              "node-edge graph (NiFi / Cribl / Vector-topology style) with a status dot per node and "
+              "throughput on each edge. Renders the selected components + the live Vector topology."),
+    )
+    tab_health = mo.vstack([health_view, tab_metrics])
+    tab_migrate = ui.panel(mo,
+        ui.header(mo, "Migrate — intent-driven"),
+        mo.md("*(planned)* Pick a migration **intent**; the panel expands to focused direction for it "
+              "(progressive disclosure, cockpit-style). The swap-cost / migration-cockpit work routes here."),
+    )
+    flow_tabs = mo.ui.tabs({
+        "Land": tab_land,
+        "Health": tab_health,
+        "Migrate": tab_migrate,
+    })
+
+    # ── ANALYZE ── a separate pane for log/telemetry analysis (+ catalog inspection) ──
     _inspector_selectors = (mo.hstack([ns_selector, table_selector])
                             if (cat and hasattr(ns_selector, "value")) else ns_selector)
-    tab_inspector = mo.vstack([
+    tab_analyze = mo.vstack([
+        ui.panel(mo,
+            ui.header(mo, "Analyze — log analysis"),
+            mo.md("*(planned)* Log / telemetry analysis pane (the OCSF marimo-hunt workflow routes here). "
+                  "Aggregate output only — never raw rows."),
+        ),
         ui.panel(mo,
             ui.header(mo, "Iceberg Metadata Inspector"),
             mo.md("List tables and inspect schema/field population from the active REST catalog "
@@ -1422,18 +1456,7 @@ def _(
         inspect_output,
     ])
 
-    setup_tabs = mo.ui.tabs({
-        "Component Selection": tab_selection,
-        "Configuration": tab_config,
-        "VRL Tester": tab_tester,
-        "Strategy Vault & OKF": tab_vault,
-    })
-    manage_tabs = mo.ui.tabs({
-        "Infrastructure": tab_pulumi,
-        "Metadata Inspector": tab_inspector,
-        "Observability": tab_metrics,
-    })
-    dashboard = mo.ui.tabs({"Setup": setup_tabs, "Manage": manage_tabs})
+    dashboard = mo.ui.tabs({"Startup": startup_tabs, "Flow": flow_tabs, "Analyze": tab_analyze})
     dashboard
     return
 
