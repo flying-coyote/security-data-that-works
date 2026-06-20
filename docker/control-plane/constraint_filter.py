@@ -273,24 +273,55 @@ def verdict_for(component_code, selection) -> dict:
     return {"verdict": verdict, "reasons": reasons}
 
 
+# Three-tier requirement model (Ch3 §3.1): each constraint category maps to a tier.
+# deployment + compliance are Tier-1 (hard/mandatory), workload is Tier-2 (strongly
+# preferred), vendor/cost/team are Tier-3 (nice-to-have). Tier-1 and Tier-2 favors/cautions
+# weigh x3; Tier-3 weighs x1 (the book's "3x for preferred", "1x / tiebreaker" for nice-to-have).
+CONSTRAINT_TIER = {"deployment": 1, "compliance": 1, "workload": 2,
+                   "vendor": 3, "cost": 3, "team": 3}
+_TIER_WEIGHT = {1: 3, 2: 3, 3: 1}
+
+
+def _verdict_of_one(component_code, cat, code) -> str:
+    """The verdict a SINGLE declared constraint (cat=code) places on a component."""
+    hits = [v for (rc, rv, comp, v, _r) in RULES
+            if rc == cat and rv == code and comp == component_code]
+    if not hits:
+        return "neutral"
+    top = max(_RANK[v] for v in hits)
+    return next(k for k, r in _RANK.items() if r == top)
+
+
+def score_component(component_code, selection):
+    """Three-tier weighted score (Ch3). Returns None if a hard (Tier-1) constraint
+    disqualifies the component; otherwise sums, over each declared constraint that touches
+    it, tier_weight * (+1 favor / -1 caution / 0 neutral). Higher is a better fit."""
+    total = 0
+    for cat, code in _active_pairs(selection):
+        v = _verdict_of_one(component_code, cat, code)
+        if v == "disqualify":
+            return None
+        total += _TIER_WEIGHT[CONSTRAINT_TIER.get(cat, 3)] * (1 if v == "favor" else -1 if v == "caution" else 0)
+    return total
+
+
 def funnel(selection, catalogs) -> dict:
-    """Ch3's filtering funnel made concrete over the open-stack catalog. For each
-    category, drop the components the declared constraints disqualify and rank the rest
-    favored > neutral > cautioned. catalogs: {category: [component_code, ...]}. Returns
-    {category: {total, reachable, order:[(code, verdict), ...]}} — how many of M options
-    each category narrows to, and the order to consider them."""
-    rank = {"favor": 0, "neutral": 1, "caution": 2}
+    """Ch3's filtering funnel made concrete over the open-stack catalog. For each category,
+    drop the components a hard constraint disqualifies and rank the rest by three-tier
+    weighted score (score_component). catalogs: {category: [component_code, ...]}. Returns
+    {category: {total, reachable, top, order:[(code, verdict, score), ...]}} — how many of M
+    options each category narrows to, the best-fit pick, and the ranked order to consider."""
     out = {}
     for cat, codes in (catalogs or {}).items():
         ranked = []
         for code in codes:
-            vd = verdict_for(code, selection)["verdict"]
-            if vd == "disqualify":
+            score = score_component(code, selection)
+            if score is None:  # disqualified by a hard constraint
                 continue
-            ranked.append((rank.get(vd, 1), code, vd))
-        ranked.sort()
+            ranked.append((code, verdict_for(code, selection)["verdict"], score))
+        ranked.sort(key=lambda e: -e[2])  # best-fit (highest weighted score) first
         out[cat] = {"total": len(codes), "reachable": len(ranked),
-                    "order": [(code, vd) for _r, code, vd in ranked]}
+                    "top": ranked[0][0] if ranked else None, "order": ranked}
     return out
 
 

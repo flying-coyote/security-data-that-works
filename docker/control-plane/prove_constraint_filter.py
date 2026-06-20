@@ -104,11 +104,22 @@ def main():
     check("air-gap narrows storage from 5 to 3 reachable (drops aws_s3, wasabi)",
           f_air["storage"]["total"] == 5 and f_air["storage"]["reachable"] == 3)
     check("disqualified storage is gone from the reachable order",
-          all(code not in {"aws_s3", "wasabi"} for code, _v in f_air["storage"]["order"]))
+          all(code not in {"aws_s3", "wasabi"} for code, _v, _s in f_air["storage"]["order"]))
+    check("air-gap top storage pick is one the constraint favors",
+          f_air["storage"]["top"] in {"dell_ecs", "seaweedfs", "minio"})
     f_th = cf.funnel({"workload": "threat_hunting"}, _cats)
     check("threat-hunting disqualifies no engine (6 of 6 reachable)", f_th["query"]["reachable"] == 6)
-    check("favored sorts ahead of cautioned in the query order",
+    check("highest-scored sorts first, cautioned last in the query order",
           f_th["query"]["order"][0][1] == "favor" and f_th["query"]["order"][-1][1] == "caution")
+
+    print("\n=== three-tier weighted scoring (Ch3 §3.1) ===\n")
+    check("Tier-2 workload favor weighs x3", cf.score_component("trino", {"workload": "threat_hunting"}) == 3)
+    check("Tier-2 workload caution weighs -3", cf.score_component("duckdb", {"workload": "threat_hunting"}) == -3)
+    check("Tier-3 vendor favor weighs x1", cf.score_component("cribl", {"vendor": "low_oss_tolerance"}) == 1)
+    check("favored scores above cautioned",
+          cf.score_component("trino", {"workload": "threat_hunting"}) > cf.score_component("duckdb", {"workload": "threat_hunting"}))
+    check("a disqualified component scores None", cf.score_component("aws_s3", {"deployment": "on_prem_airgap"}) is None)
+    check("untouched component scores 0", cf.score_component("polaris", {"workload": "threat_hunting"}) == 0)
 
     if _failures:
         print(f"\n\033[91m{len(_failures)} assertion(s) FAILED\033[0m")

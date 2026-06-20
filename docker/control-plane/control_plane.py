@@ -307,8 +307,9 @@ def _(P, cf, con_compliance, con_cost, con_deploy, con_team, con_vendor,
                "ingest": list(sel_ingest), "query": list(sel_query), "schema": [sel_schema]}
     _report = cf.evaluate(_selection, _picked)
     _funnel = cf.funnel(_selection, {_cat: [p.code for p in _grp] for _cat, _grp in P.CATEGORIES.items()})
-    _funnel_md = "**Reachable after constraints:** " + " · ".join(
-        f"{_cat} {_f['reachable']}/{_f['total']}" for _cat, _f in _funnel.items())
+    _funnel_md = "**Reachable after constraints (best-fit pick):** " + " · ".join(
+        f"{_cat} {_f['reachable']}/{_f['total']}" + (f" → {_f['top']}" if _f['top'] else "")
+        for _cat, _f in _funnel.items())
     _labels = {p.code: p.label for _grp in P.CATEGORIES.values() for p in _grp}
     _rows = []
     for _r in _report["picked_verdicts"]:
