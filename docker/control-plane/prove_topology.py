@@ -134,6 +134,12 @@ def main():
     check("mermaid for an empty selection is still well-formed",
           empty["mermaid"].lstrip().startswith("graph")
           and "source" in empty["mermaid"] and "present" in empty["mermaid"])
+    # Regression: a catalog selection used to emit `Polaris (catalog)` / `Iceberg read (via
+    # catalog)` whose unescaped parens broke the mermaid parser. Labels must be paren-free.
+    _cat_m = T.build_topology({"storage": "minio", "catalog": "polaris", "ingest": ["vector"],
+                               "query": ["clickhouse"], "schema": "ocsf"})["mermaid"]
+    check("mermaid labels are paren-free so mermaid parses (regression guard)",
+          "(" not in _cat_m and ")" not in _cat_m)
 
     if _failures:
         print(f"\n\033[91m{len(_failures)} assertion(s) FAILED\033[0m")
