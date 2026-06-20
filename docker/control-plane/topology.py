@@ -57,8 +57,11 @@ def _mermaid_label(text) -> str:
     defensive rather than load-bearing, but a stray catalog edit shouldn't produce
     an unparseable graph."""
     s = str(text)
-    for bad, repl in (("\n", " "), ('"', "'"), ("[", "("), ("]", ")"),
-                      ("{", "("), ("}", ")"), ("|", "/")):
+    # Strip every bracket/brace/paren and the pipe: mermaid treats them as syntax, and an
+    # unquoted edge label like `Iceberg read (via catalog)` or a node `Polaris (catalog)`
+    # breaks the parser. Labels come from a closed catalog, so dropping them reads fine.
+    for bad, repl in (("\n", " "), ('"', "'"), ("|", "/"),
+                      ("[", ""), ("]", ""), ("{", ""), ("}", ""), ("(", ""), (")", "")):
         s = s.replace(bad, repl)
     return s.strip() or "?"
 
