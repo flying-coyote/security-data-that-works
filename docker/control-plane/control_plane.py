@@ -1693,10 +1693,15 @@ def _(
                       mo.Html(f"<pre style='max-height:250px; overflow-y:auto;'>{''.join(logs)}</pre>")}),
     ])
 
-    startup_tabs = mo.ui.tabs({
+    # Strategy holds the decision flow: "Pick components" is a distinct part of it,
+    # alongside the strategy vault + Matrix scorecard + thesis-evidence surface.
+    strategy_tabs = mo.ui.tabs({
         "Pick components": tab_pick,
-        "Setup config": tab_config,
-        "Strategy": strategy_view,
+        "Vault & Matrix": strategy_view,
+    })
+    startup_tabs = mo.ui.tabs({
+        "Strategy": strategy_tabs,
+        "Configuration": tab_config,
     })
 
     # ── FLOW ── land (topology) · health (source + flow + data-quality) · migrate (intent) ──
