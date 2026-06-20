@@ -22,6 +22,9 @@ def _():
     import pulumi_deployer as deployer
     import providers as P
     import constraint_filter as cf
+    import anti_patterns as antip
+    import cost_advisor as ca
+    import reference_presets as rp
     import okf_reader as okf
     import ui_helpers as ui
     import gate_logic as gl
@@ -33,7 +36,7 @@ def _():
 
     # Tolaria convention: point VAULT_PATH at the OKF vault (project1).
     VAULT_PATH = os.environ.get("VAULT_PATH", os.path.expanduser("~/project1"))
-    return P, RestCatalog, VAULT_PATH, cf, deployer, dk, ev, gl, l1, l3, l4, mo, okf, os, subprocess, textwrap, ui, yaml
+    return P, RestCatalog, VAULT_PATH, antip, ca, cf, deployer, dk, ev, gl, l1, l3, l4, mo, okf, os, rp, subprocess, textwrap, ui, yaml
 
 
 @app.cell(hide_code=True)
@@ -303,6 +306,9 @@ def _(P, cf, con_compliance, con_cost, con_deploy, con_team, con_vendor,
     _picked = {"storage": [sel_storage], "catalog": [sel_catalog],
                "ingest": list(sel_ingest), "query": list(sel_query), "schema": [sel_schema]}
     _report = cf.evaluate(_selection, _picked)
+    _funnel = cf.funnel(_selection, {_cat: [p.code for p in _grp] for _cat, _grp in P.CATEGORIES.items()})
+    _funnel_md = "**Reachable after constraints:** " + " · ".join(
+        f"{_cat} {_f['reachable']}/{_f['total']}" for _cat, _f in _funnel.items())
     _labels = {p.code: p.label for _grp in P.CATEGORIES.values() for p in _grp}
     _rows = []
     for _r in _report["picked_verdicts"]:
@@ -311,10 +317,67 @@ def _(P, cf, con_compliance, con_cost, con_deploy, con_team, con_vendor,
     constraints_verdict_panel = ui.panel(mo,
         ui.header(mo, "What your constraints rule on (current picks)"),
         mo.md(_report["summary_md"]),
+        mo.md(_funnel_md),
         *(_rows or [mo.md("*No declared constraint touches the current selection.*")]),
         **{"border": "1px solid var(--color-orange-500)"},
     )
     return (constraints_verdict_panel,)
+
+
+@app.cell(hide_code=True)
+def _(mo, rp, ui):
+    # Reference architectures (Appendix C) — known-good starting points with validity + cost.
+    _cards = []
+    for _p in rp.PRESETS:
+        _c = _p["components"]
+        _line = (f"**Storage** {_c['storage']} · **Catalog** {_c['catalog']} · "
+                 f"**Ingest** {', '.join(_c['ingest'])} · **Query** {', '.join(_c['query'])} · "
+                 f"**Schema** {_c['schema']}")
+        _cards.append(ui.card(mo,
+            ui.header(mo, _p["name"]),
+            mo.md(f"{_p['when_it_wins']}\n\n{_line}\n\n*Cost: {_p['cost_profile']}*  \n`{_p['cite']}`")))
+    reference_presets_panel = ui.panel(mo,
+        ui.header(mo, "Reference architectures — a known-good starting point"),
+        mo.md("*Validated patterns from the book (Appendix C). Match one, then tune; the "
+              "constraint and anti-pattern checks still apply to whatever you land on.*"),
+        mo.hstack(_cards, gap=2, justify="start", align="start"),
+    )
+    return (reference_presets_panel,)
+
+
+@app.cell(hide_code=True)
+def _(antip, mo, sel_catalog, sel_ingest, sel_query, sel_schema, sel_storage, ui):
+    _flags = antip.detect({"storage": sel_storage, "catalog": sel_catalog, "schema": sel_schema,
+                           "ingest": sel_ingest, "query": sel_query})
+    if _flags:
+        anti_patterns_panel = ui.panel(mo,
+            ui.header(mo, "Design anti-patterns (Appendix B)"),
+            *[ui.note(mo, _lvl, _title, _body) for _lvl, _title, _body in _flags],
+            **{"border": "1px solid var(--color-orange-500)"},
+        )
+    else:
+        anti_patterns_panel = mo.md("")
+    return (anti_patterns_panel,)
+
+
+@app.cell(hide_code=True)
+def _(mo):
+    cost_tb = mo.ui.number(start=0.0, stop=1000.0, step=0.5, value=1.0, label="Raw ingest TB/day")
+    cost_days = mo.ui.dropdown(options=["30 days", "90 days", "1 year", "7 years"],
+                               value="7 years", label="Retention window")
+    return cost_days, cost_tb
+
+
+@app.cell(hide_code=True)
+def _(ca, cost_days, cost_tb, mo, ui):
+    _days = {"30 days": 30, "90 days": 90, "1 year": 365, "7 years": 2555}.get(cost_days.value, 365)
+    _est = ca.estimate(cost_tb.value or 0.0, _days)
+    cost_panel = ui.panel(mo,
+        ui.header(mo, "Cost-to-serve — storage floor for this volume"),
+        mo.hstack([cost_tb, cost_days], gap=1, justify="start"),
+        mo.md(ca.summary_md(_est)),
+    )
+    return (cost_panel,)
 
 
 @app.cell(hide_code=True)
@@ -1436,6 +1499,9 @@ def _(
     save_status,
     constraints_input,
     constraints_verdict_panel,
+    reference_presets_panel,
+    anti_patterns_panel,
+    cost_panel,
     selector_panel,
     strategy_view,
     tab_metrics,
@@ -1447,7 +1513,10 @@ def _(
     warnings_panel,
 ):
     # ── STARTUP ── pick the stack, configure it, and the strategy surface (OKF + Matrix) ──
-    tab_pick = mo.vstack([constraints_input, constraints_verdict_panel, selector_panel, warnings_panel])
+    tab_pick = mo.vstack([
+        reference_presets_panel, constraints_input, constraints_verdict_panel,
+        selector_panel, warnings_panel, anti_patterns_panel, cost_panel,
+    ])
 
     tab_config = mo.vstack([
         config_panel,

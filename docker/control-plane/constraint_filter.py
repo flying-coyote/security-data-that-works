@@ -273,6 +273,27 @@ def verdict_for(component_code, selection) -> dict:
     return {"verdict": verdict, "reasons": reasons}
 
 
+def funnel(selection, catalogs) -> dict:
+    """Ch3's filtering funnel made concrete over the open-stack catalog. For each
+    category, drop the components the declared constraints disqualify and rank the rest
+    favored > neutral > cautioned. catalogs: {category: [component_code, ...]}. Returns
+    {category: {total, reachable, order:[(code, verdict), ...]}} — how many of M options
+    each category narrows to, and the order to consider them."""
+    rank = {"favor": 0, "neutral": 1, "caution": 2}
+    out = {}
+    for cat, codes in (catalogs or {}).items():
+        ranked = []
+        for code in codes:
+            vd = verdict_for(code, selection)["verdict"]
+            if vd == "disqualify":
+                continue
+            ranked.append((rank.get(vd, 1), code, vd))
+        ranked.sort()
+        out[cat] = {"total": len(codes), "reachable": len(ranked),
+                    "order": [(code, vd) for _r, code, vd in ranked]}
+    return out
+
+
 def evaluate(selection, picked) -> dict:
     """Evaluate declared constraints against the current picks.
 

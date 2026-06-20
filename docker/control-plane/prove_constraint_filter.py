@@ -97,6 +97,19 @@ def main():
     check("code_for_label round-trips", cf.code_for_label("deployment", "On-prem / air-gapped") == "on_prem_airgap")
     check("default_label resolves for a single-select", cf.default_label("deployment") == "Cloud is fine")
 
+    print("\n=== funnel (Ch3 reduction over the catalog) ===\n")
+    _cats = {"storage": ["seaweedfs", "minio", "aws_s3", "wasabi", "dell_ecs"],
+             "query": ["datafusion", "clickhouse", "starrocks", "dremio", "duckdb", "trino"]}
+    f_air = cf.funnel({"deployment": "on_prem_airgap"}, _cats)
+    check("air-gap narrows storage from 5 to 3 reachable (drops aws_s3, wasabi)",
+          f_air["storage"]["total"] == 5 and f_air["storage"]["reachable"] == 3)
+    check("disqualified storage is gone from the reachable order",
+          all(code not in {"aws_s3", "wasabi"} for code, _v in f_air["storage"]["order"]))
+    f_th = cf.funnel({"workload": "threat_hunting"}, _cats)
+    check("threat-hunting disqualifies no engine (6 of 6 reachable)", f_th["query"]["reachable"] == 6)
+    check("favored sorts ahead of cautioned in the query order",
+          f_th["query"]["order"][0][1] == "favor" and f_th["query"]["order"][-1][1] == "caution")
+
     if _failures:
         print(f"\n\033[91m{len(_failures)} assertion(s) FAILED\033[0m")
         return 1
