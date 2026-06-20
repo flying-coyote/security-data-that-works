@@ -24,6 +24,8 @@ from __future__ import annotations
 import re
 import subprocess
 
+import decay
+
 # verb -> what it re-proves. `hypothesis` is the tracker id where there is one, else a
 # short claim name. `timeout` is a backstop; verbs only run when Docker is reachable.
 VERBS = [
@@ -113,3 +115,32 @@ def summarize(results) -> dict:
         last = r.get("ran_at") or last
     return {"passing": by["pass"], "failing": by["fail"], "blocked": by["blocked"],
             "errored": by["error"], "total": len(results or []), "last_run": last}
+
+
+def answer_equality_status(results, *, now_iso=None, ttl_seconds=None):
+    """Lift the cross-engine answer-equality verdict (the `verify` verb) out of the
+    evidence-verb results and into the gate's status vocabulary. `verify` is the
+    differentiator claim — every running engine returns the SAME answer over the same
+    Iceberg table — so once it has been run it earns a cert-bearing gate row, not just a
+    count in the informational verb line.
+
+    Returns None when verify was never run (the 7th gate row is omitted — back-compat);
+    'pass' or 'fail' on a real exit code; 'unmeasured' when the run was blocked (no Docker)
+    or errored (timeout/crash). A tried-but-couldn't-measure is labeled, never a bluffed
+    pass — the same honesty rule the gate applies to every measured layer.
+
+    When `now_iso` is supplied, a `pass` is aged through the same last-validated decay the
+    gate applies to layers 1/3/4 (decay.effective_status): a verify pass older than the TTL
+    (default one day) — or one that cannot be dated — decays to 'stale', which is not-green
+    but not a failure ('re-run me'). So a days-old answer-equality run cannot keep the gate
+    falsely GREEN. Omit `now_iso` for the raw mapping (pure status tests, or callers that
+    decay separately).
+    """
+    r = next((x for x in (results or []) if x.get("verb") == "verify"), None)
+    if r is None:
+        return None
+    status = r["status"] if r.get("status") in ("pass", "fail") else "unmeasured"
+    if status == "pass" and now_iso is not None:
+        return decay.effective_status("pass", r.get("ran_at"), now_iso,
+                                      ttl_seconds if ttl_seconds is not None else decay.DEFAULT_TTL_SECONDS)
+    return status

@@ -119,17 +119,22 @@ owner-gated upgrade, not the reason for amber.
 - `prove_flow_reconcile.py`, `prove_ocsf_roundtrip.py` — the cluster-5 deepening engines.
 - `prove_panels_smoke.py` — headless construction of the Startup-tab panels.
 
-## Cluster-5 deepening (2026-06-20) — logic built + proven, live wiring deferred
+## Cluster-5 deepening (2026-06-20) — answer-equality wired live; flow / round-trip logic proven, collection deferred
 
-Three deepenings extend the gate beyond Layers 1–4, each a pure engine with a proof; the
-live-data collection needs a running stack and is wired in `control_plane` later, exactly
-as Layers 1/3/4 already are (logic proven against fixtures, live audit deferred):
+Three deepenings extend the gate beyond Layers 1–4, each a pure engine with a proof.
+Cross-engine answer-equality is now wired to the live stack; the other two stay logic-only
+until their live collection is built (it needs a running stack, exactly as Layers 1/3/4 are):
 
-- **Cross-engine answer equality** — `compute_gate` gains an optional seventh row
-  (`answer_equality_status`, default `None` = omitted for back-compat). When supplied it is
-  a cert-bearing row: a `fail` (an engine returns a filtered count short of the others over
-  byte-identical data — the silent-wrong-answer mode) blocks GREEN. Feed it the
-  `./moar verify` result.
+- **Cross-engine answer equality** — `compute_gate` carries an optional seventh row
+  (`answer_equality_status`, default `None` = omitted for back-compat). It is a cert-bearing
+  row: a `fail` (an engine returns a filtered count short of the others over byte-identical
+  data — the silent-wrong-answer mode) blocks GREEN. **Wired live (2026-06-20):** the gate cell
+  lifts the `./moar verify` verdict out of the evidence-verb results via
+  `evidence_runner.answer_equality_status(evidence, now_iso=…)`, which passes pass/fail straight
+  through, maps blocked/errored to `unmeasured` (never a bluffed pass), and — like Layers 1/3/4 —
+  decays a pass older than the one-day TTL (or an undatable one) to `stale`. Proven end-to-end
+  across duckdb + Trino + ClickHouse over `iceberg.ocsf.network_activity` (all three agree
+  1000/125); unit + composed + decay coverage in `prove_evidence.py` Part 3.
 - **Flow reconciliation** (`flow_reconcile.py`) — counts events hop-to-hop per OCSF class
   (emitted → ingested → landed) and fails on a silent drop beyond tolerance, so a pipeline
   that quietly loses a fraction of one class surfaces rather than hiding behind a reachable

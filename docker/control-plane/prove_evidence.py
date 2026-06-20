@@ -91,6 +91,67 @@ def main():
             check("every verb carries a hypothesis/claim tag",
                   all(r["hypothesis"] and r["hypothesis"] != "?" for r in blocked))
 
+        print("\n=== Part 3 — answer_equality_status: verify verdict -> cert-bearing gate row ===\n")
+        import gate_logic as _gl
+
+        def _mk(status):
+            return {"verb": "verify", "status": status}
+
+        check("verify absent -> None (7th row omitted, back-compat)",
+              er.answer_equality_status([]) is None and er.answer_equality_status(None) is None)
+        check("verify absent among other verbs -> None",
+              er.answer_equality_status([{"verb": "correlate", "status": "pass"}]) is None)
+        check("verify pass -> 'pass'", er.answer_equality_status([_mk("pass")]) == "pass")
+        check("verify fail -> 'fail'", er.answer_equality_status([_mk("fail")]) == "fail")
+        check("verify blocked -> 'unmeasured' (no bluffed pass)",
+              er.answer_equality_status([_mk("blocked")]) == "unmeasured")
+        check("verify error -> 'unmeasured' (no bluffed pass)",
+              er.answer_equality_status([_mk("error")]) == "unmeasured")
+        check("verify picked out of a mixed verb list",
+              er.answer_equality_status([{"verb": "swap-store", "status": "fail"}, _mk("pass")]) == "pass")
+
+        # Decay: a stale verify pass must NOT keep the gate green — the same last-validated
+        # rule layers 1/3/4 get. now_iso enables it; the verify result carries ran_at.
+        _NOW = "2026-06-20T00:00:00Z"
+
+        def _mk_at(status, ran_at):
+            return {"verb": "verify", "status": status, "ran_at": ran_at}
+
+        check("fresh verify pass + now_iso -> 'pass'",
+              er.answer_equality_status([_mk_at("pass", "2026-06-19T23:00:00Z")], now_iso=_NOW) == "pass")
+        check("2-day-old verify pass + now_iso -> 'stale' (re-run me, not green)",
+              er.answer_equality_status([_mk_at("pass", "2026-06-18T00:00:00Z")], now_iso=_NOW) == "stale")
+        check("undatable verify pass (no ran_at) + now_iso -> 'stale' (fail-closed)",
+              er.answer_equality_status([_mk("pass")], now_iso=_NOW) == "stale")
+        check("future-stamped verify pass beyond skew + now_iso -> 'stale'",
+              er.answer_equality_status([_mk_at("pass", "2026-06-21T00:00:00Z")], now_iso=_NOW) == "stale")
+        check("now_iso omitted -> raw 'pass' (back-compat; caller decays separately)",
+              er.answer_equality_status([_mk("pass")]) == "pass")
+        check("verify fail + now_iso -> still 'fail' (only a pass decays)",
+              er.answer_equality_status([_mk("fail")], now_iso=_NOW) == "fail")
+
+        # Composed end-to-end: the exact path the gate cell runs (evidence -> helper ->
+        # compute_gate). Holds every other layer green so the answer-equality row alone
+        # moves the verdict.
+        _base = dict(warns=[], spec_saved=True, docker_up=True, catalog_live=True,
+                     layer1_status="pass", layer3_status="pass", layer4_status="pass")
+        _g_absent = _gl.compute_gate(**_base, answer_equality_status=er.answer_equality_status([]))
+        _g_pass = _gl.compute_gate(**_base, answer_equality_status=er.answer_equality_status([_mk("pass")]))
+        _g_fail = _gl.compute_gate(**_base, answer_equality_status=er.answer_equality_status([_mk("fail")]))
+        _g_block = _gl.compute_gate(**_base, answer_equality_status=er.answer_equality_status([_mk("blocked")]))
+        check("composed: verify absent -> 6-row gate, GREEN reachable",
+              len(_g_absent["layers"]) == 6 and _g_absent["all_green"] is True)
+        check("composed: verify pass -> 7-row gate, still GREEN",
+              len(_g_pass["layers"]) == 7 and _g_pass["all_green"] is True)
+        check("composed: verify fail -> NOT green, named a cert blocker",
+              _g_fail["all_green"] is False and "Cross-engine answer equality" in _g_fail["cert_blockers"])
+        check("composed: verify blocked -> not green, listed unmeasured (no bluff)",
+              _g_block["all_green"] is False and "Cross-engine answer equality" in _g_block["unmeasured"])
+        _g_stale = _gl.compute_gate(**_base, answer_equality_status=er.answer_equality_status(
+            [_mk_at("pass", "2026-06-18T00:00:00Z")], now_iso=_NOW))
+        check("composed: stale verify pass -> NOT green, row reads stale (no false GREEN)",
+              _g_stale["all_green"] is False and ("Cross-engine answer equality", "stale") in _g_stale["layers"])
+
         print()
         if _failures:
             print(f"\033[91m{len(_failures)} assertion(s) FAILED:\033[0m " + "; ".join(_failures))

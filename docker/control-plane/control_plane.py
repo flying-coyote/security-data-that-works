@@ -612,6 +612,8 @@ def _(P, cat, config_path, deployer, ev, evidence, gl, layer1, layer3, layer4, m
     # Layers 1/3/4 are MEASURED by their audits and may decay to `stale` (a proven
     # pass that has not been re-validated within its TTL — not-green but not a failure).
     _warns = [t for lvl, t, _b in P.compat_notes(sel_storage, sel_catalog, sel_query, sel_ingest, sel_schema) if lvl == "warn"]
+    import datetime as _dt
+    _now_iso = _dt.datetime.now(_dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     gate = gl.compute_gate(
         warns=_warns,
         spec_saved=os.path.exists(config_path),
@@ -620,6 +622,12 @@ def _(P, cat, config_path, deployer, ev, evidence, gl, layer1, layer3, layer4, m
         layer1_status=layer1.get("effective_status", layer1.get("status", "unmeasured")),
         layer3_status=layer3.get("effective_status", layer3.get("status", "unmeasured")),
         layer4_status=layer4.get("effective_status", layer4.get("status", "unmeasured")),
+        # Cross-engine answer-equality (./moar verify) is the differentiator claim: once it
+        # has been run it becomes a cert-bearing 7th gate row (pass/fail), not just the
+        # informational verb count below. Never run -> None -> row omitted; blocked/errored
+        # -> unmeasured, never a bluffed pass; and a pass older than the TTL decays to stale
+        # (now_iso), the same last-validated rule layers 1/3/4 get. Pure, proven function.
+        answer_equality_status=ev.answer_equality_status(evidence, now_iso=_now_iso),
     )
 
     _verdict, _vcolor = gl.verdict_line(gate)
@@ -634,7 +642,7 @@ def _(P, cat, config_path, deployer, ev, evidence, gl, layer1, layer3, layer4, m
     _evline = (f"\n\n*Thesis-evidence verbs: {_evs['passing']} passing / {_evs['total']} run"
                + (f", {_evs['blocked']} blocked" if _evs['blocked'] else "")
                + (f" (last run {_evs['last_run']})" if _evs['last_run'] else "")
-               + " — informational, not a gate layer.*") if _evs["total"] else ""
+               + " — informational; the `verify` result also feeds the cross-engine gate row above.*") if _evs["total"] else ""
     gate_panel = ui.panel(mo,
         ui.header(mo, "Data-Health Gate"),
         mo.md(f"**<span style='color:{_vcolor}; font-size:1.05rem;'>{_verdict}</span>**"),
