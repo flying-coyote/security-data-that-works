@@ -68,7 +68,7 @@ def create_moar_program(config_dict):
             command=["server", "-s3", f"-s3.port={storage_port}"],
             networks_advanced=[docker.ContainerNetworksAdvancedArgs(name=network.name)],
             ports=[
-                docker.ContainerPortArgs(internal=8333, external=storage_port),
+                docker.ContainerPortArgs(internal=storage_port, external=storage_port),
                 docker.ContainerPortArgs(internal=9333, external=9333)
             ],
             restart="unless-stopped"
