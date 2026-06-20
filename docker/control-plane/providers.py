@@ -291,3 +291,38 @@ def compat_notes(storage, catalog, query_codes, ingest_codes, schema):
             "DataFusion; Dremio is selectable, not the default.",
         ))
     return notes
+
+
+# --- Matrix component taxonomy (T6) -------------------------------------------
+# The console's five pickers choose among five of the Capability Matrix's nine scored
+# components (C0-C8, per MATRIX.md / the website components page). Labelling each picker
+# with its C-number keeps the console legible against the Matrix + site. The mapping is
+# grounded in the published component definitions: storage = the object-store/tier layer
+# (S3/MinIO/Wasabi/Dell ECS — literally the C6 "Storage tier" list); catalog = C2; ingest =
+# C4; query = C3. "schema" is the event-normalization contract (OCSF and alternatives),
+# which the Matrix treats as cross-cutting — C1 scores the *table format* (Iceberg/Delta),
+# which the reference stack writes implicitly, so it is not a picker.
+MATRIX_COMPONENT = {
+    "storage": ("C6", "Storage tier"),
+    "catalog": ("C2", "Catalog / metadata"),
+    "ingest":  ("C4", "Ingestion / route"),
+    "query":   ("C3", "Query engine"),
+    "schema":  ("—",  "Normalization contract (cross-cutting; C1 scores the table format)"),
+}
+
+# Matrix components the console does NOT expose as a picker — surfaced as a note, not new
+# pickers (per T6). Each: (C-number, name, why it isn't a picker here).
+MATRIX_OMITTED = [
+    ("C0", "Substrate pattern", "composed-vs-managed — a meta-choice, not a component pick"),
+    ("C1", "Lakehouse / table format", "the reference stack writes Iceberg implicitly; no separate format picker"),
+    ("C5", "Visualization, UX & detection rules", "lives in the Analyze tab, not a Strategy pick"),
+    ("C7", "Streaming pipeline", "outside the batch-first reference stack"),
+    ("C8", "Agentic / authoring / interface", "the console + MCP layer itself"),
+]
+
+
+def component_tag(category) -> str:
+    """'C6 · Storage tier'-style tag for a picker category (T6 — picker legibility against
+    the Matrix C0-C8 taxonomy). Empty string for an unknown category."""
+    c = MATRIX_COMPONENT.get(category)
+    return f"{c[0]} · {c[1]}" if c else ""
