@@ -240,18 +240,34 @@ def _(P, catalog_provider, pipeline_provider, query_provider, schema_provider, s
 
 
 @app.cell(hide_code=True)
-def _(catalog_provider, mo, pipeline_provider, query_provider, schema_provider, storage_provider, ui):
-    storage_card = ui.card(mo, ui.header(mo, "Storage"), storage_provider)
-    catalog_card = ui.card(mo, ui.header(mo, "Catalog"), catalog_provider)
-    ingest_card = ui.card(mo, ui.header(mo, "Ingest"), *list(pipeline_provider.values()))
-    query_card = ui.card(mo, ui.header(mo, "Query Engine(s)"), *list(query_provider.values()))
-    schema_card = ui.card(mo, ui.header(mo, "Schema Standard"), schema_provider)
+def _(P, catalog_provider, mo, pipeline_provider, query_provider, schema_provider, storage_provider, ui):
+    # T6: label each picker with its Matrix component (C0-C8) so the console reads legibly
+    # against the Matrix + website; the mapping note below covers the cross-cutting schema
+    # contract and the components that aren't picks here.
+    def _hdr(name, cat):
+        _cnum = P.MATRIX_COMPONENT.get(cat, ("", ""))[0]
+        return ui.header(mo, f"{name} · {_cnum}" if _cnum and _cnum != "—" else name)
+    storage_card = ui.card(mo, _hdr("Storage", "storage"), storage_provider)
+    catalog_card = ui.card(mo, _hdr("Catalog", "catalog"), catalog_provider)
+    ingest_card = ui.card(mo, _hdr("Ingest", "ingest"), *list(pipeline_provider.values()))
+    query_card = ui.card(mo, _hdr("Query Engine(s)", "query"), *list(query_provider.values()))
+    schema_card = ui.card(mo, _hdr("Schema Standard", "schema"), schema_provider)
+
+    _omitted = "; ".join(f"**{_c}** {_name}" for _c, _name, _why in P.MATRIX_OMITTED)
+    _map_note = mo.md(
+        "*These five pickers are the Capability Matrix components you choose among — **C6** storage "
+        "tier, **C2** catalog, **C4** ingestion/route, **C3** query engine — plus the **schema / "
+        "normalization standard** (OCSF and its alternatives), the data contract the Matrix treats as "
+        "cross-cutting (C1 scores the table format, which the reference stack writes as Iceberg). The "
+        "Matrix's other components aren't picks here: " + _omitted + ". The full scored C0–C8 model is "
+        "the [Capability Matrix](https://securitydataworks.com/matrix).*")
 
     selector_panel = ui.panel(mo,
         mo.md("### Modular Component Selection"),
         mo.md("Choose the components for your active MOAr stack deployment."),
         mo.hstack([storage_card, catalog_card, ingest_card, query_card, schema_card],
                   gap=2, justify="start", align="start"),
+        _map_note,
     )
     return (selector_panel,)
 
