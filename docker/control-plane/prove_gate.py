@@ -166,6 +166,22 @@ def main():
         check("remediated + others green -> GREEN again",
               gate_for(f["status"], **_others)["all_green"] is True)
 
+        # Part 2c — the optional 7th row: cross-engine answer equality (./moar verify).
+        # Omitted by default (6 rows, back-compat); present, a fail blocks certification.
+        print("\nPart 2c — cross-engine answer-equality row (optional 7th gate row)")
+        g6 = gate_for(h["status"], **_others)
+        check("answer_equality omitted -> 6 rows, GREEN reachable",
+              len(g6["layers"]) == 6 and g6["all_green"] is True)
+        g7p = gate_for(h["status"], **_others, answer_equality_status="pass")
+        check("answer_equality=pass -> 7 rows, still GREEN",
+              len(g7p["layers"]) == 7 and g7p["all_green"] is True)
+        g7f = gate_for(h["status"], **_others, answer_equality_status="fail")
+        check("answer_equality=fail -> NOT green, named a cert blocker",
+              g7f["all_green"] is False and "Cross-engine answer equality" in g7f["cert_blockers"])
+        g7u = gate_for(h["status"], **_others, answer_equality_status="unmeasured")
+        check("answer_equality=unmeasured -> not green, listed unmeasured (no bluff)",
+              g7u["all_green"] is False and "Cross-engine answer equality" in g7u["unmeasured"])
+
         print()
         if _failures:
             print(f"\033[91m{len(_failures)} assertion(s) FAILED:\033[0m " + "; ".join(_failures))

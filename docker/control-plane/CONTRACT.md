@@ -114,3 +114,26 @@ owner-gated upgrade, not the reason for amber.
   false `web-01` vs `web-01.corp` gap; every unsafe match stays a gap).
 - `prove_evidence.py`, `prove_vector_metrics.py` — the Evidence Runner and Vector
   Layer-2 counters.
+- `prove_constraint_filter.py`, `prove_anti_patterns.py`, `prove_cost_advisor.py`,
+  `prove_reference_presets.py` — the book-decision-framework engines.
+- `prove_flow_reconcile.py`, `prove_ocsf_roundtrip.py` — the cluster-5 deepening engines.
+- `prove_panels_smoke.py` — headless construction of the Startup-tab panels.
+
+## Cluster-5 deepening (2026-06-20) — logic built + proven, live wiring deferred
+
+Three deepenings extend the gate beyond Layers 1–4, each a pure engine with a proof; the
+live-data collection needs a running stack and is wired in `control_plane` later, exactly
+as Layers 1/3/4 already are (logic proven against fixtures, live audit deferred):
+
+- **Cross-engine answer equality** — `compute_gate` gains an optional seventh row
+  (`answer_equality_status`, default `None` = omitted for back-compat). When supplied it is
+  a cert-bearing row: a `fail` (an engine returns a filtered count short of the others over
+  byte-identical data — the silent-wrong-answer mode) blocks GREEN. Feed it the
+  `./moar verify` result.
+- **Flow reconciliation** (`flow_reconcile.py`) — counts events hop-to-hop per OCSF class
+  (emitted → ingested → landed) and fails on a silent drop beyond tolerance, so a pipeline
+  that quietly loses a fraction of one class surfaces rather than hiding behind a reachable
+  Layer 2.
+- **OCSF round-trip** (`ocsf_roundtrip.py`) — value-level check on top of schema conformance:
+  known-good test events run through the transform must produce the expected OCSF field
+  values, catching a mapping that is schema-valid but semantically wrong.
