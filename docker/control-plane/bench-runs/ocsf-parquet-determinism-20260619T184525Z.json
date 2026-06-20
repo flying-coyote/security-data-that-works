@@ -1,0 +1,43 @@
+{
+  "run_id": "ocsf-parquet-determinism-20260619T184525Z",
+  "bench": "ocsf-parquet-determinism",
+  "tier": 1,
+  "adapter": "determinism",
+  "exit_code": 0,
+  "duration_s": 3.692,
+  "gate": {
+    "verdict": "fail",
+    "notes": "no results.json produced"
+  },
+  "failure": {
+    "class": "unknown",
+    "message": "unrecognized failure; see log. tail: "
+  },
+  "env": {
+    "python": "3.12.3",
+    "lab_duckdb": "1.5.3",
+    "lab_chdb": "4.1.9",
+    "cpu": 14,
+    "ram_gb": 47.0,
+    "power_plan": "High performance",
+    "os": "Linux-6.6.87.2-microsoft-standard-WSL2-x86_64-with-glibc2.39"
+  },
+  "git": {
+    "spoke": {
+      "head": "be0ef62",
+      "dirty": true
+    },
+    "lab": {
+      "head": "e8f8024",
+      "dirty": true
+    }
+  },
+  "results_path": null,
+  "results_sha256": null,
+  "results_md_present": true,
+  "stdout_excerpt": "setting           thr  rows     content_sha       file_bytes                 bytes_stable  sha_stable\ndefault-parallel    8  500000   857a280427ea7f55  2787844/2788952/2875068    False         False\nthreads=1           1  500000   857a280427ea7f55  2333151                    True          True\nordered+parallel    8  500000   857a280427ea7f55  2303625                    True          True\nstraight-scan       8  400000   0eb53daadb3674dd  3998714                    True          True",
+  "stderr_excerpt": "",
+  "ran_at": "2026-06-19T18:45:26Z",
+  "log_path": "ocsf-parquet-determinism-20260619T184525Z.log",
+  "notes": "Mechanical well-formedness only. Promotion to hypothesis evidence is a separate human gate (karen-evaluator -> hypothesis-validator -> contradiction-detector). Tier-2/3 timing on a non-power-planned host is invalid-environment, not a result."
+}

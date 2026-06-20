@@ -1,0 +1,40 @@
+{
+  "run_id": "ocsf-airgap-agent-20260619T190906Z",
+  "bench": "ocsf-airgap-agent",
+  "tier": 2,
+  "adapter": "default",
+  "exit_code": 0,
+  "duration_s": 367.234,
+  "gate": {
+    "verdict": "pass",
+    "notes": "well-formed: exit 0, results.json + RESULTS.md present, evidence_tier set"
+  },
+  "failure": null,
+  "env": {
+    "python": "3.12.3",
+    "lab_duckdb": "1.5.3",
+    "lab_chdb": "4.1.9",
+    "cpu": 14,
+    "ram_gb": 47.0,
+    "power_plan": "High performance",
+    "os": "Linux-6.6.87.2-microsoft-standard-WSL2-x86_64-with-glibc2.39"
+  },
+  "git": {
+    "spoke": {
+      "head": "be0ef62",
+      "dirty": true
+    },
+    "lab": {
+      "head": "e8f8024",
+      "dirty": true
+    }
+  },
+  "results_path": "results/results.json",
+  "results_sha256": "6613e9b1ed2561783275410536f46a9e35f7e6dd380e84c57bac849be41773d0",
+  "results_md_present": true,
+  "stdout_excerpt": "=== hunt with local model gemma4:e4b ===\n  steps=5 gen=165.5s  found_dropper=True found_user=True\n  answer: The initial dropper is the executable with CommandLine: \"C:\\ProgramData\\victim\\\u00e2\u20ac\u00aecod.3aka3.scr\" /S, and it ran under the user account: DMEVALS\\pbeesly.\n\n=== hunt with local model phi4:latest ===\n  steps=6 gen=179.8s  found_dropper=False found_user=False\n  answer: None\n\nwrote results/results.json + RESULTS.md",
+  "stderr_excerpt": "",
+  "ran_at": "2026-06-19T19:09:06Z",
+  "log_path": "ocsf-airgap-agent-20260619T190906Z.log",
+  "notes": "Mechanical well-formedness only. Promotion to hypothesis evidence is a separate human gate (karen-evaluator -> hypothesis-validator -> contradiction-detector). Tier-2/3 timing on a non-power-planned host is invalid-environment, not a result."
+}

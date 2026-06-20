@@ -1,0 +1,43 @@
+{
+  "run_id": "spec-vs-emitted-integrity-20260619T185335Z",
+  "bench": "spec-vs-emitted-integrity",
+  "tier": 1,
+  "adapter": "default",
+  "exit_code": 0,
+  "duration_s": 0.233,
+  "gate": {
+    "verdict": "fail",
+    "notes": "no results.json produced"
+  },
+  "failure": {
+    "class": "unknown",
+    "message": "unrecognized failure; see log. tail: "
+  },
+  "env": {
+    "python": "3.12.3",
+    "lab_duckdb": "1.5.3",
+    "lab_chdb": "4.1.9",
+    "cpu": 14,
+    "ram_gb": 47.0,
+    "power_plan": "High performance",
+    "os": "Linux-6.6.87.2-microsoft-standard-WSL2-x86_64-with-glibc2.39"
+  },
+  "git": {
+    "spoke": {
+      "head": "be0ef62",
+      "dirty": true
+    },
+    "lab": {
+      "head": "e8f8024",
+      "dirty": true
+    }
+  },
+  "results_path": "results/results.json",
+  "results_sha256": null,
+  "results_md_present": true,
+  "stdout_excerpt": "positional_csv field_omission -> SILENT-wrong/rec=  5.0  loud-miss/rec= 1.0  (of 12 fields)\n  positional_csv tail_append    -> SILENT-wrong/rec=  0.0  loud-miss/rec= 0.0  (of 12 fields)\n  positional_csv type_drift     -> SILENT-wrong/rec=  1.0  loud-miss/rec= 0.0  (of 12 fields)\n  kv_pairs       key_rename     -> SILENT-wrong/rec=  0.0  loud-miss/rec= 1.0  (of 12 fields)\n  kv_pairs       field_omission -> SILENT-wrong/rec=  0.0  loud-miss/rec= 1.0  (of 12 fields)\n  json           key_rename     -> SILENT-wrong/rec=  0.0  loud-miss/rec= 1.0  (of 12 fields)\n\npositional SILENT blast radius up to 5.0 fields/record (cascade); self-describing up to 0.0 (localized, mostly loud-null). -> the spec-defect failure is a property of POSITIONAL formats, not a PAN-OS quirk.",
+  "stderr_excerpt": "",
+  "ran_at": "2026-06-19T18:53:36Z",
+  "log_path": "spec-vs-emitted-integrity-20260619T185335Z.log",
+  "notes": "Mechanical well-formedness only. Promotion to hypothesis evidence is a separate human gate (karen-evaluator -> hypothesis-validator -> contradiction-detector). Tier-2/3 timing on a non-power-planned host is invalid-environment, not a result."
+}

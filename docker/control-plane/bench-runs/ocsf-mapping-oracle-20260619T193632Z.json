@@ -1,0 +1,40 @@
+{
+  "run_id": "ocsf-mapping-oracle-20260619T193632Z",
+  "bench": "ocsf-mapping-oracle",
+  "tier": 2,
+  "adapter": "default",
+  "exit_code": 0,
+  "duration_s": 1644.965,
+  "gate": {
+    "verdict": "pass",
+    "notes": "well-formed: exit 0, results.json + RESULTS.md present, evidence_tier set"
+  },
+  "failure": null,
+  "env": {
+    "python": "3.12.3",
+    "lab_duckdb": "1.5.3",
+    "lab_chdb": "4.1.9",
+    "cpu": 14,
+    "ram_gb": 47.0,
+    "power_plan": "High performance",
+    "os": "Linux-6.6.87.2-microsoft-standard-WSL2-x86_64-with-glibc2.39"
+  },
+  "git": {
+    "spoke": {
+      "head": "be0ef62",
+      "dirty": true
+    },
+    "lab": {
+      "head": "e8f8024",
+      "dirty": true
+    }
+  },
+  "results_path": "results/results.json",
+  "results_sha256": "7fe62d330428c9d24f31b1ce245cfc017374760f630ebc5128ab4c770e918ff2",
+  "results_md_present": true,
+  "stdout_excerpt": "phi3:latest (n=141): none=se0.99/pc0.00 schema=se0.69/pc0.01 formal=se0.72/pc0.01 skill=se0.60/pc0.04 wrong_grounding=se0.72/pc0.01\nwrote results/results.json + RESULTS.md (141 fields, 1 model(s))",
+  "stderr_excerpt": "",
+  "ran_at": "2026-06-19T19:36:32Z",
+  "log_path": "ocsf-mapping-oracle-20260619T193632Z.log",
+  "notes": "Mechanical well-formedness only. Promotion to hypothesis evidence is a separate human gate (karen-evaluator -> hypothesis-validator -> contradiction-detector). Tier-2/3 timing on a non-power-planned host is invalid-environment, not a result."
+}

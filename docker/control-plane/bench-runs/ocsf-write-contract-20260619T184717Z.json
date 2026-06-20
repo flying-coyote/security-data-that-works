@@ -1,0 +1,40 @@
+{
+  "run_id": "ocsf-write-contract-20260619T184717Z",
+  "bench": "ocsf-write-contract",
+  "tier": 1,
+  "adapter": "default",
+  "exit_code": 0,
+  "duration_s": 4.592,
+  "gate": {
+    "verdict": "pass",
+    "notes": "well-formed: exit 0, results.json + RESULTS.md present, evidence_tier set"
+  },
+  "failure": null,
+  "env": {
+    "python": "3.12.3",
+    "lab_duckdb": "1.5.3",
+    "lab_chdb": "4.1.9",
+    "cpu": 14,
+    "ram_gb": 47.0,
+    "power_plan": "High performance",
+    "os": "Linux-6.6.87.2-microsoft-standard-WSL2-x86_64-with-glibc2.39"
+  },
+  "git": {
+    "spoke": {
+      "head": "be0ef62",
+      "dirty": true
+    },
+    "lab": {
+      "head": "e8f8024",
+      "dirty": true
+    }
+  },
+  "results_path": "results/results.json",
+  "results_sha256": "f1dba7162e914df427a39e87d4188ec06b05b2a71de5b53c0d8b9eddb5038884",
+  "results_md_present": true,
+  "stdout_excerpt": "[small_batch] commits=50x100rows\n  iceberg  p50=26.42ms p99=81.51ms files/commit=4.02 storage=1,639,089B\n  ducklake p50=12.1ms p99=16.58ms files/commit=1.0 storage=200,036B\n  read-contract coherent across tiers: True\n[large_batch] commits=10x5000rows\n  iceberg  p50=19.84ms p99=43.18ms files/commit=4.1 storage=1,099,811B\n  ducklake p50=14.47ms p99=17.22ms files/commit=1.0 storage=1,166,824B\n  read-contract coherent across tiers: True\nwrote results/results.json + RESULTS.md",
+  "stderr_excerpt": "",
+  "ran_at": "2026-06-19T18:47:17Z",
+  "log_path": "ocsf-write-contract-20260619T184717Z.log",
+  "notes": "Mechanical well-formedness only. Promotion to hypothesis evidence is a separate human gate (karen-evaluator -> hypothesis-validator -> contradiction-detector). Tier-2/3 timing on a non-power-planned host is invalid-environment, not a result."
+}

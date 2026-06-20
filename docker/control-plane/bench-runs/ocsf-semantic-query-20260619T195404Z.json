@@ -1,0 +1,40 @@
+{
+  "run_id": "ocsf-semantic-query-20260619T195404Z",
+  "bench": "ocsf-semantic-query",
+  "tier": 2,
+  "adapter": "default",
+  "exit_code": 0,
+  "duration_s": 52.427,
+  "gate": {
+    "verdict": "pass",
+    "notes": "well-formed: exit 0, results.json + RESULTS.md present, evidence_tier set"
+  },
+  "failure": null,
+  "env": {
+    "python": "3.12.3",
+    "lab_duckdb": "1.5.3",
+    "lab_chdb": "4.1.9",
+    "cpu": 14,
+    "ram_gb": 47.0,
+    "power_plan": "High performance",
+    "os": "Linux-6.6.87.2-microsoft-standard-WSL2-x86_64-with-glibc2.39"
+  },
+  "git": {
+    "spoke": {
+      "head": "be0ef62",
+      "dirty": true
+    },
+    "lab": {
+      "head": "e8f8024",
+      "dirty": true
+    }
+  },
+  "results_path": "results/results.json",
+  "results_sha256": "66d71424dd749635c94e674ecc00b7e0b49c60226ca8b0cad66d78a54b71b7f1",
+  "results_md_present": true,
+  "stdout_excerpt": "text-to-SQL (phi3:latest): {'correct': 0, 'silent': 0, 'loud': 4}  silent-error=0.00  result-acc=0.00\n  A1: loud (0 rows)\n  A2: loud (0 rows)\n  A6: loud (0 rows)\n  A8: loud (0 rows)\nwrote results/results.json",
+  "stderr_excerpt": "",
+  "ran_at": "2026-06-19T19:54:04Z",
+  "log_path": "ocsf-semantic-query-20260619T195404Z.log",
+  "notes": "Mechanical well-formedness only. Promotion to hypothesis evidence is a separate human gate (karen-evaluator -> hypothesis-validator -> contradiction-detector). Tier-2/3 timing on a non-power-planned host is invalid-environment, not a result."
+}

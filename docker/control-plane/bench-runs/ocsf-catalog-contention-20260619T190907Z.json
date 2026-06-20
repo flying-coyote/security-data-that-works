@@ -1,0 +1,43 @@
+{
+  "run_id": "ocsf-catalog-contention-20260619T190907Z",
+  "bench": "ocsf-catalog-contention",
+  "tier": 2,
+  "adapter": "default",
+  "exit_code": 1,
+  "duration_s": 0.241,
+  "gate": {
+    "verdict": "fail",
+    "notes": "non-zero exit (1)"
+  },
+  "failure": {
+    "class": "unknown",
+    "message": "unrecognized failure; see log. tail: )\n         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/home/USER/sdw-lab-benchmarks/.venv/lib/python3.12/site-packages/psycopg/connection.py\", line 122, in connect\n    raise last_ex.with_traceback(None)\npsycopg.OperationalError: connection failed: connection to server at \"127.0.0.1\", port 5434 failed: Connection refused\n\tIs the server running on that host and accepting TCP/IP connections?"
+  },
+  "env": {
+    "python": "3.12.3",
+    "lab_duckdb": "1.5.3",
+    "lab_chdb": "4.1.9",
+    "cpu": 14,
+    "ram_gb": 47.0,
+    "power_plan": "High performance",
+    "os": "Linux-6.6.87.2-microsoft-standard-WSL2-x86_64-with-glibc2.39"
+  },
+  "git": {
+    "spoke": {
+      "head": "be0ef62",
+      "dirty": true
+    },
+    "lab": {
+      "head": "e8f8024",
+      "dirty": true
+    }
+  },
+  "results_path": "results/results.json",
+  "results_sha256": "5b693bb9d3d1686b9f7d663c2fe87e39df3b141c94a86559a215389bc3c92041",
+  "results_md_present": true,
+  "stdout_excerpt": "",
+  "stderr_excerpt": "Traceback (most recent call last):\n  File \"/home/USER/sdw-lab-benchmarks/ocsf-catalog-contention/run.py\", line 275, in <module>\n    run()\n  File \"/home/USER/sdw-lab-benchmarks/ocsf-catalog-contention/run.py\", line 194, in run\n    _reset_catalogs()\n  File \"/home/USER/sdw-lab-benchmarks/ocsf-catalog-contention/run.py\", line 52, in _reset_catalogs\n    cn = psycopg.connect(PG_ADMIN, autocommit=True)\n         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/home/USER/sdw-lab-benchmarks/.venv/lib/python3.12/site-packages/psycopg/connection.py\", line 122, in connect\n    raise last_ex.with_traceback(None)\npsycopg.OperationalError: connection failed: connection to server at \"127.0.0.1\", port 5434 failed: Connection refused\n\tIs the server running on that host and accepting TCP/IP connections?",
+  "ran_at": "2026-06-19T19:09:07Z",
+  "log_path": "ocsf-catalog-contention-20260619T190907Z.log",
+  "notes": "Mechanical well-formedness only. Promotion to hypothesis evidence is a separate human gate (karen-evaluator -> hypothesis-validator -> contradiction-detector). Tier-2/3 timing on a non-power-planned host is invalid-environment, not a result."
+}

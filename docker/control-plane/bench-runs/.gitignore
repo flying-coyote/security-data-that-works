@@ -1,0 +1,5 @@
+# bench-lab writes two files per run: a *.json manifest (the result — verdict, failure
+# class, env, results_sha256 provenance, bounded stdout/stderr excerpts) and a *.log
+# (the full unbounded transcript). Track the manifests; ignore the raw transcripts —
+# they are regenerable and the manifest already carries the bounded excerpts.
+*.log

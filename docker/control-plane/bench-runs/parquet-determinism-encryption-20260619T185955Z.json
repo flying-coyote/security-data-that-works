@@ -1,0 +1,40 @@
+{
+  "run_id": "parquet-determinism-encryption-20260619T185955Z",
+  "bench": "parquet-determinism-encryption",
+  "tier": 1,
+  "adapter": "simd_determinism",
+  "exit_code": 0,
+  "duration_s": 2.975,
+  "gate": {
+    "verdict": "pass",
+    "notes": "well-formed + SIMD byte-identical across levels"
+  },
+  "failure": null,
+  "env": {
+    "python": "3.12.3",
+    "lab_duckdb": "1.5.3",
+    "lab_chdb": "4.1.9",
+    "cpu": 14,
+    "ram_gb": 47.0,
+    "power_plan": "High performance",
+    "os": "Linux-6.6.87.2-microsoft-standard-WSL2-x86_64-with-glibc2.39"
+  },
+  "git": {
+    "spoke": {
+      "head": "be0ef62",
+      "dirty": true
+    },
+    "lab": {
+      "head": "e8f8024",
+      "dirty": true
+    }
+  },
+  "results_path": "results/results.json",
+  "results_sha256": "534e98b7ee4ecb3f45a07de98ed4c038145b2e4130778907c3b9c77b2077c3fb",
+  "results_md_present": true,
+  "stdout_excerpt": "SIMD byte-identical across levels: True\ncross-engine float sum distinct results: 3\nencryption \u2014 readers without key that succeeded: none\nwrote results/results.json + RESULTS.md",
+  "stderr_excerpt": "",
+  "ran_at": "2026-06-19T18:59:55Z",
+  "log_path": "parquet-determinism-encryption-20260619T185955Z.log",
+  "notes": "Mechanical well-formedness only. Promotion to hypothesis evidence is a separate human gate (karen-evaluator -> hypothesis-validator -> contradiction-detector). Tier-2/3 timing on a non-power-planned host is invalid-environment, not a result."
+}

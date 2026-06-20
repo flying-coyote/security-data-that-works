@@ -1,0 +1,40 @@
+{
+  "run_id": "ocsf-nl2sql-silenterror-20260619T195258Z",
+  "bench": "ocsf-nl2sql-silenterror",
+  "tier": 2,
+  "adapter": "default",
+  "exit_code": 0,
+  "duration_s": 986.144,
+  "gate": {
+    "verdict": "pass",
+    "notes": "well-formed: exit 0, results.json + RESULTS.md present, evidence_tier set"
+  },
+  "failure": null,
+  "env": {
+    "python": "3.12.3",
+    "lab_duckdb": "1.5.3",
+    "lab_chdb": "4.1.9",
+    "cpu": 14,
+    "ram_gb": 47.0,
+    "power_plan": "High performance",
+    "os": "Linux-6.6.87.2-microsoft-standard-WSL2-x86_64-with-glibc2.39"
+  },
+  "git": {
+    "spoke": {
+      "head": "be0ef62",
+      "dirty": true
+    },
+    "lab": {
+      "head": "e8f8024",
+      "dirty": true
+    }
+  },
+  "results_path": "results/results.json",
+  "results_sha256": "49826d17887a9d35cf52cc2aed4e7c431764f82d953902f825c15d89394b49b2",
+  "results_md_present": true,
+  "stdout_excerpt": "  aggregation      n= 5  silent=0  loud=0  correct=5\n  group_by         n= 5  silent=1  loud=4  correct=0\n  time_window      n= 4  silent=0  loud=4  correct=0\n  multi_condition  n= 5  silent=0  loud=2  correct=3\n  join             n= 4  silent=0  loud=3  correct=1\n  adversary_tail   n= 5  silent=0  loud=5  correct=0\ngemma4:26b: {'correct': 18, 'silent': 0, 'loud': 15}  silent-error=0.00  result-acc=0.55\n  simple_filter    n= 5  silent=0  loud=0  correct=5\n  aggregation      n= 5  silent=0  loud=0  correct=5\n  group_by         n= 5  silent=0  loud=5  correct=0\n  time_window      n= 4  silent=0  loud=2  correct=2\n  multi_condition  n= 5  silent=0  loud=1  correct=4\n  join             n= 4  silent=0  loud=2  correct=2\n  adversary_tail   n= 5  silent=0  loud=5  correct=0\nwrote results/results.json and results/RESULTS.md",
+  "stderr_excerpt": "",
+  "ran_at": "2026-06-19T19:52:59Z",
+  "log_path": "ocsf-nl2sql-silenterror-20260619T195258Z.log",
+  "notes": "Mechanical well-formedness only. Promotion to hypothesis evidence is a separate human gate (karen-evaluator -> hypothesis-validator -> contradiction-detector). Tier-2/3 timing on a non-power-planned host is invalid-environment, not a result."
+}

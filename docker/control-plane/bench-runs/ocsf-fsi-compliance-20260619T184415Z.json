@@ -1,0 +1,43 @@
+{
+  "run_id": "ocsf-fsi-compliance-20260619T184415Z",
+  "bench": "ocsf-fsi-compliance",
+  "tier": 1,
+  "adapter": "default",
+  "exit_code": 0,
+  "duration_s": 2.683,
+  "gate": {
+    "verdict": "fail",
+    "notes": "no results.json produced"
+  },
+  "failure": {
+    "class": "unknown",
+    "message": "unrecognized failure; see log. tail: "
+  },
+  "env": {
+    "python": "3.12.3",
+    "lab_duckdb": "1.5.3",
+    "lab_chdb": "4.1.9",
+    "cpu": 14,
+    "ram_gb": 47.0,
+    "power_plan": "High performance",
+    "os": "Linux-6.6.87.2-microsoft-standard-WSL2-x86_64-with-glibc2.39"
+  },
+  "git": {
+    "spoke": {
+      "head": "be0ef62",
+      "dirty": true
+    },
+    "lab": {
+      "head": "e8f8024",
+      "dirty": true
+    }
+  },
+  "results_path": "results/results.json",
+  "results_sha256": null,
+  "results_md_present": false,
+  "stdout_excerpt": "section            lakehouse_s   siem_s   (acceptance pass both)\n  a_retention         0.0132    0.0971   True\n  b_timeline          0.0148    0.0925   True\n  c_lineage           0.0329    0.3530   True\n  d_point_in_time     0.0122    0.0939   True\n\ntotal: lakehouse 0.0731s  siem 0.6365s  automated-reduction 88.5%  (concentrated in c+d: True)\nNOTE: automated machine-time, NOT human-hours \u2014 see caveat in results file.",
+  "stderr_excerpt": "",
+  "ran_at": "2026-06-19T18:44:15Z",
+  "log_path": "ocsf-fsi-compliance-20260619T184415Z.log",
+  "notes": "Mechanical well-formedness only. Promotion to hypothesis evidence is a separate human gate (karen-evaluator -> hypothesis-validator -> contradiction-detector). Tier-2/3 timing on a non-power-planned host is invalid-environment, not a result."
+}

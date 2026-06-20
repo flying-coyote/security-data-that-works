@@ -1,0 +1,40 @@
+{
+  "run_id": "parquet-library-matrix-20260619T185333Z",
+  "bench": "parquet-library-matrix",
+  "tier": 1,
+  "adapter": "default",
+  "exit_code": 0,
+  "duration_s": 2.504,
+  "gate": {
+    "verdict": "pass",
+    "notes": "well-formed: exit 0, results.json + RESULTS.md present, evidence_tier set"
+  },
+  "failure": null,
+  "env": {
+    "python": "3.12.3",
+    "lab_duckdb": "1.5.3",
+    "lab_chdb": "4.1.9",
+    "cpu": 14,
+    "ram_gb": 47.0,
+    "power_plan": "High performance",
+    "os": "Linux-6.6.87.2-microsoft-standard-WSL2-x86_64-with-glibc2.39"
+  },
+  "git": {
+    "spoke": {
+      "head": "be0ef62",
+      "dirty": true
+    },
+    "lab": {
+      "head": "e8f8024",
+      "dirty": true
+    }
+  },
+  "results_path": "results/results.json",
+  "results_sha256": "5b7009d4e0fee9dd9f9693720f7ed6fa5db0b7ad8fd2ab0bf84a915ce5480b7c",
+  "results_md_present": true,
+  "stdout_excerpt": "arm1 non-ok: ['int64/BYTE_STREAM_SPLIT/duckdb=errored', 'int64/BYTE_STREAM_SPLIT/fastparquet=errored', 'string/DELTA_BYTE_ARRAY/fastparquet=errored', 'string/DELTA_LENGTH_BYTE_ARRAY/fastparquet=errored', 'double/BYTE_STREAM_SPLIT/fastparquet=errored']\narm1 SILENT-WRONG (the dangerous mode): none\nwrote results/results.json + RESULTS.md",
+  "stderr_excerpt": "",
+  "ran_at": "2026-06-19T18:53:34Z",
+  "log_path": "parquet-library-matrix-20260619T185333Z.log",
+  "notes": "Mechanical well-formedness only. Promotion to hypothesis evidence is a separate human gate (karen-evaluator -> hypothesis-validator -> contradiction-detector). Tier-2/3 timing on a non-power-planned host is invalid-environment, not a result."
+}

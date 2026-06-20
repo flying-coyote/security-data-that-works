@@ -1,0 +1,40 @@
+{
+  "run_id": "ocsf-pruning-correctness-20260619T184531Z",
+  "bench": "ocsf-pruning-correctness",
+  "tier": 1,
+  "adapter": "default",
+  "exit_code": 0,
+  "duration_s": 4.803,
+  "gate": {
+    "verdict": "pass",
+    "notes": "well-formed: exit 0, results.json + RESULTS.md present, evidence_tier set"
+  },
+  "failure": null,
+  "env": {
+    "python": "3.12.3",
+    "lab_duckdb": "1.5.3",
+    "lab_chdb": "4.1.9",
+    "cpu": 14,
+    "ram_gb": 47.0,
+    "power_plan": "High performance",
+    "os": "Linux-6.6.87.2-microsoft-standard-WSL2-x86_64-with-glibc2.39"
+  },
+  "git": {
+    "spoke": {
+      "head": "be0ef62",
+      "dirty": true
+    },
+    "lab": {
+      "head": "e8f8024",
+      "dirty": true
+    }
+  },
+  "results_path": "results/results.json",
+  "results_sha256": "db886205c9aec09b197ca3a238b75bb4c9bfec0560749cec121981912d083a37",
+  "results_md_present": true,
+  "stdout_excerpt": "arm1 sorted-file pruning failures: none (every engine sound)\narm2 bloom-file failures: none (every engine sound)\nwrote results/results.json + RESULTS.md",
+  "stderr_excerpt": "",
+  "ran_at": "2026-06-19T18:45:31Z",
+  "log_path": "ocsf-pruning-correctness-20260619T184531Z.log",
+  "notes": "Mechanical well-formedness only. Promotion to hypothesis evidence is a separate human gate (karen-evaluator -> hypothesis-validator -> contradiction-detector). Tier-2/3 timing on a non-power-planned host is invalid-environment, not a result."
+}

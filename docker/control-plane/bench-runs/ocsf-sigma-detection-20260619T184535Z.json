@@ -1,0 +1,40 @@
+{
+  "run_id": "ocsf-sigma-detection-20260619T184535Z",
+  "bench": "ocsf-sigma-detection",
+  "tier": 1,
+  "adapter": "default",
+  "exit_code": 0,
+  "duration_s": 0.385,
+  "gate": {
+    "verdict": "pass",
+    "notes": "well-formed: exit 0, results.json + RESULTS.md present, evidence_tier set"
+  },
+  "failure": null,
+  "env": {
+    "python": "3.12.3",
+    "lab_duckdb": "1.5.3",
+    "lab_chdb": "4.1.9",
+    "cpu": 14,
+    "ram_gb": 47.0,
+    "power_plan": "High performance",
+    "os": "Linux-6.6.87.2-microsoft-standard-WSL2-x86_64-with-glibc2.39"
+  },
+  "git": {
+    "spoke": {
+      "head": "be0ef62",
+      "dirty": true
+    },
+    "lab": {
+      "head": "e8f8024",
+      "dirty": true
+    }
+  },
+  "results_path": "results/results.json",
+  "results_sha256": "2a7ca708b96701f5364eec76955a5eab999cf1c0b3affaa5c63fb2ca4e642812",
+  "results_md_present": true,
+  "stdout_excerpt": "execution        (T1059.001): detected=True  matches=1  precision=1.0\n  priv-esc         (T1098): detected=True  matches=1  precision=1.0\n  lateral movement (T1021): detected=True  matches=2960  precision=0.0003\n  C2               (T1071): detected=True  matches=1  precision=1.0\n\n4/4 planted-chain stages detected by compiled Sigma rules over the OCSF store\nwrote results/results.json + RESULTS.md",
+  "stderr_excerpt": "",
+  "ran_at": "2026-06-19T18:45:35Z",
+  "log_path": "ocsf-sigma-detection-20260619T184535Z.log",
+  "notes": "Mechanical well-formedness only. Promotion to hypothesis evidence is a separate human gate (karen-evaluator -> hypothesis-validator -> contradiction-detector). Tier-2/3 timing on a non-power-planned host is invalid-environment, not a result."
+}

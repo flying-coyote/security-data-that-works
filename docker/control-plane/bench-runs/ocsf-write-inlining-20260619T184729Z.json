@@ -1,0 +1,40 @@
+{
+  "run_id": "ocsf-write-inlining-20260619T184729Z",
+  "bench": "ocsf-write-inlining",
+  "tier": 1,
+  "adapter": "default",
+  "exit_code": 0,
+  "duration_s": 11.677,
+  "gate": {
+    "verdict": "pass",
+    "notes": "well-formed: exit 0, results.json + RESULTS.md present, evidence_tier set"
+  },
+  "failure": null,
+  "env": {
+    "python": "3.12.3",
+    "lab_duckdb": "1.5.3",
+    "lab_chdb": "4.1.9",
+    "cpu": 14,
+    "ram_gb": 47.0,
+    "power_plan": "High performance",
+    "os": "Linux-6.6.87.2-microsoft-standard-WSL2-x86_64-with-glibc2.39"
+  },
+  "git": {
+    "spoke": {
+      "head": "be0ef62",
+      "dirty": true
+    },
+    "lab": {
+      "head": "e8f8024",
+      "dirty": true
+    }
+  },
+  "results_path": "results/results.json",
+  "results_sha256": "f9f2e73ade3885cf5ef3edd8d0eda1eb387d312b76bc3ce20606a440ca2f8376",
+  "results_md_present": true,
+  "stdout_excerpt": "iceberg             :  100 data files,  301 metadata files  (queryable=True)\n  ducklake_no_inline  :  100 data files,    0 metadata files  (queryable=True)\n  ducklake_inline     :    0 data files,    0 metadata files  (queryable=True)\nwrote results/results.json + RESULTS.md",
+  "stderr_excerpt": "",
+  "ran_at": "2026-06-19T18:47:29Z",
+  "log_path": "ocsf-write-inlining-20260619T184729Z.log",
+  "notes": "Mechanical well-formedness only. Promotion to hypothesis evidence is a separate human gate (karen-evaluator -> hypothesis-validator -> contradiction-detector). Tier-2/3 timing on a non-power-planned host is invalid-environment, not a result."
+}

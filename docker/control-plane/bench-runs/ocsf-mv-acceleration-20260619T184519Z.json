@@ -1,0 +1,40 @@
+{
+  "run_id": "ocsf-mv-acceleration-20260619T184519Z",
+  "bench": "ocsf-mv-acceleration",
+  "tier": 1,
+  "adapter": "default",
+  "exit_code": 0,
+  "duration_s": 32.366,
+  "gate": {
+    "verdict": "pass",
+    "notes": "well-formed: exit 0, results.json + RESULTS.md present, evidence_tier set"
+  },
+  "failure": null,
+  "env": {
+    "python": "3.12.3",
+    "lab_duckdb": "1.5.3",
+    "lab_chdb": "4.1.9",
+    "cpu": 14,
+    "ram_gb": 47.0,
+    "power_plan": "High performance",
+    "os": "Linux-6.6.87.2-microsoft-standard-WSL2-x86_64-with-glibc2.39"
+  },
+  "git": {
+    "spoke": {
+      "head": "be0ef62",
+      "dirty": true
+    },
+    "lab": {
+      "head": "e8f8024",
+      "dirty": true
+    }
+  },
+  "results_path": "results/results.json",
+  "results_sha256": "0ba0340940f0cef6cf946cf4aebb00a5581288f8e4ca002c3198dbfecc7ff876",
+  "results_md_present": true,
+  "stdout_excerpt": "class_rollup         read 76->1.0ms (74.5x)  maint 30.7ms/batch (recompute 89ms, 2.9x cheaper)  MV +0.0%  agree=True\n  time_series_5m       read 73->1.5ms (48.6x)  maint 32.5ms/batch (recompute 77ms, 2.4x cheaper)  MV +0.001%  agree=True\n  failed_auth_by_user  read 34->0.7ms (47.1x)  maint 33.3ms/batch (recompute 34ms, 1.0x cheaper)  MV +0.002%  agree=True\nwrote results/results.json + RESULTS.md",
+  "stderr_excerpt": "/home/USER/sdw-lab-benchmarks/ocsf-mv-acceleration/run.py:119: DeprecationWarning: fetch_arrow_table() is deprecated, use to_arrow_table() instead.\n  ab = con.execute(sel).fetch_arrow_table()\n/home/USER/sdw-lab-benchmarks/ocsf-mv-acceleration/run.py:119: DeprecationWarning: fetch_arrow_table() is deprecated, use to_arrow_table() instead.\n  ab = con.execute(sel).fetch_arrow_table()",
+  "ran_at": "2026-06-19T18:45:20Z",
+  "log_path": "ocsf-mv-acceleration-20260619T184519Z.log",
+  "notes": "Mechanical well-formedness only. Promotion to hypothesis evidence is a separate human gate (karen-evaluator -> hypothesis-validator -> contradiction-detector). Tier-2/3 timing on a non-power-planned host is invalid-environment, not a result."
+}

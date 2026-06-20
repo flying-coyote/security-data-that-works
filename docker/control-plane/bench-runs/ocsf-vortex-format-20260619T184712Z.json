@@ -1,0 +1,43 @@
+{
+  "run_id": "ocsf-vortex-format-20260619T184712Z",
+  "bench": "ocsf-vortex-format",
+  "tier": 1,
+  "adapter": "default",
+  "exit_code": 0,
+  "duration_s": 3.852,
+  "gate": {
+    "verdict": "fail",
+    "notes": "no RESULTS.md produced"
+  },
+  "failure": {
+    "class": "unknown",
+    "message": "unrecognized failure; see log. tail: "
+  },
+  "env": {
+    "python": "3.12.3",
+    "lab_duckdb": "1.5.3",
+    "lab_chdb": "4.1.9",
+    "cpu": 14,
+    "ram_gb": 47.0,
+    "power_plan": "High performance",
+    "os": "Linux-6.6.87.2-microsoft-standard-WSL2-x86_64-with-glibc2.39"
+  },
+  "git": {
+    "spoke": {
+      "head": "be0ef62",
+      "dirty": true
+    },
+    "lab": {
+      "head": "e8f8024",
+      "dirty": true
+    }
+  },
+  "results_path": "results/results.json",
+  "results_sha256": "4a64364589470d1a06802e9767109b4c9cbdd31dc68cdf9a5f81b09d54d92dbf",
+  "results_md_present": false,
+  "stdout_excerpt": "corpus: 1,000,000 OCSF Network Activity rows (seeded random); dst_port=3389 needle = 55,758\n\n  format    size        write       full-scan->arrow      needle (dst_port=3389)\n  ------------------------------------------------------------------------------------\n  parquet     11.3 MB      199 ms       34.4 ms ( 16%)       43.3 ms ( 15%)  -> 55,758\n  vortex      14.2 MB      381 ms       18.4 ms (  6%)        9.7 ms (  3%)  -> 55,758\n  ------------------------------------------------------------------------------------\n  size: Parquet/Vortex = 0.79x  (>1 means Vortex is smaller)\n  answer-equality (rows, needle, logical fingerprint identical across formats): True\n  caveat: native reader per format (pyarrow vs vortex-data), not one engine over both; vendor speed\n  claims are the hypothesis; Vortex is single-Rust-core and not yet an Iceberg data file format.\n  wrote results/results.json",
+  "stderr_excerpt": "",
+  "ran_at": "2026-06-19T18:47:12Z",
+  "log_path": "ocsf-vortex-format-20260619T184712Z.log",
+  "notes": "Mechanical well-formedness only. Promotion to hypothesis evidence is a separate human gate (karen-evaluator -> hypothesis-validator -> contradiction-detector). Tier-2/3 timing on a non-power-planned host is invalid-environment, not a result."
+}

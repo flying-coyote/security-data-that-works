@@ -1,0 +1,43 @@
+{
+  "run_id": "iceberg-compaction-20260619T183728Z",
+  "bench": "iceberg-compaction",
+  "tier": 1,
+  "adapter": "default",
+  "exit_code": 0,
+  "duration_s": 39.69,
+  "gate": {
+    "verdict": "fail",
+    "notes": "no RESULTS.md produced"
+  },
+  "failure": {
+    "class": "unknown",
+    "message": "unrecognized failure; see log. tail: "
+  },
+  "env": {
+    "python": "3.12.3",
+    "lab_duckdb": "1.5.3",
+    "lab_chdb": "4.1.9",
+    "cpu": 14,
+    "ram_gb": 47.0,
+    "power_plan": "High performance",
+    "os": "Linux-6.6.87.2-microsoft-standard-WSL2-x86_64-with-glibc2.39"
+  },
+  "git": {
+    "spoke": {
+      "head": "be0ef62",
+      "dirty": true
+    },
+    "lab": {
+      "head": "e8f8024",
+      "dirty": true
+    }
+  },
+  "results_path": "results/results.json",
+  "results_sha256": "942f7fe65a39765667b28b5d6f9c92ab3714f607da80b2e3c411211bfa50e6a6",
+  "results_md_present": false,
+  "stdout_excerpt": "  --- COMPACT (overwrite -> few large files) ---\n  compacted: 4 data files in 2.5s\n  --- scan AFTER compaction (compacted) ---\n    count_all: median 0.0026s  CV 30.8%\n    protocol_distribution: median 0.0225s  CV 4.3%\n    long_duration_scan: median 0.1007s  CV 4.4%\n    bytes_by_source: median 0.1181s  CV 2.0%\n\n  files 200 -> 4 (50.0x), compaction 2.5s, answer-equality OK\n  query                       before     after  recovery  claimable\n  count_all                  0.0369s   0.0026s    14.19x       True\n  protocol_distribution      0.0592s   0.0225s     2.63x       True\n  long_duration_scan         0.1959s   0.1007s     1.95x       True\n  bytes_by_source            0.1944s   0.1181s     1.65x       True\n  wrote results/results.json",
+  "stderr_excerpt": "",
+  "ran_at": "2026-06-19T18:37:29Z",
+  "log_path": "iceberg-compaction-20260619T183728Z.log",
+  "notes": "Mechanical well-formedness only. Promotion to hypothesis evidence is a separate human gate (karen-evaluator -> hypothesis-validator -> contradiction-detector). Tier-2/3 timing on a non-power-planned host is invalid-environment, not a result."
+}

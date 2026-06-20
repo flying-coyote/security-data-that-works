@@ -1,0 +1,40 @@
+{
+  "run_id": "ocsf-streaming-cadence-20260619T184706Z",
+  "bench": "ocsf-streaming-cadence",
+  "tier": 1,
+  "adapter": "default",
+  "exit_code": 0,
+  "duration_s": 69.918,
+  "gate": {
+    "verdict": "pass",
+    "notes": "well-formed: exit 0, results.json + RESULTS.md present, evidence_tier set"
+  },
+  "failure": null,
+  "env": {
+    "python": "3.12.3",
+    "lab_duckdb": "1.5.3",
+    "lab_chdb": "4.1.9",
+    "cpu": 14,
+    "ram_gb": 47.0,
+    "power_plan": "High performance",
+    "os": "Linux-6.6.87.2-microsoft-standard-WSL2-x86_64-with-glibc2.39"
+  },
+  "git": {
+    "spoke": {
+      "head": "be0ef62",
+      "dirty": true
+    },
+    "lab": {
+      "head": "e8f8024",
+      "dirty": true
+    }
+  },
+  "results_path": "results/results.json",
+  "results_sha256": "fefa130ea0eef46671257792dde6f2f553054a54b9e72ff637087ff8f23fea68",
+  "results_md_present": true,
+  "stdout_excerpt": "cadence=   5/commit  iceberg 72 rows/s (200 files, p95 131ms)  | dl_inline 259 rows/s (0 files, p95 13.0ms, coherent=True)  | inline/ice tput 3.58\u00d7, files avoided 200\n  cadence=  50/commit  iceberg 738 rows/s (200 files, p95 129ms)  | dl_inline 2372 rows/s (0 files, p95 15.6ms, coherent=True)  | inline/ice tput 3.21\u00d7, files avoided 200\n  cadence= 500/commit  iceberg 7266 rows/s (200 files, p95 133ms)  | dl_inline 14709 rows/s (0 files, p95 27.6ms, coherent=True)  | inline/ice tput 2.02\u00d7, files avoided 200\nwrote results/results.json + RESULTS.md",
+  "stderr_excerpt": "/home/USER/sdw-lab-benchmarks/ocsf-streaming-cadence/run.py:45: DeprecationWarning: fetch_arrow_table() is deprecated, use to_arrow_table() instead.\n  FROM range({start},{start+n}) t(i)\"\"\").fetch_arrow_table()\n/home/USER/sdw-lab-benchmarks/ocsf-streaming-cadence/run.py:45: DeprecationWarning: fetch_arrow_table() is deprecated, use to_arrow_table() instead.\n  FROM range({start},{start+n}) t(i)\"\"\").fetch_arrow_table()",
+  "ran_at": "2026-06-19T18:47:07Z",
+  "log_path": "ocsf-streaming-cadence-20260619T184706Z.log",
+  "notes": "Mechanical well-formedness only. Promotion to hypothesis evidence is a separate human gate (karen-evaluator -> hypothesis-validator -> contradiction-detector). Tier-2/3 timing on a non-power-planned host is invalid-environment, not a result."
+}

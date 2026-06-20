@@ -1,0 +1,40 @@
+{
+  "run_id": "ocsf-deterministic-mapper-20260619T184322Z",
+  "bench": "ocsf-deterministic-mapper",
+  "tier": 1,
+  "adapter": "default",
+  "exit_code": 0,
+  "duration_s": 0.183,
+  "gate": {
+    "verdict": "pass",
+    "notes": "well-formed: exit 0, results.json + RESULTS.md present, evidence_tier set"
+  },
+  "failure": null,
+  "env": {
+    "python": "3.12.3",
+    "lab_duckdb": "1.5.3",
+    "lab_chdb": "4.1.9",
+    "cpu": 14,
+    "ram_gb": 47.0,
+    "power_plan": "High performance",
+    "os": "Linux-6.6.87.2-microsoft-standard-WSL2-x86_64-with-glibc2.39"
+  },
+  "git": {
+    "spoke": {
+      "head": "be0ef62",
+      "dirty": true
+    },
+    "lab": {
+      "head": "e8f8024",
+      "dirty": true
+    }
+  },
+  "results_path": "results/results.json",
+  "results_sha256": "90dfe7dc68635f184718d1b0e9de57eaafe7afb1a0551ba7314bf6243b9f920c",
+  "results_md_present": true,
+  "stdout_excerpt": "deterministic: silent-error 0.0  path-correct 0.1631  coverage 0.6667  (correct-of-mapped 0.2447)\n  phi3/formal: silent-error 0.1489  path-correct 0.5887\n  phi3/none: silent-error 0.2411  path-correct 0.5532\n  phi3/schema: silent-error 0.1277  path-correct 0.5745\n  phi3/skill: silent-error 0.1631  path-correct 0.6028\n  phi3/wrong_grounding: silent-error 0.1702  path-correct 0.5603\nwrote results/results.json + RESULTS.md",
+  "stderr_excerpt": "",
+  "ran_at": "2026-06-19T18:43:23Z",
+  "log_path": "ocsf-deterministic-mapper-20260619T184322Z.log",
+  "notes": "Mechanical well-formedness only. Promotion to hypothesis evidence is a separate human gate (karen-evaluator -> hypothesis-validator -> contradiction-detector). Tier-2/3 timing on a non-power-planned host is invalid-environment, not a result."
+}

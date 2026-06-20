@@ -1,0 +1,43 @@
+{
+  "run_id": "clickhouse-vs-duckdb-20260619T190229Z",
+  "bench": "clickhouse-vs-duckdb",
+  "tier": 2,
+  "adapter": "clickhouse_vs_duckdb",
+  "exit_code": 0,
+  "duration_s": 124.069,
+  "gate": {
+    "verdict": "invalid-environment",
+    "notes": "max cv_pct 90.0 > 5.0 \u2014 noisy host / no High-Performance power plan; re-run, do not trust timing"
+  },
+  "failure": {
+    "class": "unknown",
+    "message": "unrecognized failure; see log. tail: "
+  },
+  "env": {
+    "python": "3.12.3",
+    "lab_duckdb": "1.5.3",
+    "lab_chdb": "4.1.9",
+    "cpu": 14,
+    "ram_gb": 47.0,
+    "power_plan": "High performance",
+    "os": "Linux-6.6.87.2-microsoft-standard-WSL2-x86_64-with-glibc2.39"
+  },
+  "git": {
+    "spoke": {
+      "head": "be0ef62",
+      "dirty": true
+    },
+    "lab": {
+      "head": "e8f8024",
+      "dirty": true
+    }
+  },
+  "results_path": "results/results.json",
+  "results_sha256": "cfc07af6fce1ab3cc778e24c4df642730fe45e0215b74c92a4c13bf7809611e7",
+  "results_md_present": true,
+  "stdout_excerpt": "corpus_deterministic=True  answers_agree_all=True  duckdb=1.5.3  chdb=4.1.9  verify_sha256[:16]=9b0c05208f0fb6d7\nwrote /home/USER/sdw-lab-benchmarks/clickhouse-vs-duckdb/results/results.json\nwrote /home/USER/sdw-lab-benchmarks/clickhouse-vs-duckdb/results/RESULTS.md",
+  "stderr_excerpt": "",
+  "ran_at": "2026-06-19T19:02:29Z",
+  "log_path": "clickhouse-vs-duckdb-20260619T190229Z.log",
+  "notes": "Mechanical well-formedness only. Promotion to hypothesis evidence is a separate human gate (karen-evaluator -> hypothesis-validator -> contradiction-detector). Tier-2/3 timing on a non-power-planned host is invalid-environment, not a result."
+}
