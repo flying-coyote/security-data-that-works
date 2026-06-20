@@ -54,7 +54,8 @@ def is_stale(validated_at_iso, now_iso, ttl_seconds=DEFAULT_TTL_SECONDS):
 
 
 def effective_status(status, validated_at_iso, now_iso, ttl_seconds=DEFAULT_TTL_SECONDS):
-    """A `pass` decays to `stale` when it is older than ttl_seconds, when it cannot be
+    """A `pass` decays to `stale` when it is older than ttl_seconds (strict `>`: an age
+    exactly equal to the TTL is still fresh), when it cannot be
     dated (None/garbage stamp), or when it is stamped implausibly in the future (clock
     skew / integrity problem). Everything else is unchanged — only a pass can go stale;
     a fail stays a fail and unmeasured stays unmeasured (there is nothing proven to rot)."""

@@ -38,6 +38,9 @@ def cross_tool_gap(primary, sources, *, tolerance=0) -> dict:
 
     status: unmeasured if the primary is unreadable or fewer than two sources are
     readable; fail if any gap exceeds `tolerance`; pass otherwise.
+
+    `tolerance`: the maximum number of primary ids allowed to be missing from any one
+    other source before that gap counts as a fail (integer, default 0).
     """
     readable = {n: s for n, s in sources.items() if isinstance(s, set)}
     if primary not in readable or len(readable) < 2:

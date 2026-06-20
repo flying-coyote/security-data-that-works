@@ -24,7 +24,7 @@ _PLUMBING = ("internal_metrics", "prometheus_exporter")
 
 
 def parse_counts(text):
-    """Parse Prometheus text into (events_in, events_out, errors), or None if no Vector
+    """Parse Prometheus text into integer counts (events_in, events_out, errors), or None if no Vector
     component metrics are present. events_in = received over sources, events_out = sent
     over sinks, errors = component_errors_total — all excluding Vector's own plumbing."""
     ein = eout = errs = 0.0

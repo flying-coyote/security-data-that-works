@@ -17,6 +17,10 @@ Telemetry hygiene: synthetic security telemetry is a prompt-injection + control-
 surface, so every bench-output excerpt embedded in a manifest is bounded + sanitized via
 the two helpers below. The full, unbounded stdout+stderr goes to a separate .log file,
 never inlined.
+
+Vocabulary note: this runner's verdicts are bench-specific (well-formedness, power-plan
+validity, timeout) and are NOT the data-health gate statuses in CONTRACT.md
+(pass/fail/unmeasured/unwired/stale). Don't conflate the two.
 """
 from __future__ import annotations
 

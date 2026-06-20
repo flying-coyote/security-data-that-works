@@ -25,9 +25,10 @@ class Provider:
     # architecture ("being wrong is cheap" made checkable per component).
     swap_cost: str = ""
     # Verified OKF refs (Assumption / hypothesis / MDR ids) that substantiate this
-    # pick. Resolved against the loaded vault bundle at render time; ids that exist
-    # only in MASTER-HYPOTHESIS-TRACKER.md render as a plain verified ref. Every id
-    # here is checked to exist — never invent one.
+    # pick. Resolved against the loaded vault bundle at render time; an id not found
+    # in the bundle renders as a plain verified pointer to MASTER-HYPOTHESIS-TRACKER.md
+    # (resolution is lenient — a missing id degrades gracefully, there is no strict
+    # existence check here). Never invent an id.
     claims: tuple = ()
 
 

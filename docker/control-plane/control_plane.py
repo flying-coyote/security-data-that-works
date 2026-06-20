@@ -463,7 +463,7 @@ def _(mo, os, subprocess, test_btn, textwrap, vrl_transform):
                 f"**VRL validation {'passed' if _ok else 'failed'}** "
                 f"(exit {_res.returncode}):\n```\n{(_res.stdout + _res.stderr).strip()}\n```\n"
                 "*`vector validate` type-checks the VRL inside a full pipeline; live record "
-                "preview needs a running Vector container (Manage -> Infrastructure).*"
+                "preview needs a running Vector container (Startup → Setup config).*"
             )
         except FileNotFoundError:
             test_output = mo.md("**Vector binary not found.** Install Vector locally to validate VRL before deploy.")
@@ -506,7 +506,7 @@ def _(P, cat, config_path, deployer, ev, evidence, gl, layer1, layer3, layer4, m
     _rows = "\n".join(f"- {gl.ICON.get(_s, '⚪')} **{_n}** — {_s}" for _n, _s in gate["layers"])
     _blk = ("\n\n**Blockers:**\n" + "\n".join(f"- {_b}" for _b in gate["blockers"])) if gate["blockers"] else ""
     _unm = ("\n\n*Unproven layers are labeled, never shown as a pass; run the Layer-3 audit "
-            "(Strategy Vault → Data Health) to turn it green. A green gate is the deploy/inspect "
+            "(Flow → Health) to turn it green. A green gate is the deploy/inspect "
             "authorization, not a slide.*") if gate["unmeasured"] else ""
     # Thesis-evidence verbs feed the gate as an informational line, not a blocking
     # layer — they re-prove the pillars on demand and need a live stack to run.
@@ -721,7 +721,7 @@ def _(fluentbit_observe_port, mo, sel_ingest, ui, vector_metrics_port):
             "Pipeline live via Fluent Bit; Vector metrics scrape unavailable — counters unmeasured (—), never faked."
             if _live else
             "No Vector metrics scrape — counters unmeasured (shown as —, never faked). Deploy the stack "
-            "(Manage → Infrastructure) and confirm the Prometheus metrics port."
+            "(Startup → Setup config) and confirm the Prometheus metrics port."
         )
 
     tab_metrics = ui.panel(mo,
@@ -754,9 +754,10 @@ def _(mo, sel_schema, P):
 @app.cell(hide_code=True)
 def _(P, mo, okf, sel_catalog, sel_ingest, sel_query, sel_schema, sel_storage, ui, vault_notes):
     # Resolve provenance refs against the loaded OKF bundle. A ref that resolves to
-    # a note renders rich (title + tier + confidence + reviewed); a ref that exists
-    # only in the hypothesis tracker renders as a plain verified pointer. Every ref
-    # is checked to exist — the chip never fabricates a link.
+    # a note renders rich (title + tier + confidence + reviewed); a ref not found in
+    # the bundle renders as a plain verified pointer to MASTER-HYPOTHESIS-TRACKER.md
+    # rather than a fabricated link. Refs are never invented, but resolution is
+    # lenient: a missing id degrades to the plain pointer, it does not raise.
     _by_id = okf.index_by_id(vault_notes)
 
     def _chip(ref):

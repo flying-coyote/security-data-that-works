@@ -13,8 +13,10 @@ identical.
 Two parts:
   1. Each measured check shown failing on a real injected fault and passing clean,
      plus crc/tombstone reported as unwired (never a pass).
-  2. The integrated arc — healthy -> broken (orphan injected) -> remediated —
-     proving compute_gate flips GREEN -> not-GREEN -> GREEN off real audit input.
+  2. The integrated arc — healthy -> broken (orphan injected) -> remediated.
+     As-built, with Layer 4 unmeasured by design, the gate flips amber -> RED -> amber;
+     with the other layers forced green (Part 2b) it flips GREEN -> not-GREEN -> GREEN.
+     Either way compute_gate tracks real audit input rather than a paraphrase.
 
 Run:  VENV/bin/python prove_gate.py      (exit 0 = every assertion held)
 """
