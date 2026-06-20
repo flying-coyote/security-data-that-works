@@ -372,3 +372,67 @@ def evaluate(selection, picked) -> dict:
         "summary_md": summary,
         "active_constraints": active,
     }
+
+
+# --- Funnel visualization (the public 80->1 method, no scores) ----------------- #
+
+def funnel_viz(selection, catalogs) -> dict:
+    """A renderable narrowing of the catalog — the book's 80->1 funnel shown live, free, with
+    no scores. For each component category: the total candidates, how many survive the Tier-1
+    disqualify filter, and which DECLARED constraint did the cutting (the binding one), with the
+    components it removed. Plus the aggregate catalog -> shortlist. catalogs: {category:
+    [component_code, ...]}. Returns {total, reachable, declared, categories: {cat: {total,
+    reachable, cut, binding: [{constraint, value, removed:[codes]}]}}}. Pure: it returns
+    component CODES (the caller resolves labels), and the counts reconcile — total >= reachable,
+    reachable + cut == total — always."""
+    active = _active_pairs(selection)
+    cats = {}
+    total_all = total_reach = 0
+    for cat, codes in (catalogs or {}).items():
+        removed_by = {}  # (constraint_cat, constraint_code) -> [removed component codes]
+        reachable = 0
+        for code in codes:
+            disq = next(((cc, cv) for cc, cv in active
+                         if _verdict_of_one(code, cc, cv) == "disqualify"), None)
+            if disq is None:
+                reachable += 1
+            else:
+                removed_by.setdefault(disq, []).append(code)
+        binding = [{"constraint": CONSTRAINTS[cc]["label"], "value": _label_for(cc, cv),
+                    "removed": removed}
+                   for (cc, cv), removed in removed_by.items()]
+        cats[cat] = {"total": len(codes), "reachable": reachable,
+                     "cut": len(codes) - reachable, "binding": binding}
+        total_all += len(codes)
+        total_reach += reachable
+    return {"total": total_all, "reachable": total_reach, "declared": len(active),
+            "categories": cats}
+
+
+def funnel_viz_panel(mo, ui, viz, label_for=None):
+    """Render the funnel as a narrowing ladder: the full catalog, the binding constraints that
+    cut it, and the surviving shortlist — counts only, no scores. `label_for(category, code)`
+    resolves a component code to its human label (e.g. providers.label_for); falls back to the
+    raw code."""
+    lf = label_for or (lambda _c, code: code)
+    head = (f"**Catalog {viz['total']}** &rarr; **{viz['declared']} constraint(s) declared** "
+            f"&rarr; **shortlist {viz['reachable']}**")
+    body = []
+    for cat, c in viz["categories"].items():
+        bar = "&#9608;" * c["reachable"] + "&#9617;" * c["cut"]  # filled survivors + faint cuts
+        line = f"<code>{cat:&lt;8}</code> {bar} &nbsp; {c['reachable']}/{c['total']}"
+        if c["binding"]:
+            cuts = "; ".join(
+                f"{b['constraint']} = {b['value']} cuts {', '.join(lf(cat, x) for x in b['removed'])}"
+                for b in c["binding"])
+            line += f" &mdash; <i>{cuts}</i>"
+        body.append(line)
+    return ui.panel(
+        mo,
+        ui.header(mo, "Constraint funnel — what your constraints narrow the catalog to"),
+        mo.md(head),
+        mo.md("<br>".join(body) or "*No binding constraint declared — the full catalog is reachable.*"),
+        mo.md("*The binding constraints narrow the catalog before any scoring; the scored "
+              "ranking of the survivors per workload archetype is the Capability Matrix at "
+              "[/matrix](https://securitydataworks.com/matrix).*"),
+    )

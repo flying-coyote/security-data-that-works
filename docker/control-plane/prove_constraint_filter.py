@@ -121,6 +121,22 @@ def main():
     check("a disqualified component scores None", cf.score_component("aws_s3", {"deployment": "on_prem_airgap"}) is None)
     check("untouched component scores 0", cf.score_component("polaris", {"workload": "threat_hunting"}) == 0)
 
+    # --- funnel_viz: the narrowing structure for the Pick-components viz (no scores) ---
+    _cats = {"storage": ["minio", "aws_s3", "wasabi", "seaweedfs"], "query": ["clickhouse", "duckdb", "trino"]}
+    _v = cf.funnel_viz({"deployment": "on_prem_airgap"}, _cats)
+    check("funnel_viz total = sum of category candidate counts", _v["total"] == 7)
+    check("funnel_viz reachable <= total (narrowing, never widening)", _v["reachable"] <= _v["total"])
+    check("funnel_viz per-category reachable + cut == total (counts reconcile)",
+          all(c["reachable"] + c["cut"] == c["total"] for c in _v["categories"].values()))
+    check("on-prem/air-gap cuts the cloud stores (aws_s3, wasabi), keeps minio/seaweedfs",
+          _v["categories"]["storage"]["reachable"] == 2 and _v["categories"]["storage"]["cut"] == 2)
+    check("the cut names the binding constraint (Deployment)",
+          any(b["constraint"] == "Deployment" for b in _v["categories"]["storage"]["binding"]))
+    check("the binding lists the removed component codes",
+          "aws_s3" in sum((b["removed"] for b in _v["categories"]["storage"]["binding"]), []))
+    check("no declared constraint -> the full catalog is reachable",
+          cf.funnel_viz({}, _cats)["reachable"] == 7 and cf.funnel_viz({}, _cats)["declared"] == 0)
+
     if _failures:
         print(f"\n\033[91m{len(_failures)} assertion(s) FAILED\033[0m")
         return 1
