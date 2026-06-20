@@ -1,0 +1,36 @@
+#!/usr/bin/env bash
+# Pre-commit guard — this repo is PUBLIC.
+#
+# Internal design / strategy / review notes (the kind that discuss the paid Matrix
+# boundary, prospect/engagement framing, or session-internal decisions) belong in
+# ~/project1, NOT in the public console repo. On 2026-06-20 four such docs had to be
+# scrubbed from history after the fact; this stops a repeat at commit time.
+#
+# It blocks staged files whose NAME matches a known internal-doc pattern. Public docs
+# (README.md, CONTRACT.md, MOAR-EVIDENCE-RUN-*.md) are deliberately NOT matched. If a
+# file is genuinely public-safe, override once with: git commit --no-verify
+set -euo pipefail
+shopt -s nocasematch
+
+# Internal-doc name patterns (basename globs). Tuned to catch design/strategy/review/
+# branch-intent/assessment notes without catching README/CONTRACT/EVIDENCE-RUN.
+patterns=( '*DESIGN*.md' 'REVIEW-*.md' '*ALIGNMENT*.md' '*-BRANCH.md' '*MATURITY*.md' '*ASSESSMENT*.md' )
+
+blocked=()
+while IFS= read -r f; do
+  [ -z "$f" ] && continue
+  base=$(basename "$f")
+  for p in "${patterns[@]}"; do
+    # shellcheck disable=SC2053
+    if [[ "$base" == $p ]]; then blocked+=("$f"); break; fi
+  done
+done < <(git diff --cached --name-only --diff-filter=AM)
+
+if [ ${#blocked[@]} -gt 0 ]; then
+  echo "✋ pre-commit: this repo is PUBLIC — these look like internal design/strategy docs:" >&2
+  for b in "${blocked[@]}"; do echo "     - $b" >&2; done
+  echo "  Keep internal design/strategy/review notes in ~/project1, not the public console repo." >&2
+  echo "  If this file is genuinely public-safe, override once with:  git commit --no-verify" >&2
+  exit 1
+fi
+exit 0
