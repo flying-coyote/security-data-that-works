@@ -431,7 +431,7 @@ def funnel_viz_panel(mo, ui, viz, label_for=None):
     body = []
     for cat, c in viz["categories"].items():
         bar = "&#9608;" * c["reachable"] + "&#9617;" * c["cut"]  # filled survivors + faint cuts
-        line = f"<code>{cat:&lt;8}</code> {bar} &nbsp; {c['reachable']}/{c['total']}"
+        line = f"<code>{cat:<8}</code> {bar} &nbsp; {c['reachable']}/{c['total']}"
         if c["binding"]:
             cuts = "; ".join(
                 f"{b['constraint']} = {b['value']} cuts {', '.join(lf(cat, x) for x in b['removed'])}"
