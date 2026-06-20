@@ -971,14 +971,38 @@ def _(P, archetype_selector, mo, paid, sel_catalog, sel_ingest, sel_query, ui):
     # any clone gets) shows NO scores. PAID_MODE on loads the named per-criterion 1-5
     # scores from the private vault (never this repo) for the consultant's live delivery.
     if not paid.paid_mode():
+        # Public default (any clone): show the Matrix's PUBLIC HALF — the component model +
+        # reversibility for the picked scored components — not an empty "scores withheld"
+        # placeholder. The scored 1-5 ranking stays paid; this makes the boundary a value.
+        _ctx = paid.public_context(
+            {"query": list(sel_query), "catalog": sel_catalog, "ingest": list(sel_ingest)})
+        _catlbl = {"query": "Engine · C3", "catalog": "Format + catalog · C1/C2", "ingest": "Pipeline · C4"}
+        _rows = []
+        for _r in _ctx:
+            _body = []
+            if _r["swap_cost"]:
+                _body.append(f"<i>Reversibility — swap cost:</i> {_r['swap_cost']}")
+            if _r["claims"]:
+                _body.append("<i>Evidence:</i> " + ", ".join(f"<code>{_c}</code>" for _c in _r["claims"]))
+            _rows.append(ui.note(mo, "info",
+                                 f"{_r['label']} · {_catlbl.get(_r['category'], _r['category'])}",
+                                 "<br/>".join(_body) or "—"))
         scorecard_panel = ui.panel(mo,
-            ui.header(mo, "Capability Matrix scores — paid tier (not shown)"),
+            ui.header(mo, "The Capability Matrix — public view"),
             mo.md(
-                "Per-criterion 1-5 scores, weighted archetype totals, and claim-vs-shipped "
-                "deltas are paid SDW IP and are **not** rendered in the public console. Run with "
-                "`MOAR_PAID_MODE=1` (scores load from the private vault, never this repo) for the "
-                "scored view, or see the public codeworded summary at "
+                "The console gives you the Matrix's public half for free: the component model, the "
+                "constraint-fit shortlist that **Pick components** computes live from your declared "
+                "constraints, and what swapping each component back out would cost — the reversibility "
+                "a risk-averse team reads before it commits to open architecture. The scored half stays "
+                "paid: the per-criterion 1–5 ratings and the weighted ranking per workload archetype, "
+                "because that scoring is the SDW deliverable. So you can see here which components clear "
+                "your constraints and how reversible each pick is, and the scored ranking that says which "
+                "one fits best is the Capability Matrix at "
                 "[securitydataworks.com/matrix](https://securitydataworks.com/matrix)."),
+            *(_rows or [mo.md("*Pick an engine, catalog, or pipeline to see its reversibility and evidence.*")]),
+            mo.md("*Consultant delivery: run with `MOAR_PAID_MODE=1` for the scored view "
+                  "(scores load from the private vault, never this repo).*"),
+            **{"border": "1px solid var(--color-teal-500)"},
         )
     else:
         _arch = archetype_selector.value

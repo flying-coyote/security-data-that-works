@@ -146,3 +146,46 @@ def load_scores(archetype: str = "A") -> dict:
                     "criteria": criteria,
                 }
     return out
+
+
+# The Matrix-scored component categories: query = C3 engines, catalog = C1/C2 formats +
+# catalogs, ingest = C4 pipelines. The PUBLIC view shows the component model + reversibility
+# for these; the per-criterion 1-5 scores + weighted ranking stay paid (load_scores above).
+_PUBLIC_CATEGORIES = ("query", "catalog", "ingest")
+
+
+def public_context(picks: dict) -> list[dict]:
+    """The PUBLIC-safe Capability Matrix context — the free counterpart to load_scores().
+
+    Where load_scores() yields the paid per-criterion 1-5 scores (PAID_MODE only), this
+    yields the half the public console gives away: the component model + reversibility for
+    the picked scored components. picks: {category: code | [codes]} from the picker. Returns
+    one row per picked scored component with ONLY public fields — category, label, pros,
+    cons, swap_cost (reversibility), claims (provenance refs) — and NEVER a numeric score,
+    weight, or weighted total. The no-score guarantee is structural: this function copies a
+    fixed public allow-list of fields off providers.py and cannot reach a score. Pure; works
+    with PAID_MODE off (it IS the public view) and ignores non-scored categories
+    (storage/schema) even if present in `picks`."""
+    import providers as _P  # one-directional; providers does not import this module
+    groups = {"query": _P.QUERY, "catalog": _P.CATALOG, "ingest": _P.INGEST}
+    rows: list[dict] = []
+    for cat in _PUBLIC_CATEGORIES:
+        val = (picks or {}).get(cat)
+        if val is None:
+            continue
+        codes = val if isinstance(val, list) else [val]
+        for code in codes:
+            if not code:
+                continue
+            p = _P.find(groups[cat], code)
+            if not p:
+                continue
+            rows.append({
+                "category": cat,
+                "label": p.label,
+                "pros": p.pros,
+                "cons": p.cons,
+                "swap_cost": p.swap_cost,
+                "claims": list(p.claims),
+            })
+    return rows
