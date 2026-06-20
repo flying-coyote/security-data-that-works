@@ -101,3 +101,17 @@ def verdict_line(gate: dict) -> tuple[str, str]:
                 + "; ".join(gate["stale"]) + ".", "var(--color-orange-500)")
     return ("🟡 Deploy permitted — config integrity holds, but the gate cannot certify GREEN "
             "until the unproven layers run.", "var(--color-orange-500)")
+
+
+def verdict_chip(gate: dict) -> tuple[str, str]:
+    """A compact one-line verdict for secondary surfaces — the full layer breakdown lives in
+    Flow › Health. Same colour key as verdict_line, shorter text."""
+    if gate["all_green"]:
+        return "🟢 Data-health gate: GREEN", "var(--color-teal-500)"
+    if not gate["deploy_ok"]:
+        return "🔴 Data-health gate: deploy blocked", "#c14a4a"
+    if gate["cert_blockers"]:
+        return "🔴 Data-health gate: not certified", "#c14a4a"
+    if gate.get("stale"):
+        return "🟡 Data-health gate: stale — re-run", "var(--color-orange-500)"
+    return "🟡 Data-health gate: amber — unproven layers", "var(--color-orange-500)"

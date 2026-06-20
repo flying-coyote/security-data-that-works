@@ -1577,7 +1577,15 @@ def _(l4_primary, l4_sources_select, layer4, mo, ui):
 
 
 @app.cell(hide_code=True)
-def _(capture_baseline, docs_panel, evidence_panel, evidence_select, flow_panel, health_compaction, health_crc, health_orphan, health_panel, health_schema, health_tombstone, l4_idcol, l4_primary, l4_sources_select, l4_tolerance, layer1_panel, layer4_panel, mo, okf_panel, roundtrip_panel, run_evidence, run_flow_btn, run_health, run_layer4, run_roundtrip_btn, scorecard_panel, ui):
+def _(gate, gl, mo):
+    # Compact gate verdict for secondary surfaces; the full breakdown is its home in Flow › Health.
+    _txt, _c = gl.verdict_chip(gate)
+    gate_chip = mo.md(f"**<span style='color:{_c};'>{_txt}</span>** · full breakdown in **Flow › Health**")
+    return (gate_chip,)
+
+
+@app.cell(hide_code=True)
+def _(capture_baseline, docs_panel, evidence_panel, evidence_select, flow_panel, gate_panel, health_compaction, health_crc, health_orphan, health_panel, health_schema, health_tombstone, l4_idcol, l4_primary, l4_sources_select, l4_tolerance, layer1_panel, layer4_panel, mo, okf_panel, roundtrip_panel, run_evidence, run_flow_btn, run_health, run_layer4, run_roundtrip_btn, scorecard_panel, ui):
     # Startup › Strategy — OKF strategy vault + paid Matrix scorecard + thesis-evidence proof
     strategy_view = mo.vstack([
         okf_panel,
@@ -1593,8 +1601,10 @@ def _(capture_baseline, docs_panel, evidence_panel, evidence_select, flow_panel,
             evidence_panel,
         ),
     ])
-    # Flow › Health — source health (Layer 1) + data quality (Layer 3) + cross-tool coverage (Layer 4)
+    # Flow › Health — the data-health gate (its authoritative home) over its own inputs:
+    # source health (Layer 1) + data quality (Layer 3) + cross-tool coverage (Layer 4) + cluster-5.
     health_view = mo.vstack([
+        gate_panel,
         ui.panel(mo,
             ui.header(mo, "Data Health & Schema Validation (Layers 1 & 3)"),
             mo.md("Run the data-quality audit (Layer 3, on the selected table) and the source-health "
@@ -1688,7 +1698,7 @@ def _(
     deployment_status,
     destroy_btn,
     gate_override,
-    gate_panel,
+    gate_chip,
     health_view,
     inspect_output,
     logs,
@@ -1730,9 +1740,9 @@ def _(
         ui.panel(mo,
             ui.header(mo, "Infrastructure Lifecycle Manager"),
             mo.md("Spin up or tear down the selected MOAr stack locally in Docker via Pulumi. "
-                  "The data-health gate below authorizes the deploy."),
+                  "The data-health gate authorizes the deploy — full breakdown in Flow › Health."),
         ),
-        gate_panel,
+        gate_chip,
         mo.hstack([deploy_btn, destroy_btn, gate_override]),
         deployment_status,
         mo.accordion({"Deployment Execution Logs":
@@ -1779,7 +1789,7 @@ def _(
             mo.md("List tables and inspect schema/field population from the active REST catalog "
                   "(counts only — raw rows are never rendered)."),
         ),
-        gate_panel,
+        gate_chip,
         _inspector_selectors,
         inspect_output,
     ])

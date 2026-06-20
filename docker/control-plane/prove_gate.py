@@ -209,6 +209,16 @@ def main():
         check("flow=unmeasured -> not green, listed unmeasured (no bluff)",
               _g9u["all_green"] is False and "Flow reconciliation (hop counts)" in _g9u["unmeasured"])
 
+        # Part 3 — verdict_chip: the compact verdict for secondary surfaces (full breakdown in Health).
+        print("\nPart 3 — verdict_chip (compact verdict for secondary surfaces)")
+        check("chip GREEN when all_green", gl.verdict_chip(gate_for(h["status"], **_others))[0].startswith("🟢"))
+        check("chip red (blocked) on a config-integrity blocker",
+              gl.verdict_chip(gate_for(h["status"], warns=["x"]))[0].startswith("🔴"))
+        check("chip red (not certified) on a measured-layer fail",
+              gl.verdict_chip(gate_for("fail", **_others))[0].startswith("🔴"))
+        check("chip amber when an unproven layer keeps it from GREEN",
+              "🟡" in gl.verdict_chip(gate_for(h["status"]))[0])
+
         print()
         if _failures:
             print(f"\033[91m{len(_failures)} assertion(s) FAILED:\033[0m " + "; ".join(_failures))
