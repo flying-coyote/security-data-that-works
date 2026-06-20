@@ -263,16 +263,26 @@ def _active_pairs(selection) -> list[tuple]:
 
 def verdict_for(component_code, selection) -> dict:
     """Resolve a single component against the declared constraints.
-    Returns {verdict, reasons:[...]} with disqualify > caution > favor precedence."""
-    hits = [(v, reason) for cat, code in _active_pairs(selection)
+    Returns {verdict, reasons:[...], triggers:[(constraint_label, value_label), ...]} with
+    disqualify > caution > favor precedence. `triggers` names the declared constraint(s) that
+    produced the WINNING verdict — the "why" behind the row, so a cautioned pick names the
+    cautioning constraint rather than a favor it also happens to match."""
+    hits = [(v, reason, cat, code) for cat, code in _active_pairs(selection)
             for (rc, rv, comp, v, reason) in RULES
             if rc == cat and rv == code and comp == component_code]
     if not hits:
-        return {"verdict": "neutral", "reasons": []}
-    top = max(_RANK[v] for v, _ in hits)
+        return {"verdict": "neutral", "reasons": [], "triggers": []}
+    top = max(_RANK[v] for v, _r, _c, _cd in hits)
     verdict = next(k for k, r in _RANK.items() if r == top)
-    reasons = [reason for v, reason in hits if v == verdict]
-    return {"verdict": verdict, "reasons": reasons}
+    reasons = [reason for v, reason, _c, _cd in hits if v == verdict]
+    triggers = []
+    for v, _r, cat, code in hits:
+        if v != verdict:
+            continue
+        t = (CONSTRAINTS[cat]["label"], _label_for(cat, code))
+        if t not in triggers:
+            triggers.append(t)
+    return {"verdict": verdict, "reasons": reasons, "triggers": triggers}
 
 
 # Three-tier requirement model (Ch3 §3.1): each constraint category maps to a tier.
@@ -344,7 +354,8 @@ def evaluate(selection, picked) -> dict:
                 continue
             counts[r["verdict"]] += 1
             picked_rows.append({"code": code, "verdict": r["verdict"],
-                                "reason": " ".join(r["reasons"])})
+                                "reason": " ".join(r["reasons"]),
+                                "triggered_by": "; ".join(f"{lbl} = {val}" for lbl, val in r["triggers"])})
     # Catalog-wide disqualifications (components ruled out whether or not picked).
     all_comp_codes = {comp for (_c, _v, comp, _vd, _r) in RULES}
     catalog_disq = sorted(c for c in all_comp_codes

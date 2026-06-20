@@ -316,12 +316,23 @@ def _(P, cf, con_compliance, con_cost, con_deploy, con_team, con_vendor,
         f"{_cat} {_f['reachable']}/{_f['total']}" + (f" → {_f['top']}" if _f['top'] else "")
         for _cat, _f in _funnel.items())
     _labels = {p.code: p.label for _grp in P.CATEGORIES.values() for p in _grp}
+    _claims_by_code = {p.code: p.claims for _grp in P.CATEGORIES.values() for p in _grp}
     _viz = cf.funnel_viz(_selection, {_cat: [p.code for p in _grp] for _cat, _grp in P.CATEGORIES.items()})
     funnel_panel = cf.funnel_viz_panel(mo, ui, _viz, label_for=lambda _c, _code: _labels.get(_code, _code))
     _rows = []
     for _r in _report["picked_verdicts"]:
         _lvl = "warn" if _r["verdict"] in ("disqualify", "caution") else "info"
-        _rows.append(ui.note(mo, _lvl, f"{_labels.get(_r['code'], _r['code'])} — {_r['verdict'].upper()}", _r["reason"]))
+        # The "why": name the declared constraint that drove this verdict, then a compact
+        # provenance chip from the component's sourced claims (the public method — refs only,
+        # resolved richly in the Selected-components panel; never a paid Matrix score).
+        _body = _r["reason"]
+        if _r.get("triggered_by"):
+            _body += f"  \n<small>Triggered by: {_r['triggered_by']}</small>"
+        _cl = _claims_by_code.get(_r["code"], ())
+        if _cl:
+            _refs = ", ".join(f"`{_c}`" for _c in _cl)
+            _body += f"  \n<small>📎 Evidence: {_refs} — resolved in <i>Selected components</i></small>"
+        _rows.append(ui.note(mo, _lvl, f"{_labels.get(_r['code'], _r['code'])} — {_r['verdict'].upper()}", _body))
     constraints_verdict_panel = ui.panel(mo,
         ui.header(mo, "What your constraints rule on (current picks)"),
         mo.md(_report["summary_md"]),
