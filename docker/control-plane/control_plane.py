@@ -21,6 +21,7 @@ def _():
     sys.path.append(os.path.abspath("."))
     import pulumi_deployer as deployer
     import providers as P
+    import constraint_filter as cf
     import okf_reader as okf
     import ui_helpers as ui
     import gate_logic as gl
@@ -32,7 +33,7 @@ def _():
 
     # Tolaria convention: point VAULT_PATH at the OKF vault (project1).
     VAULT_PATH = os.environ.get("VAULT_PATH", os.path.expanduser("~/project1"))
-    return P, RestCatalog, VAULT_PATH, deployer, dk, ev, gl, l1, l3, l4, mo, okf, os, subprocess, textwrap, ui, yaml
+    return P, RestCatalog, VAULT_PATH, cf, deployer, dk, ev, gl, l1, l3, l4, mo, okf, os, subprocess, textwrap, ui, yaml
 
 
 @app.cell(hide_code=True)
@@ -259,6 +260,61 @@ def _(P, mo, sel_catalog, sel_ingest, sel_query, sel_schema, sel_storage, ui):
     else:
         warnings_panel = mo.md("")
     return (warnings_panel,)
+
+
+@app.cell(hide_code=True)
+def _(cf, mo, ui):
+    # Constraint-first (Ch3): declare the binding constraint before picking, so the
+    # picker surfaces what each constraint rules out instead of letting you choose cold.
+    def _dd(cat):
+        return mo.ui.dropdown(options=cf.option_labels(cat), value=cf.default_label(cat),
+                              label=cf.CONSTRAINTS[cat]["label"])
+    con_deploy = _dd("deployment")
+    con_team = _dd("team")
+    con_vendor = _dd("vendor")
+    con_workload = _dd("workload")
+    con_cost = _dd("cost")
+    con_compliance = mo.ui.multiselect(options=cf.option_labels("compliance"), value=[],
+                                       label=cf.CONSTRAINTS["compliance"]["label"])
+    constraints_input = ui.panel(mo,
+        ui.header(mo, "Constraints — declare these first"),
+        mo.md("*The binding constraint decides which components are even reachable, before "
+              "capability decides which is best (Ch3). Set these; the picker below flags what each rules out.*"),
+        mo.hstack([con_deploy, con_team, con_vendor], gap=1, justify="start"),
+        mo.hstack([con_workload, con_compliance, con_cost], gap=1, justify="start"),
+    )
+    return (
+        con_compliance, con_cost, con_deploy, con_team, con_vendor, con_workload,
+        constraints_input,
+    )
+
+
+@app.cell(hide_code=True)
+def _(P, cf, con_compliance, con_cost, con_deploy, con_team, con_vendor,
+      con_workload, mo, sel_catalog, sel_ingest, sel_query, sel_schema, sel_storage, ui):
+    _selection = {
+        "deployment": cf.code_for_label("deployment", con_deploy.value),
+        "team": cf.code_for_label("team", con_team.value),
+        "vendor": cf.code_for_label("vendor", con_vendor.value),
+        "workload": cf.code_for_label("workload", con_workload.value),
+        "cost": cf.code_for_label("cost", con_cost.value),
+        "compliance": [cf.code_for_label("compliance", _v) for _v in con_compliance.value],
+    }
+    _picked = {"storage": [sel_storage], "catalog": [sel_catalog],
+               "ingest": list(sel_ingest), "query": list(sel_query), "schema": [sel_schema]}
+    _report = cf.evaluate(_selection, _picked)
+    _labels = {p.code: p.label for _grp in P.CATEGORIES.values() for p in _grp}
+    _rows = []
+    for _r in _report["picked_verdicts"]:
+        _lvl = "warn" if _r["verdict"] in ("disqualify", "caution") else "info"
+        _rows.append(ui.note(mo, _lvl, f"{_labels.get(_r['code'], _r['code'])} — {_r['verdict'].upper()}", _r["reason"]))
+    constraints_verdict_panel = ui.panel(mo,
+        ui.header(mo, "What your constraints rule on (current picks)"),
+        mo.md(_report["summary_md"]),
+        *(_rows or [mo.md("*No declared constraint touches the current selection.*")]),
+        **{"border": "1px solid var(--color-orange-500)"},
+    )
+    return (constraints_verdict_panel,)
 
 
 @app.cell(hide_code=True)
@@ -1378,6 +1434,8 @@ def _(
     ns_selector,
     save_btn,
     save_status,
+    constraints_input,
+    constraints_verdict_panel,
     selector_panel,
     strategy_view,
     tab_metrics,
@@ -1389,7 +1447,7 @@ def _(
     warnings_panel,
 ):
     # ── STARTUP ── pick the stack, configure it, and the strategy surface (OKF + Matrix) ──
-    tab_pick = mo.vstack([selector_panel, warnings_panel])
+    tab_pick = mo.vstack([constraints_input, constraints_verdict_panel, selector_panel, warnings_panel])
 
     tab_config = mo.vstack([
         config_panel,
