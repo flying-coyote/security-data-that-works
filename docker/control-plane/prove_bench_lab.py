@@ -116,6 +116,8 @@ def main():
     check("ModuleNotFoundError -> missing-prereq + module name extracted",
           mp["class"] == "missing-prereq" and "foo" in mp["message"])
     check("'weird gibberish' -> unknown", bl.classify_failure("weird gibberish", 1)["class"] == "unknown")
+    check("None exit (timeout) -> timeout", bl.classify_failure("ran long\n[bench_lab] TIMEOUT after 60s", None)["class"] == "timeout")
+    check("'TIMEOUT after' in stderr -> timeout", bl.classify_failure("x\n[bench_lab] TIMEOUT after 30s", 1)["class"] == "timeout")
 
     # --- 7. power-plan guard logic --------------------------------------------------
     print("\n=== 7. power-plan guard ===\n")

@@ -106,6 +106,8 @@ def main():
     check("single source -> unmeasured", g["status"] == "unmeasured")
     g = ld.cross_tool_gap_deep("cmdb", {"cmdb": None, "edr": edr}, now_iso=NOW)
     check("primary unreadable -> unmeasured", g["status"] == "unmeasured")
+    g = ld.cross_tool_gap_deep("cmdb", {"cmdb": {}, "edr": edr}, now_iso=NOW)
+    check("empty primary inventory -> unmeasured (not a vacuous pass)", g["status"] == "unmeasured")
     g = ld.cross_tool_gap_deep("cmdb", {"cmdb": cmdb, "edr": edr_nots}, now_iso=NOW)
     check("confidence-only cover passes but carries freshness_caveat", g["status"] == "pass" and g["freshness_caveat"] is True)
 

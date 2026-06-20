@@ -222,6 +222,9 @@ def classify_failure(stderr_tail, exit_code):
     """Bucket a failure into an actionable class. Operates on the already
     sanitized+bounded stderr tail."""
     low = (stderr_tail or "").lower()
+    if exit_code is None or "timeout after" in low:
+        return {"class": "timeout",
+                "message": "bench exceeded the time limit — raise --timeout or reduce the scale"}
     if exit_code == 137:
         return {"class": "oom", "message": "killed (exit 137) — out of memory; lower the scale or free RAM"}
     if "warehouse not found" in low:

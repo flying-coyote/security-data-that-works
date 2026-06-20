@@ -163,6 +163,13 @@ def cross_tool_gap_deep(primary, sources_meta, *, rules=None, now_iso,
         }
 
     primary_meta = readable[primary]
+    if not primary_meta:
+        return {
+            "primary": primary, "status": "unmeasured", "tolerance": tolerance,
+            "min_confidence": min_confidence, "per_source": [],
+            "note": "primary inventory is empty — nothing to resolve coverage against",
+            "unreadable": [n for n, m in sources_meta.items() if not isinstance(m, dict)],
+        }
     per_source = []
     for name, meta in readable.items():
         if name == primary:
