@@ -14,10 +14,22 @@ printf "def create_or_select_stack(*a,**k):\n raise RuntimeError('pulumi stub - 
 printf '# stub for screenshot mode\n' > "$STUB/pulumi_docker.py"
 
 # 2. export the app to a static HTML with baked outputs (hydrating JS, so tabs still work).
+EXPORT_LOG="$(mktemp)"
 ( cd "$CP" && PYTHONPATH="$STUB" VAULT_PATH="${VAULT_PATH:-$HOME/project1}" \
-    "$VENV/bin/marimo" export html --no-include-code control_plane.py -o /tmp/cp_app.html ) || true
+    "$VENV/bin/marimo" export html --no-include-code control_plane.py -o /tmp/cp_app.html ) >"$EXPORT_LOG" 2>&1 || true
 rm -rf "$STUB"
-[ -s /tmp/cp_app.html ] || { echo "marimo export failed — no /tmp/cp_app.html"; exit 1; }
+[ -s /tmp/cp_app.html ] || { echo "marimo export failed — no /tmp/cp_app.html"; cat "$EXPORT_LOG"; rm -f "$EXPORT_LOG"; exit 1; }
+# Fail-fast on cell-execution errors. A baked app with a failed cell screenshots BLANK panels
+# (the failed cell + its descendants render nothing), which would ship a misleading flip-through —
+# the exact opposite of "real screenshots of the live UI". The honest result is to FAIL here, not
+# to capture blanks. (export html executes the cells; `marimo export script` only checks the graph,
+# so this is the one gate that catches a runtime cell error.)
+if grep -qE "failed to execute|MarimoExceptionRaisedError" "$EXPORT_LOG"; then
+  echo "ERROR: the marimo app has cell-execution failures — refusing to build a blank flip-through:"
+  grep -E "failed to execute|MarimoExceptionRaisedError|^Error:" "$EXPORT_LOG" | head -20
+  rm -f "$EXPORT_LOG"; exit 1
+fi
+rm -f "$EXPORT_LOG"
 
 # 3. screenshot each view (Playwright/Chromium) + assemble the annotated HTML.
 ( cd "$CP" && python3 "$HERE/capture.py" )

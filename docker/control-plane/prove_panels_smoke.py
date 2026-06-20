@@ -66,6 +66,20 @@ def build_verdict_panel():
                     *(rows or [mo.md("none")]))
 
 
+def build_funnel_viz_panel():
+    # The constraint funnel viz (T2). This renderer has an f-string format spec ({cat:<8}) that
+    # a `marimo export script` graph-check does NOT execute — only running the panel catches a
+    # bad spec (an HTML-over-escaped `&lt;8` shipped once and blanked the whole app). Smoke it
+    # across both the constrained and the no-constraint (full-catalog) shapes.
+    cats = {c: [p.code for p in g] for c, g in P.CATEGORIES.items()}
+    labels = {p.code: p.label for g in P.CATEGORIES.values() for p in g}
+    lf = lambda _c, code: labels.get(code, code)
+    air = cf.funnel_viz({"deployment": "on_prem_airgap"}, cats)
+    none = cf.funnel_viz({}, cats)
+    return mo.vstack([cf.funnel_viz_panel(mo, ui, air, label_for=lf),
+                      cf.funnel_viz_panel(mo, ui, none, label_for=lf)])
+
+
 def build_presets_panel():
     cards = []
     for pr in rp.PRESETS:
@@ -98,6 +112,7 @@ def main():
     print("\n=== panel construction smoke test ===\n")
     attempt("constraints_input", build_constraints_input)
     attempt("constraints_verdict_panel (+ funnel)", build_verdict_panel)
+    attempt("funnel_viz_panel (T2 renderer — the f-string format-spec path)", build_funnel_viz_panel)
     attempt("reference_presets_panel", build_presets_panel)
     attempt("anti_patterns_panel", build_anti_panel)
     attempt("cost_panel (+ widgets)", build_cost_panel)
