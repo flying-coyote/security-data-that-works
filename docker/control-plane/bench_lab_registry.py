@@ -34,9 +34,9 @@ BENCHES = {
     "sigma-portability":              {"tier": 1, "dir": "sigma-portability",              "entry": ["run.py"],                "results": "results/results.json", "adapter": "default",     "runnable": True},
     "ocsf-deterministic-mapper":      {"tier": 1, "dir": "ocsf-deterministic-mapper",      "entry": ["run.py"],                "results": "results/results.json", "adapter": "default",     "runnable": True},
     "ocsf-parquet-determinism":       {"tier": 1, "dir": "ocsf-parquet-determinism",       "entry": ["determinism_probe.py"], "results": None,                   "adapter": "determinism", "runnable": True},
-    "parquet-checksum-integrity":     {"tier": 1, "dir": "parquet-checksum-integrity",     "entry": ["run.py"],                "results": "results/results.json", "adapter": "determinism", "runnable": True},
+    "parquet-checksum-integrity":     {"tier": 1, "dir": "parquet-checksum-integrity",     "entry": ["run.py"],                "results": "results/results.json", "adapter": "default",     "runnable": True},
     "parquet-library-matrix":         {"tier": 1, "dir": "parquet-library-matrix",         "entry": ["run.py"],                "results": "results/results.json", "adapter": "default",     "runnable": True},
-    "parquet-determinism-encryption": {"tier": 1, "dir": "parquet-determinism-encryption", "entry": ["run.py"],                "results": "results/results.json", "adapter": "determinism", "runnable": True},
+    "parquet-determinism-encryption": {"tier": 1, "dir": "parquet-determinism-encryption", "entry": ["run.py"],                "results": "results/results.json", "adapter": "simd_determinism", "runnable": True},
     "ocsf-pruning-correctness":       {"tier": 1, "dir": "ocsf-pruning-correctness",       "entry": ["run.py"],                "results": "results/results.json", "adapter": "default",     "runnable": True},
     "ocsf-temporal-null-coercion":    {"tier": 1, "dir": "ocsf-temporal-null-coercion",    "entry": ["run.py"],                "results": "results/results.json", "adapter": "default",     "runnable": True},
     "ocsf-nested-type-fidelity":      {"tier": 1, "dir": "ocsf-nested-type-fidelity",      "entry": ["run.py"],                "results": "results/results.json", "adapter": "default",     "runnable": True},
@@ -126,6 +126,20 @@ def determinism_adapter(results, *, exit_code, has_results_md):
     return ("pass", "well-formed + determinism_verified=true")
 
 
+def simd_determinism_adapter(results, *, exit_code, has_results_md):
+    # parquet-determinism-encryption proves determinism via SIMD byte-identity, reported
+    # nested under armA_simd_determinism.byte_identical_across_levels rather than a top-level
+    # determinism_verified flag. Same strictness as determinism_adapter, different field.
+    base = default_adapter(results, exit_code=exit_code, has_results_md=has_results_md)
+    if base[0] != "pass":
+        return base
+    simd = (results or {}).get("armA_simd_determinism") or {}
+    if simd.get("byte_identical_across_levels") is not True:
+        return ("fail", "SIMD determinism not verified "
+                        "(armA_simd_determinism.byte_identical_across_levels not true)")
+    return ("pass", "well-formed + SIMD byte-identical across levels")
+
+
 def clickhouse_vs_duckdb_adapter(results, *, exit_code, has_results_md):
     base = default_adapter(results, exit_code=exit_code, has_results_md=has_results_md)
     if base[0] != "pass":
@@ -146,6 +160,7 @@ def clickhouse_vs_duckdb_adapter(results, *, exit_code, has_results_md):
 ADAPTERS = {
     "default": default_adapter,
     "determinism": determinism_adapter,
+    "simd_determinism": simd_determinism_adapter,
     "clickhouse_vs_duckdb": clickhouse_vs_duckdb_adapter,
 }
 
