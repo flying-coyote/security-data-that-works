@@ -48,6 +48,16 @@ def paid_mode() -> bool:
     return os.environ.get("MOAR_PAID_MODE", "").strip().lower() in {"1", "true", "yes", "on"}
 
 
+def consultant_mode(*, vault_readable: bool, has_notes: bool) -> bool:
+    """True when the console should lead the Strategy surface with the consultant overlay (the
+    OKF strategy vault) rather than the public Matrix view. Consultant iff PAID_MODE is on OR a
+    readable private vault with notes is present; a public clone (PAID_MODE off and no vault)
+    is False and leads with the public Matrix context instead. The gate for T5 — the consultant
+    surface no longer frames a public clone's Strategy tab. Pure: the caller supplies the two
+    vault facts, so this stays a one-line boundary decision with no I/O."""
+    return paid_mode() or (vault_readable and has_notes)
+
+
 def scoring_dir() -> Path:
     explicit = os.environ.get("MOAR_SCORING_PATH")
     if explicit:

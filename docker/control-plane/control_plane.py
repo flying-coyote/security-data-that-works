@@ -1063,7 +1063,11 @@ def _(VAULT_PATH, okf):
 
 
 @app.cell(hide_code=True)
-def _(mo, okf, okf_search, ui, vault_error, vault_notes):
+def _(mo, okf, okf_search, paid, ui, vault_error, vault_notes):
+    # Consultant overlay gate (T5): the OKF strategy vault is a consultant surface, so it must not
+    # frame a public clone's Strategy tab. consultant_mode is true iff PAID_MODE is on OR a readable
+    # private vault with notes is present; it drives both this panel and the strategy_view order.
+    consultant_mode = paid.consultant_mode(vault_readable=not vault_error, has_notes=bool(vault_notes))
     _mdrs = okf.search([n for n in vault_notes if n.type == "MDR"], okf_search.value)
     _asms = okf.search([n for n in vault_notes if n.type == "Assumption"], okf_search.value)
 
@@ -1087,7 +1091,22 @@ def _(mo, okf, okf_search, ui, vault_error, vault_notes):
         "directly rather than through Tolaria's read-only MCP server."
     )
 
-    if vault_error:
+    if not consultant_mode:
+        # Public clone: the decision graph is a consultant surface; lead with the Matrix's public
+        # view (rendered below in strategy_view) and point to /matrix for the scored records.
+        okf_panel = ui.panel(mo,
+            ui.header(mo, "Architecture strategy — the recorded *why*"),
+            mo.md(
+                "The full decision graph — Matrix Decision Records and strategic assumptions, read "
+                "from the private strategy vault as an OKF bundle — is the consultant's working surface "
+                "and isn't part of the public console. The public console leads with the Matrix's "
+                "public view below: the component model, your constraint-fit shortlist, and how "
+                "reversible each pick is. The scored decision records behind those are the Capability "
+                "Matrix at [securitydataworks.com/matrix](https://securitydataworks.com/matrix); run "
+                "with `MOAR_PAID_MODE=1` and `VAULT_PATH` pointed at the vault for the consultant "
+                "overlay."),
+        )
+    elif vault_error:
         okf_panel = ui.panel(mo, ui.header(mo, "Strategy Vault (OKF)"),
                              mo.md(f"*Vault unreadable: {vault_error}. Set `VAULT_PATH` to the project1 root.*"))
     else:
@@ -1100,7 +1119,7 @@ def _(mo, okf, okf_search, ui, vault_error, vault_notes):
             mo.md(f"**Strategic Assumptions** — {len(_asms)} match:"),
             mo.md("\n".join(_asm_line(n) for n in _asms[:10]) if _asms else "*No matching assumptions.*"),
         )
-    return (okf_panel,)
+    return consultant_mode, okf_panel
 
 
 @app.cell(hide_code=True)
@@ -1622,22 +1641,24 @@ def _(gate, gl, mo):
 
 
 @app.cell(hide_code=True)
-def _(capture_baseline, docs_panel, evidence_panel, evidence_select, flow_panel, gate_panel, health_compaction, health_crc, health_orphan, health_panel, health_schema, health_tombstone, l4_idcol, l4_primary, l4_sources_select, l4_tolerance, layer1_panel, layer4_panel, mo, okf_panel, roundtrip_panel, run_evidence, run_flow_btn, run_health, run_layer4, run_roundtrip_btn, scorecard_panel, ui):
-    # Startup › Strategy — OKF strategy vault + paid Matrix scorecard + thesis-evidence proof
-    strategy_view = mo.vstack([
-        okf_panel,
-        mo.hstack([docs_panel], gap=2),
-        scorecard_panel,
-        ui.panel(mo,
-            ui.header(mo, "Thesis Evidence Runner"),
-            mo.md("Re-prove the thesis pillars on demand: each verb runs a `./moar` command "
-                  "against the live stack and reports a dated, Tier-B result (bounded output "
-                  "only — never raw rows)."),
-            evidence_select,
-            mo.hstack([run_evidence]),
-            evidence_panel,
-        ),
-    ])
+def _(capture_baseline, consultant_mode, docs_panel, evidence_panel, evidence_select, flow_panel, gate_panel, health_compaction, health_crc, health_orphan, health_panel, health_schema, health_tombstone, l4_idcol, l4_primary, l4_sources_select, l4_tolerance, layer1_panel, layer4_panel, mo, okf_panel, roundtrip_panel, run_evidence, run_flow_btn, run_health, run_layer4, run_roundtrip_btn, scorecard_panel, ui):
+    # Startup › Strategy — OKF strategy vault + Matrix view + thesis-evidence proof.
+    # T5: consultant mode leads with the vault (the consultant's working surface); a public clone
+    # leads with the Matrix's public view (scorecard_panel) and demotes the vault note to the end.
+    _evidence_runner = ui.panel(mo,
+        ui.header(mo, "Thesis Evidence Runner"),
+        mo.md("Re-prove the thesis pillars on demand: each verb runs a `./moar` command "
+              "against the live stack and reports a dated, Tier-B result (bounded output "
+              "only — never raw rows)."),
+        evidence_select,
+        mo.hstack([run_evidence]),
+        evidence_panel,
+    )
+    if consultant_mode:
+        _surfaces = [okf_panel, mo.hstack([docs_panel], gap=2), scorecard_panel]
+    else:
+        _surfaces = [scorecard_panel, mo.hstack([docs_panel], gap=2), okf_panel]
+    strategy_view = mo.vstack([*_surfaces, _evidence_runner])
     # Flow › Health — the data-health gate (its authoritative home) over its own inputs:
     # source health (Layer 1) + data quality (Layer 3) + cross-tool coverage (Layer 4) + cluster-5.
     health_view = mo.vstack([
