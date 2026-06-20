@@ -316,6 +316,8 @@ def _(P, cf, con_compliance, con_cost, con_deploy, con_team, con_vendor,
         f"{_cat} {_f['reachable']}/{_f['total']}" + (f" → {_f['top']}" if _f['top'] else "")
         for _cat, _f in _funnel.items())
     _labels = {p.code: p.label for _grp in P.CATEGORIES.values() for p in _grp}
+    _viz = cf.funnel_viz(_selection, {_cat: [p.code for p in _grp] for _cat, _grp in P.CATEGORIES.items()})
+    funnel_panel = cf.funnel_viz_panel(mo, ui, _viz, label_for=lambda _c, _code: _labels.get(_code, _code))
     _rows = []
     for _r in _report["picked_verdicts"]:
         _lvl = "warn" if _r["verdict"] in ("disqualify", "caution") else "info"
