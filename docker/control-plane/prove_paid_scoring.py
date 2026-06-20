@@ -86,6 +86,19 @@ def main():
     check("a single-code (non-list) category resolves too",
           {"Polaris"} <= {r["label"] for r in paid.public_context({"catalog": "polaris"})})
 
+    print("\n=== consultant_mode gate (T5): a public clone never leads with the vault ===\n")
+    os.environ.pop("MOAR_PAID_MODE", None)
+    check("public clone (PAID_MODE off, no vault) -> NOT consultant",
+          paid.consultant_mode(vault_readable=False, has_notes=False) is False)
+    check("PAID_MODE off + a readable vault WITH notes -> consultant",
+          paid.consultant_mode(vault_readable=True, has_notes=True) is True)
+    check("PAID_MODE off + a readable vault but NO notes -> NOT consultant (empty vault ≠ consultant)",
+          paid.consultant_mode(vault_readable=True, has_notes=False) is False)
+    os.environ["MOAR_PAID_MODE"] = "1"
+    check("PAID_MODE on -> consultant even with no vault present",
+          paid.consultant_mode(vault_readable=False, has_notes=False) is True)
+    os.environ.pop("MOAR_PAID_MODE", None)
+
     if _failures:
         print(f"\n\033[91m{len(_failures)} assertion(s) FAILED\033[0m")
         return 1
