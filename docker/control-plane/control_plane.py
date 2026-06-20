@@ -34,10 +34,11 @@ def _():
     import decay as dk
     import evidence_runner as ev
     import ocsf_roundtrip_live as rl
+    import flow_reconcile_live as fl
 
     # Tolaria convention: point VAULT_PATH at the OKF vault (project1).
     VAULT_PATH = os.environ.get("VAULT_PATH", os.path.expanduser("~/project1"))
-    return P, RestCatalog, VAULT_PATH, antip, ca, cf, deployer, dk, ev, gl, l1, l3, l4, mo, okf, os, rl, rp, subprocess, textwrap, ui, yaml
+    return P, RestCatalog, VAULT_PATH, antip, ca, cf, deployer, dk, ev, fl, gl, l1, l3, l4, mo, okf, os, rl, rp, subprocess, textwrap, ui, yaml
 
 
 @app.cell(hide_code=True)
@@ -605,7 +606,7 @@ def _(mo):
 
 
 @app.cell(hide_code=True)
-def _(P, cat, config_path, deployer, ev, evidence, gl, layer1, layer3, layer4, mo, ocsf_roundtrip, os, rl, sel_catalog, sel_ingest, sel_query, sel_schema, sel_storage, ui):
+def _(P, cat, config_path, deployer, ev, evidence, fl, flow_reconcile, gl, layer1, layer3, layer4, mo, ocsf_roundtrip, os, rl, sel_catalog, sel_ingest, sel_query, sel_schema, sel_storage, ui):
     # The composite data-health gate — the spine of the console. The verdict logic
     # lives in gate_logic.compute_gate (a pure function the proof harnesses exercise
     # through healthy -> broken -> healthy arcs), so this cell only gathers the layer
@@ -633,6 +634,10 @@ def _(P, cat, config_path, deployer, ev, evidence, gl, layer1, layer3, layer4, m
         # Same optional/decay rules: run -> pass/fail cert row; blocked/errored -> unmeasured;
         # never run -> None -> row omitted. Eighth gate row.
         ocsf_roundtrip_status=rl.gate_status(ocsf_roundtrip, now_iso=_now_iso),
+        # Flow reconciliation — per-class emitted/ingested/landed across the live source->route->
+        # land pipeline. Ninth gate row; same optional/decay rules. A silent class drop is a
+        # coverage hole Layer 2 can't see, so a fail blocks certification.
+        flow_reconcile_status=fl.gate_status(flow_reconcile, now_iso=_now_iso),
     )
 
     _verdict, _vcolor = gl.verdict_line(gate)
@@ -1301,6 +1306,65 @@ def _(mo, ocsf_roundtrip, ui):
     return (roundtrip_panel,)
 
 
+@app.cell(hide_code=True)
+def _(mo):
+    run_flow_btn = mo.ui.run_button(label="Run Flow Reconciliation", kind="success")
+    return (run_flow_btn,)
+
+
+@app.cell(hide_code=True)
+def _(mo):
+    # Persist the last flow-reconciliation run so the gate row + panel survive reactive ticks.
+    get_flow, set_flow = mo.state(None)
+    return get_flow, set_flow
+
+
+@app.cell(hide_code=True)
+def _(deployer, fl, os, run_flow_btn, set_flow):
+    # Run the real source->route->land pipeline and reconcile per-OCSF-class counts hop to hop
+    # (emitted -> ingested -> landed). A class the pipeline silently loses shows as a drop —
+    # the coverage hole a reachable Layer 2 can't see. Blocked (never a pass) with no Docker.
+    if run_flow_btn.value:
+        import datetime as _dt
+        _now = _dt.datetime.now(_dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+        _docker_dir = os.path.abspath("..")  # app runs in docker/control-plane; pipeline lives in docker/
+        _sample = os.path.join(_docker_dir, "config", "vector", "sample.ndjson")
+        set_flow(fl.run_pipeline(docker_dir=_docker_dir, sample_path=_sample,
+                                 available=deployer.is_docker_available(), now_iso=_now))
+    return
+
+
+@app.cell(hide_code=True)
+def _(get_flow):
+    flow_reconcile = get_flow()
+    return (flow_reconcile,)
+
+
+@app.cell(hide_code=True)
+def _(flow_reconcile, mo, ui):
+    _ic = {"pass": "🟢", "fail": "🔴", "unmeasured": "⚪", "blocked": "⚪", "error": "🟠", "stale": "⏳"}
+    if not flow_reconcile:
+        flow_panel = ui.panel(mo,
+            ui.header(mo, "Flow reconciliation (hop counts)"),
+            mo.md("*Press **Run Flow Reconciliation**. The real source→route→land pipeline runs (raw "
+                  "sample → router → Iceberg table), and per-OCSF-class counts are reconciled hop to "
+                  "hop — emitted (source) vs ingested (router output) vs landed (table). A class the "
+                  "pipeline silently drops surfaces here, the coverage hole a reachable Layer 2 can't "
+                  "see. With no Docker it reports `blocked`, never a fabricated pass.*"),
+        )
+    else:
+        _r = flow_reconcile
+        _wd = _r.get("worst_drop")
+        _wd_s = f"{_wd:.1%}" if isinstance(_wd, (int, float)) else "—"
+        flow_panel = ui.panel(mo,
+            ui.header(mo, "Flow reconciliation (hop counts) — measured"),
+            mo.md(f"{_ic.get(_r['status'], '⚪')} **{_r['status']}** · {_r.get('note', '')} · "
+                  f"router `{_r.get('router', '?')}` · worst drop {_wd_s} · "
+                  f"last run `{_r.get('ran_at', '?')}` · Tier B, single host"),
+        )
+    return (flow_panel,)
+
+
 # ----- Layer 1 — source health ----------------------------------------------
 @app.cell(hide_code=True)
 def _(cat, ns_selector):
@@ -1510,7 +1574,7 @@ def _(l4_primary, l4_sources_select, layer4, mo, ui):
 
 
 @app.cell(hide_code=True)
-def _(capture_baseline, docs_panel, evidence_panel, evidence_select, health_compaction, health_crc, health_orphan, health_panel, health_schema, health_tombstone, l4_idcol, l4_primary, l4_sources_select, l4_tolerance, layer1_panel, layer4_panel, mo, okf_panel, roundtrip_panel, run_evidence, run_health, run_layer4, run_roundtrip_btn, scorecard_panel, ui):
+def _(capture_baseline, docs_panel, evidence_panel, evidence_select, flow_panel, health_compaction, health_crc, health_orphan, health_panel, health_schema, health_tombstone, l4_idcol, l4_primary, l4_sources_select, l4_tolerance, layer1_panel, layer4_panel, mo, okf_panel, roundtrip_panel, run_evidence, run_flow_btn, run_health, run_layer4, run_roundtrip_btn, scorecard_panel, ui):
     # Startup › Strategy — OKF strategy vault + paid Matrix scorecard + thesis-evidence proof
     strategy_view = mo.vstack([
         okf_panel,
@@ -1557,6 +1621,14 @@ def _(capture_baseline, docs_panel, evidence_panel, evidence_select, health_comp
                   "schema-shape pass (Layer 3) can miss. Feeds the data-health gate as a cert-bearing row."),
             mo.hstack([run_roundtrip_btn]),
             roundtrip_panel,
+        ),
+        ui.panel(mo,
+            ui.header(mo, "Flow Reconciliation — Hop Counts (emitted → ingested → landed)"),
+            mo.md("Run the real source→route→land pipeline and reconcile per-OCSF-class counts at every "
+                  "hop. A class the pipeline silently loses surfaces as a drop — the coverage hole a "
+                  "reachable Layer 2 can't see. Feeds the data-health gate as a cert-bearing row."),
+            mo.hstack([run_flow_btn]),
+            flow_panel,
         ),
     ])
     return (health_view, strategy_view)

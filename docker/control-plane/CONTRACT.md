@@ -119,13 +119,13 @@ owner-gated upgrade, not the reason for amber.
 - `prove_flow_reconcile.py`, `prove_ocsf_roundtrip.py` — the cluster-5 deepening engines.
 - `prove_panels_smoke.py` — headless construction of the Startup-tab panels.
 
-## Cluster-5 deepening (2026-06-20) — answer-equality + OCSF round-trip wired live; flow reconciliation collection deferred
+## Cluster-5 deepening (2026-06-20) — all three deepenings wired live (answer-equality, OCSF round-trip, flow reconciliation)
 
-Three deepenings extend the gate beyond Layers 1–4, each a pure engine with a proof.
-Cross-engine answer-equality and the OCSF round-trip are now wired to the live stack; flow
-reconciliation stays logic-only until its live per-class hop counts exist — that needs a routed
-ingest pipeline, not just the one-shot routers, because the seed-only stack writes directly and
-so has no upstream count to reconcile:
+Three deepenings extend the gate beyond Layers 1–4, each a pure engine with a proof, and all
+three are now wired to the live stack. Each is an optional, cert-bearing gate row (default
+`None` = omitted, back-compat) that the *Flow › Health* tab runs on a button press, with the
+same honesty rules every measured layer gets: pass/fail is cert-bearing, blocked/errored is
+`unmeasured` (never a bluffed pass), and a stale pass decays past the one-day TTL.
 
 - **Cross-engine answer equality** — `compute_gate` carries an optional seventh row
   (`answer_equality_status`, default `None` = omitted for back-compat). It is a cert-bearing
@@ -137,10 +137,18 @@ so has no upstream count to reconcile:
   decays a pass older than the one-day TTL (or an undatable one) to `stale`. Proven end-to-end
   across duckdb + Trino + ClickHouse over `iceberg.ocsf.network_activity` (all three agree
   1000/125); unit + composed + decay coverage in `prove_evidence.py` Part 3.
-- **Flow reconciliation** (`flow_reconcile.py`) — counts events hop-to-hop per OCSF class
-  (emitted → ingested → landed) and fails on a silent drop beyond tolerance, so a pipeline
-  that quietly loses a fraction of one class surfaces rather than hiding behind a reachable
-  Layer 2.
+- **Flow reconciliation** (`flow_reconcile.py` pure + `flow_reconcile_live.py` collector +
+  `lab/flow_counts.py` land+count helper) — counts events hop-to-hop per OCSF class
+  (emitted → ingested → landed) and fails on a silent drop beyond tolerance, so a pipeline that
+  quietly loses a fraction of one class surfaces rather than hiding behind a reachable Layer 2.
+  **Wired live (2026-06-20):** the real source→route→land pipeline runs (raw Okta sample → Tenzir
+  router → `ocsf.authentication` Iceberg table, reusing promote.py's land idiom); emitted is
+  ground truth from the sample, ingested is the router's OCSF output by class, landed is what
+  survived into the table counted through the catalog (not a stale-prone catalog-less read).
+  `compute_gate` carries an optional ninth row (`flow_reconcile_status`). Proven live
+  (3002: 8/8/8 clean) plus synthetic drop / router-loss / missing-hop cases in
+  `prove_flow_reconcile_live.py`, with the 9th-row behavior in `prove_gate.py` Part 2e. The
+  sample is single-class (3002); multi-class reconciliation needs a second source.
 - **OCSF round-trip** (`ocsf_roundtrip.py` pure + `ocsf_roundtrip_live.py` live arm) — value-level
   check on top of schema conformance: the deployed router transform runs over the known raw Okta
   sample and each produced OCSF record must carry the Authentication contract values (class 3002,

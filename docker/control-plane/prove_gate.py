@@ -196,6 +196,19 @@ def main():
         check("roundtrip=unmeasured -> not green, listed unmeasured (no bluff)",
               _g8u["all_green"] is False and "OCSF round-trip (mapping fidelity)" in _g8u["unmeasured"])
 
+        # Part 2e — the optional 9th row: flow reconciliation (hop counts). Same rules: a
+        # silent class drop is a fail that blocks certification; unmeasured never bluffs a pass.
+        print("\nPart 2e — flow reconciliation hop-count row (optional 9th gate row)")
+        _g9p = gate_for(h["status"], **_others, answer_equality_status="pass",
+                        ocsf_roundtrip_status="pass", flow_reconcile_status="pass")
+        check("flow=pass -> 9 rows, still GREEN", len(_g9p["layers"]) == 9 and _g9p["all_green"] is True)
+        _g9f = gate_for(h["status"], **_others, flow_reconcile_status="fail")
+        check("flow=fail -> NOT green, named a cert blocker",
+              _g9f["all_green"] is False and "Flow reconciliation (hop counts)" in _g9f["cert_blockers"])
+        _g9u = gate_for(h["status"], **_others, flow_reconcile_status="unmeasured")
+        check("flow=unmeasured -> not green, listed unmeasured (no bluff)",
+              _g9u["all_green"] is False and "Flow reconciliation (hop counts)" in _g9u["unmeasured"])
+
         print()
         if _failures:
             print(f"\033[91m{len(_failures)} assertion(s) FAILED:\033[0m " + "; ".join(_failures))

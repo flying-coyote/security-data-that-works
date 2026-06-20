@@ -31,7 +31,7 @@ ICON = {"pass": "🟢", "fail": "🔴", "unmeasured": "⚪", "unwired": "⚫", "
 def compute_gate(*, warns, spec_saved, docker_up, catalog_live,
                  layer1_status="unmeasured", layer3_status="unmeasured",
                  layer4_status="unmeasured", answer_equality_status=None,
-                 ocsf_roundtrip_status=None) -> dict:
+                 ocsf_roundtrip_status=None, flow_reconcile_status=None) -> dict:
     """Return the gate verdict dict.
 
     warns: list of incompatible-selection warning titles (config-integrity blockers).
@@ -47,6 +47,10 @@ def compute_gate(*, warns, spec_saved, docker_up, catalog_live,
     transform turns known raw events into OCSF records that carry the contract values). A
     mapping can be schema-valid yet semantically wrong, so a `fail` here blocks certification.
     `None` omits the row (back-compat); any status adds it as an eighth, cert-bearing row.
+    flow_reconcile_status: optional per-class hop-count reconciliation (emitted → ingested →
+    landed across the live source→route→land pipeline). A class the pipeline silently drops is
+    a coverage hole a reachable Layer 2 can't see, so a `fail` here blocks certification. `None`
+    omits the row (back-compat); any status adds it as a ninth, cert-bearing row.
     """
     blockers = [f"Incompatible selection: {w}" for w in warns]
     if not spec_saved:
@@ -65,6 +69,8 @@ def compute_gate(*, warns, spec_saved, docker_up, catalog_live,
         layers.append(("Cross-engine answer equality", answer_equality_status))
     if ocsf_roundtrip_status is not None:
         layers.append(("OCSF round-trip (mapping fidelity)", ocsf_roundtrip_status))
+    if flow_reconcile_status is not None:
+        layers.append(("Flow reconciliation (hop counts)", flow_reconcile_status))
 
     deploy_ok = not blockers
     all_green = deploy_ok and all(s == "pass" for _n, s in layers)
