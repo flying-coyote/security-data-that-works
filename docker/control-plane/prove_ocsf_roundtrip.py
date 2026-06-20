@@ -37,6 +37,14 @@ def main():
           any(m["why"] == "wrong-value" and m["got"] == 3 and m["expected"] == 5 for m in wrong["mismatches"]))
 
     check("nested dotted path resolves", rt.check_event({"src_endpoint.port": 443}, produced)["status"] == "pass")
+    check("expected False, produced 0 -> fail (no 0==False trap)",
+          rt.check_event({"flag": False}, {"flag": 0})["status"] == "fail")
+    check("expected 1, produced True -> fail (no 1==True trap)",
+          rt.check_event({"n": 1}, {"n": True})["status"] == "fail")
+    check("present None matches expected None -> pass",
+          rt.check_event({"opt": None}, {"opt": None})["status"] == "pass")
+    check("present falsy 0 matches expected 0 -> pass",
+          rt.check_event({"count": 0}, {"count": 0})["status"] == "pass")
 
     print("\n=== aggregate over a source's test events ===\n")
     a_pass = rt.validate([{"expected": {"activity_id": 1}, "produced": produced},

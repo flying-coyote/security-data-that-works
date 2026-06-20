@@ -24,6 +24,9 @@ def reconcile_class(ocsf_class, counts, *, tolerance_frac=0.0) -> dict:
     if e is None or i is None or l is None:
         return {"class": ocsf_class, "status": "unmeasured", "hops": counts,
                 "drop": None, "drop_frac": None, "note": "a hop count is missing"}
+    if e < 0 or i < 0 or l < 0:
+        return {"class": ocsf_class, "status": "unmeasured", "hops": counts,
+                "drop": None, "drop_frac": None, "note": "a hop count is negative - invalid input"}
     if e <= 0:
         return {"class": ocsf_class, "status": "unmeasured", "hops": counts,
                 "drop": None, "drop_frac": None, "note": "nothing emitted — no baseline to reconcile"}

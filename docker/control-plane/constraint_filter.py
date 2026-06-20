@@ -248,7 +248,9 @@ def _active_pairs(selection) -> list[tuple]:
     pairs = []
     for cat, val in (selection or {}).items():
         cfg = CONSTRAINTS.get(cat)
-        default = cfg["default"] if cfg else None
+        if cfg is None:
+            continue  # ignore unknown constraint categories
+        default = cfg["default"]
         codes = val if isinstance(val, list) else [val]
         for code in codes:
             if not code:

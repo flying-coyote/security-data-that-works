@@ -118,6 +118,9 @@ def main():
     check("'weird gibberish' -> unknown", bl.classify_failure("weird gibberish", 1)["class"] == "unknown")
     check("None exit (timeout) -> timeout", bl.classify_failure("ran long\n[bench_lab] TIMEOUT after 60s", None)["class"] == "timeout")
     check("'TIMEOUT after' in stderr -> timeout", bl.classify_failure("x\n[bench_lab] TIMEOUT after 30s", 1)["class"] == "timeout")
+    check("127 (cannot launch) stays unknown -- timeout branch does not mask it",
+          bl.classify_failure("[bench_lab] cannot launch bench: x", 127)["class"] == "unknown")
+    check("137 (oom) not masked by the timeout branch", bl.classify_failure("killed", 137)["class"] == "oom")
 
     # --- 7. power-plan guard logic --------------------------------------------------
     print("\n=== 7. power-plan guard ===\n")

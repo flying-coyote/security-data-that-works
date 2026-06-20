@@ -36,6 +36,12 @@ def main():
     check("a drop within tolerance -> pass", within["status"] == "pass")
     beyond = fr.reconcile_class("3002", {"emitted": 1000, "ingested": 1000, "landed": 980}, tolerance_frac=0.01)
     check("a drop beyond tolerance -> fail", beyond["status"] == "fail")
+    boundary = fr.reconcile_class("3002", {"emitted": 1000, "ingested": 1000, "landed": 990}, tolerance_frac=0.01)
+    check("drop exactly at the tolerance threshold -> pass (strict >)", boundary["status"] == "pass")
+    check("negative emitted -> unmeasured (invalid input)",
+          fr.reconcile_class("3002", {"emitted": -100, "ingested": 100, "landed": 100})["status"] == "unmeasured")
+    check("negative ingested -> unmeasured",
+          fr.reconcile_class("3002", {"emitted": 1000, "ingested": -5, "landed": 1000})["status"] == "unmeasured")
 
     print("\n=== aggregate across classes ===\n")
     a_pass = fr.reconcile({"3002": {"emitted": 100, "ingested": 100, "landed": 100},

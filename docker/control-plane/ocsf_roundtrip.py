@@ -34,7 +34,9 @@ def check_event(expected, produced) -> dict:
         got = _get(produced or {}, path)
         if got is _MISSING:
             mismatches.append({"path": path, "expected": want, "got": None, "why": "missing"})
-        elif got != want:
+        elif got != want or (isinstance(got, bool) is not isinstance(want, bool)):
+            # The bool clause defeats Python's 0==False / 1==True trap: a produced 0 must
+            # not satisfy an expected False (nor 1 an expected True): a different OCSF meaning.
             mismatches.append({"path": path, "expected": want, "got": got, "why": "wrong-value"})
     return {"status": "pass" if not mismatches else "fail", "mismatches": mismatches}
 
