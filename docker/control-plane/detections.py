@@ -47,6 +47,18 @@ DETECTIONS = [
         "rank": "total_bytes_out",
         "why": "A source sending an unusually large total volume outbound (bytes_out = what src_endpoint sent).",
     },
+    {
+        "id": "credential_stuffing",
+        "title": "Credential stuffing / password spray — failed-auth burst from one source",
+        "technique": "T1110", "table": "authentication",
+        "where": [("class_uid", "=", 3002), ("status_id", "=", 2)],   # FAILED auth (the corrected CON-AUTH-1 status_id)
+        "group": ("src_ip",),
+        "measures": {"failed_attempts": ("count", None), "distinct_users": ("distinct", "user")},
+        "having": [("failed_attempts", ">=", 5)],
+        "rank": "failed_attempts",
+        "why": "Many failed logins from one source. distinct_users separates targeted stuffing (few accounts) "
+               "from spraying (many) — it is a COUNT, never the usernames.",
+    },
 ]
 
 
@@ -57,6 +69,8 @@ def _match(r, where):
 def _measure(agg, field, group_rows):
     if agg == "count":
         return len(group_rows)
+    if agg == "distinct":   # COUNT(DISTINCT field) — a number, never the values themselves
+        return len({g.get(field) for g in group_rows})
     vals = [g.get(field) for g in group_rows if isinstance(g.get(field), (int, float))]
     if agg == "sum":
         return sum(vals)
@@ -112,7 +126,8 @@ def scan(records, detections=None, *, top_n=10):
     return out
 
 
-_AGG_SQL = {"count": "count(*)", "sum": "sum({field})", "avg": "avg({field})"}
+_AGG_SQL = {"count": "count(*)", "sum": "sum({field})", "avg": "avg({field})",
+            "distinct": "count(DISTINCT {field})"}
 
 
 def to_sql(detection, table):
@@ -149,6 +164,12 @@ def demo_records(samples_dir=None):
         recs = []
     recs += [{"class_uid": 4001, "activity_id": 6, "src_ip": "10.0.1.200", "dst_ip": "198.51.100.9",
               "dst_port": 443, "bytes_in": 100, "bytes_out": 5000} for _ in range(3)]
+    # planted failed-auth burst (3002) for the credential-stuffing hunt: one source, 6 failed logins
+    # across 6 distinct users (a spray), plus a couple of benign successes that must NOT fire.
+    recs += [{"class_uid": 3002, "category_uid": 3, "activity_id": 1, "status_id": 2,
+              "src_ip": "203.0.113.99", "user": f"user{i}@acme.example"} for i in range(6)]
+    recs += [{"class_uid": 3002, "category_uid": 3, "activity_id": 1, "status_id": 1,
+              "src_ip": "10.0.5.5", "user": "alice@acme.example"} for _ in range(2)]
     return recs
 
 
