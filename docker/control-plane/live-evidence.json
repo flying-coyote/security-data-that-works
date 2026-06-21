@@ -6,7 +6,15 @@
         1000,
         125
       ],
+      "dremio": [
+        1000,
+        125
+      ],
       "duckdb": [
+        1000,
+        125
+      ],
+      "starrocks": [
         1000,
         125
       ],
@@ -16,7 +24,7 @@
       ]
     },
     "hypothesis": "answer-equality (cross-engine)",
-    "ran_at": "2026-06-21T08:23:44Z",
+    "ran_at": "2026-06-21T21:29:01Z",
     "status": "pass"
   },
   "detections": {
@@ -26,7 +34,7 @@
       "exfil_egress": 1
     },
     "landed_rows": 11,
-    "ran_at": "2026-06-21T04:25:04",
+    "ran_at": "2026-06-21T21:29:14Z",
     "table": "ocsf.network_activity_demo"
   },
   "flow_reconcile": {
@@ -37,12 +45,12 @@
         "landed": 8
       }
     },
-    "ran_at": "2026-06-21T08:23:52Z",
+    "ran_at": "2026-06-21T21:29:15Z",
     "status": "pass"
   },
   "ocsf_roundtrip": {
     "events_faithful": 8,
-    "ran_at": "2026-06-21T08:24:00Z",
+    "ran_at": "2026-06-21T21:29:22Z",
     "router": "tenzir",
     "status": "pass"
   }

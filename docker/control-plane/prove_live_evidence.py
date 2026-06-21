@@ -75,6 +75,46 @@ def main():
         open(p, "w").write("{not json")
         check("corrupt file -> load() is {} (never raises)", le.load(p) == {})
 
+    print("\n=== gate_status: the honesty-critical decay fallback (a chip must NEVER fake a green) ===\n")
+    NOW = "2026-06-21T12:30:00Z"
+    with tempfile.TemporaryDirectory() as tmp:
+        p = os.path.join(tmp, "live-evidence.json")
+        le.record_arm("answer_equality", {"status": "pass", "ran_at": "2026-06-21T12:00:00Z", "agree": True}, path=p)
+        check("a FRESH recorded pass -> 'pass' (gate shows the measured green)",
+              le.gate_status("answer_equality", NOW, path=p) == "pass")
+        check("recorded_at returns the arm's ran_at",
+              le.recorded_at("answer_equality", path=p) == "2026-06-21T12:00:00Z")
+        le.record_arm("answer_equality", {"status": "pass", "ran_at": "2026-06-19T12:00:00Z"}, path=p)
+        check("a recorded pass older than the TTL -> 'stale', never 'pass' (no stale green)",
+              le.gate_status("answer_equality", NOW, path=p) == "stale")
+        le.record_arm("answer_equality", {"status": "pass", "ran_at": "2026-06-25T00:00:00Z"}, path=p)
+        check("a future-stamped pass -> 'stale' (clock-skew guard, no faked green)",
+              le.gate_status("answer_equality", NOW, path=p) == "stale")
+        check("an absent arm -> None (gate row omitted, never fabricated)",
+              le.gate_status("nope", NOW, path=p) is None)
+        le.record_arm("ocsf_roundtrip", {"ran_at": "2026-06-21T12:00:00Z"}, path=p)  # no status
+        check("an arm with no status -> None", le.gate_status("ocsf_roundtrip", NOW, path=p) is None)
+        le.record_arm("flow_reconcile", {"status": "pass"}, path=p)  # no ran_at
+        check("an arm with no ran_at -> None (an undatable pass is not surfaced as green here)",
+              le.gate_status("flow_reconcile", NOW, path=p) is None)
+        check("recorded_at on an absent / unstamped arm -> None",
+              le.recorded_at("nope", path=p) is None and le.recorded_at("flow_reconcile", path=p) is None)
+        le.record_arm("answer_equality", {"status": "fail", "ran_at": "2026-06-21T12:00:00Z"}, path=p)
+        check("a recorded non-pass passes through unchanged (a fail stays a fail)",
+              le.gate_status("answer_equality", NOW, path=p) == "fail")
+        # the adversarial-review fix: untrustworthy stamps (naive / date-only / integer) must NOT read fresh.
+        le.record_arm("answer_equality", {"status": "pass", "ran_at": "2026-06-20T21:00:00"}, path=p)  # naive, no Z
+        check("a NAIVE (no-tz) recorded pass -> 'stale', never 'pass' (faked-green path closed)",
+              le.gate_status("answer_equality", NOW, path=p) == "stale")
+        le.record_arm("answer_equality", {"status": "pass", "ran_at": "2026-06-21"}, path=p)  # date-only
+        check("a DATE-ONLY recorded pass -> 'stale' (no midnight-fresh green)",
+              le.gate_status("answer_equality", NOW, path=p) == "stale")
+        le.record_arm("answer_equality", {"status": "pass", "ran_at": 20260621}, path=p)  # integer
+        check("an INTEGER ran_at pass -> 'stale' (not 'pass')",
+              le.gate_status("answer_equality", NOW, path=p) == "stale")
+        check("recorded_at on a naive / integer stamp -> None (never rendered as authoritative provenance)",
+              le.recorded_at("answer_equality", path=p) is None)
+
     print()
     if _failures:
         print(f"\033[91m{len(_failures)} assertion(s) FAILED:\033[0m " + "; ".join(_failures))
