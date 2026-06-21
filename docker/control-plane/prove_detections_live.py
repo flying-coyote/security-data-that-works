@@ -85,8 +85,10 @@ def main():
     check(f"landed {landed} OCSF rows and read them BACK from the Iceberg table ({total} rows)",
           total == landed and total > 0)
 
-    evidence = {"ran_at": time.strftime("%Y-%m-%dT%H:%M:%S"), "table": IDENT, "landed_rows": landed,
-                "catalog": REST, "findings": {}}
+    # UTC with a Z suffix — match the trust+verify recorders, NOT a naive local stamp (a tz-less ran_at
+    # is silently read as UTC by decay arithmetic and could read stale-as-fresh on a non-UTC host).
+    evidence = {"ran_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()), "table": IDENT,
+                "landed_rows": landed, "catalog": REST, "findings": {}}
     found = {}
     for d in det.DETECTIONS:
         if d["table"] != "network_activity":

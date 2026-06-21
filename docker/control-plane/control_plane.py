@@ -35,6 +35,7 @@ def _():
     import evidence_runner as ev
     import ocsf_roundtrip_live as rl
     import flow_reconcile_live as fl
+    import live_evidence as le
     import topology as topo
     import migrate as mig
     import analyze as az
@@ -43,7 +44,7 @@ def _():
 
     # Tolaria convention: point VAULT_PATH at the OKF vault (project1).
     VAULT_PATH = os.environ.get("VAULT_PATH", os.path.expanduser("~/project1"))
-    return P, RestCatalog, VAULT_PATH, antip, az, ca, cf, cpv, deployer, dets, dk, ev, fl, gl, l1, l3, l4, mig, mo, okf, os, rl, rp, subprocess, textwrap, topo, ui, yaml
+    return P, RestCatalog, VAULT_PATH, antip, az, ca, cf, cpv, deployer, dets, dk, ev, fl, gl, l1, l3, l4, le, mig, mo, okf, os, rl, rp, subprocess, textwrap, topo, ui, yaml
 
 
 @app.cell(hide_code=True)
@@ -640,7 +641,7 @@ def _(mo):
 
 
 @app.cell(hide_code=True)
-def _(P, cat, config_path, deployer, ev, evidence, fl, flow_reconcile, gl, layer1, layer3, layer4, mo, ocsf_roundtrip, os, rl, sel_catalog, sel_ingest, sel_query, sel_schema, sel_storage, ui):
+def _(P, cat, config_path, deployer, ev, evidence, fl, flow_reconcile, gl, layer1, layer3, layer4, le, mo, ocsf_roundtrip, os, rl, sel_catalog, sel_ingest, sel_query, sel_schema, sel_storage, ui):
     # The composite data-health gate — the spine of the console. The verdict logic
     # lives in gate_logic.compute_gate (a pure function the proof harnesses exercise
     # through healthy -> broken -> healthy arcs), so this cell only gathers the layer
@@ -663,15 +664,18 @@ def _(P, cat, config_path, deployer, ev, evidence, fl, flow_reconcile, gl, layer
         # informational verb count below. Never run -> None -> row omitted; blocked/errored
         # -> unmeasured, never a bluffed pass; and a pass older than the TTL decays to stale
         # (now_iso), the same last-validated rule layers 1/3/4 get. Pure, proven function.
-        answer_equality_status=ev.answer_equality_status(evidence, now_iso=_now_iso),
+        # Live interactive run wins; with none this session, fall back to the recorded live-evidence arm
+        # (a stack-UP measurement), decayed honestly — fresh -> pass, older than a day -> stale, never green
+        # from nothing. This is what makes the gate show measured-GREEN on a fresh load / the flip-through.
+        answer_equality_status=ev.answer_equality_status(evidence, now_iso=_now_iso) or le.gate_status("answer_equality", _now_iso),
         # OCSF round-trip — value-level mapping fidelity from the deployed router transform.
         # Same optional/decay rules: run -> pass/fail cert row; blocked/errored -> unmeasured;
         # never run -> None -> row omitted. Eighth gate row.
-        ocsf_roundtrip_status=rl.gate_status(ocsf_roundtrip, now_iso=_now_iso),
+        ocsf_roundtrip_status=rl.gate_status(ocsf_roundtrip, now_iso=_now_iso) or le.gate_status("ocsf_roundtrip", _now_iso),
         # Flow reconciliation — per-class emitted/ingested/landed across the live source->route->
         # land pipeline. Ninth gate row; same optional/decay rules. A silent class drop is a
         # coverage hole Layer 2 can't see, so a fail blocks certification.
-        flow_reconcile_status=fl.gate_status(flow_reconcile, now_iso=_now_iso),
+        flow_reconcile_status=fl.gate_status(flow_reconcile, now_iso=_now_iso) or le.gate_status("flow_reconcile", _now_iso),
     )
 
     _verdict, _vcolor = gl.verdict_line(gate)
@@ -687,10 +691,16 @@ def _(P, cat, config_path, deployer, ev, evidence, fl, flow_reconcile, gl, layer
                + (f", {_evs['blocked']} blocked" if _evs['blocked'] else "")
                + (f" (last run {_evs['last_run']})" if _evs['last_run'] else "")
                + " — informational; the `verify` result also feeds the cross-engine gate row above.*") if _evs["total"] else ""
+    # Dated provenance for the trust+verify rows fed from recorded stack-UP evidence — so the gate is a
+    # *visible*, dated measurement, not just a green light. Each chip carries when it was last measured.
+    _ev_at = [(_n, le.recorded_at(_a)) for _n, _a in
+              (("answer-equality", "answer_equality"), ("round-trip", "ocsf_roundtrip"), ("flow-reconcile", "flow_reconcile"))]
+    _ev_prov = ("\n\n*Trust+verify last measured (recorded stack-UP run; decays to stale after a day): "
+                + " · ".join(f"{_n} @ {_ts}" for _n, _ts in _ev_at if _ts) + "*") if any(_ts for _, _ts in _ev_at) else ""
     gate_panel = ui.panel(mo,
         ui.header(mo, "Data-Health Gate"),
         mo.md(f"**<span style='color:{_vcolor}; font-size:1.05rem;'>{_verdict}</span>**"),
-        mo.md(_rows + _blk + _unm + _evline),
+        mo.md(_rows + _blk + _unm + _ev_prov + _evline),
         **{"border": f"1px solid {_vcolor}"},
     )
     return gate, gate_panel
