@@ -84,9 +84,8 @@ def build_funnel_viz_panel():
 def build_config_preview_panel():
     # PB-1 Configuration raw->OCSF preview renderer — execute it for both sources (markdown table
     # + json blocks), the path a graph-check doesn't run.
-    return mo.vstack([cpv.config_preview_panel(mo, ui, cpv.build_preview("zeek")),
-                      cpv.config_preview_panel(mo, ui, cpv.build_preview("sysmon")),
-                      cpv.config_preview_panel(mo, ui, cpv.build_preview("nope"))])  # error path renders too
+    return mo.vstack([cpv.config_preview_panel(mo, ui, cpv.build_preview(s))
+                      for s in ("zeek", "sysmon", "cloudtrail", "nope")])  # incl. nested-path + error path
 
 
 def build_presets_panel():

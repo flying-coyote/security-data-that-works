@@ -59,10 +59,27 @@ CROSSWALK = {
             ("Computer", "hostname", ""),
         ],
     },
+    "cloudtrail": {
+        "class_uid": 3002, "class_name": "Authentication (ConsoleLogin)", "raw_kind": "ndjson", "default_row": 1,
+        "raw_file": "cloudtrail.sample.ndjson", "gold_file": "cloudtrail.ocsf.expected.ndjson",
+        "fields": [
+            ("eventName", "class_uid",
+             "ConsoleLogin -> Authentication 3002; other API events -> API Activity 6003 (category 6, NOT 3005)"),
+            ("eventName", "activity_id", "ConsoleLogin -> 1 Logon (the operation, from the event type — not the outcome)"),
+            ("responseElements.ConsoleLogin", "status_id",
+             "Success -> 1 / Failure -> 2 — the outcome is status_id, not activity_id (CON-AUTH-1)"),
+            ("userIdentity.userName", "user", ""),
+            ("sourceIPAddress", "src_ip", ""),
+            ("additionalEventData.MFAUsed", "is_mfa",
+             f"{_WARN} MFA three-state: Yes->true, No->false, but ABSENT (no key) must STAY absent — a flatten "
+             "that coerces a missing MFA field to 'false' silently misses unprotected logins (this row IS the absent case)"),
+        ],
+    },
 }
 
 SOURCES = {"zeek": "Zeek conn.log -> Network Activity (4001)",
-           "sysmon": "Sysmon EventID-1 -> Process Activity (1007)"}
+           "sysmon": "Sysmon EventID-1 -> Process Activity (1007)",
+           "cloudtrail": "AWS CloudTrail -> Authentication (3002) / API Activity (6003)"}
 
 
 def _read_zeek_tsv(path):
@@ -82,6 +99,22 @@ def _read_zeek_tsv(path):
 def _read_ndjson(path):
     with open(path) as f:
         return [json.loads(line) for line in f if line.strip()]
+
+
+def _dig(d, path):
+    """Resolve a raw-field path. Tries the LITERAL key first — Zeek's keys contain dots but are flat
+    (`id.orig_h`) — then falls back to nested traversal so a genuinely nested source like CloudTrail
+    (`responseElements.ConsoleLogin`) maps just as cleanly. Absent path -> None (the MFA-absent case)."""
+    if not isinstance(d, dict):
+        return None
+    if path in d:
+        return d[path]
+    cur = d
+    for part in path.split("."):
+        if not isinstance(cur, dict):
+            return None
+        cur = cur.get(part)
+    return cur
 
 
 def build_preview(source, *, samples_dir=None, row_index=None) -> dict:
@@ -105,7 +138,7 @@ def build_preview(source, *, samples_dir=None, row_index=None) -> dict:
     idx = cfg["default_row"] if row_index is None else row_index
     idx = max(0, min(int(idx), len(raws) - 1))
     raw, gold = raws[idx], golds[idx]
-    rows = [{"raw_field": rf, "raw_value": raw.get(rf), "ocsf_field": of,
+    rows = [{"raw_field": rf, "raw_value": _dig(raw, rf), "ocsf_field": of,
              "ocsf_value": gold.get(of), "trap": note.startswith(_WARN), "note": note}
             for rf, of, note in cfg["fields"]]
     return {"source": source, "class_uid": cfg["class_uid"], "class_name": cfg["class_name"],

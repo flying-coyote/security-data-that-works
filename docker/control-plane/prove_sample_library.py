@@ -65,6 +65,29 @@ def _read_ndjson(path):
         return [json.loads(line) for line in f if line.strip()]
 
 
+def _dig(d, path):
+    """Resolve a dotted path in a nested raw event (e.g. responseElements.ConsoleLogin); None if absent."""
+    cur = d
+    for part in path.split("."):
+        if not isinstance(cur, dict):
+            return None
+        cur = cur.get(part)
+    return cur
+
+
+# CloudTrail API eventName verb -> OCSF API Activity (6003) activity_id (1 Create / 2 Read / 3 Update / 4 Delete).
+_API_VERB = (("Get", 2), ("List", 2), ("Describe", 2), ("Delete", 4), ("Remove", 4), ("Terminate", 4),
+             ("Attach", 3), ("Detach", 3), ("Update", 3), ("Modify", 3), ("Put", 3),
+             ("Create", 1), ("Add", 1), ("Run", 1))
+
+
+def _api_activity(name):
+    for pre, aid in _API_VERB:
+        if name.startswith(pre):
+            return aid
+    return 99
+
+
 def main():
     print("\n=== Zeek conn.log -> OCSF Network Activity (4001) ===\n")
     raws = _read_zeek_tsv(os.path.join(SAMPLES, "zeek_conn.sample.tsv"))
@@ -121,6 +144,44 @@ def main():
     check("the encoded-PowerShell red flag is present (office->powershell -enc)",
           any("powershell" in g["process_path"].lower() and "-enc" in g["cmd_line"].lower()
               and "winword" in g["parent_path"].lower() for g in sgold))
+
+    print("\n=== AWS CloudTrail -> OCSF (ConsoleLogin 3002 / API 6003) — canonical auth + MFA three-state ===\n")
+    craw = _read_ndjson(os.path.join(SAMPLES, "cloudtrail.sample.ndjson"))
+    cgold = _read_ndjson(os.path.join(SAMPLES, "cloudtrail.ocsf.expected.ndjson"))
+    check("one gold record per raw CloudTrail event", len(craw) == len(cgold) and len(craw) == 5)
+    seen_routes, mfa_states = set(), set()
+    for i, (r, g) in enumerate(zip(craw, cgold)):
+        name = r["eventName"]
+        if name == "ConsoleLogin":
+            seen_routes.add(3002)
+            check(f"row {i} ConsoleLogin -> Authentication 3002 (NOT API Activity 6003)", g["class_uid"] == 3002)
+            check(f"row {i} category_uid 3, activity_id 1 (Logon — the operation, CON-AUTH-1)",
+                  g["category_uid"] == 3 and g["activity_id"] == 1)
+            _out = _dig(r, "responseElements.ConsoleLogin")
+            check(f"row {i} status_id carries the outcome ('{_out}' -> {1 if _out == 'Success' else 2})",
+                  g["status_id"] == (1 if _out == "Success" else 2))
+            check(f"row {i} user<-userIdentity.userName, src_ip<-sourceIPAddress",
+                  g["user"] == _dig(r, "userIdentity.userName") and g["src_ip"] == r["sourceIPAddress"])
+            mfa_raw = _dig(r, "additionalEventData.MFAUsed")
+            if mfa_raw is None:
+                mfa_states.add("absent")
+                # the trap: MFA-absent must NOT be coerced to is_mfa:false — the gold OMITS the key.
+                check(f"row {i} MFA-absent: gold has NO is_mfa key (absent != false)", "is_mfa" not in g)
+            else:
+                mfa_states.add(str(mfa_raw))
+                check(f"row {i} MFA present '{mfa_raw}' -> is_mfa {mfa_raw == 'Yes'}",
+                      g.get("is_mfa") == (mfa_raw == "Yes"))
+        else:
+            seen_routes.add(6003)
+            check(f"row {i} API event '{name}' -> API Activity 6003 (category 6, NOT 3005)",
+                  g["class_uid"] == 6003 and g["category_uid"] == 6)
+            check(f"row {i} activity_id from the verb ('{name}' -> {_api_activity(name)})",
+                  g["activity_id"] == _api_activity(name))
+            check(f"row {i} api_operation<-eventName, user carried",
+                  g["api_operation"] == name and g["user"] == _dig(r, "userIdentity.userName"))
+    check("both classes exercised (3002 ConsoleLogin + 6003 API)", seen_routes == {3002, 6003})
+    check("the MFA three-state is exercised (present-true, present-false, AND absent)",
+          {"Yes", "No", "absent"} <= mfa_states)
 
     if _failures:
         print(f"\n\033[91m{len(_failures)} assertion(s) FAILED\033[0m")

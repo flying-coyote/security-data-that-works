@@ -1,0 +1,5 @@
+{"class_uid":3002,"category_uid":3,"activity_id":1,"status_id":1,"user":"alice","src_ip":"198.51.100.20","status":"Success","is_mfa":true,"time":"2026-01-01T01:00:00Z"}
+{"class_uid":3002,"category_uid":3,"activity_id":1,"status_id":1,"user":"bob","src_ip":"203.0.113.45","status":"Success","time":"2026-01-01T01:01:00Z"}
+{"class_uid":3002,"category_uid":3,"activity_id":1,"status_id":2,"user":"carol","src_ip":"203.0.113.7","status":"Failure","is_mfa":false,"time":"2026-01-01T01:02:00Z"}
+{"class_uid":6003,"category_uid":6,"activity_id":3,"api_operation":"AttachUserPolicy","user":"admin","src_ip":"198.51.100.30","status_id":1,"time":"2026-01-01T01:03:00Z"}
+{"class_uid":6003,"category_uid":6,"activity_id":2,"api_operation":"GetCallerIdentity","user":"alice","src_ip":"198.51.100.31","status_id":1,"time":"2026-01-01T01:04:00Z"}
