@@ -43,10 +43,13 @@ def _docker_up():
 def main():
     print("\n=== Part 1 — pure contract + validation (no stack) ===\n")
     exp = rl.expected_ocsf(RAW_OK)
-    check("contract: SUCCESS -> class 3002, activity 1, user + src_ip carried",
-          exp["class_uid"] == 3002 and exp["activity_id"] == 1
+    check("contract: SUCCESS -> class 3002, cat 3, activity 1 (Logon), status_id 1, user+src_ip carried",
+          exp["class_uid"] == 3002 and exp["category_uid"] == 3 and exp["activity_id"] == 1
+          and exp["status_id"] == 1
           and exp["user"] == "jdoe@acme.example" and exp["src_ip"] == "10.10.1.21")
-    check("contract: FAILURE -> activity 2", rl.expected_ocsf(RAW_FAIL)["activity_id"] == 2)
+    check("contract (CON-AUTH-1): FAILURE keeps activity_id 1 (Logon); the outcome is status_id 2",
+          rl.expected_ocsf(RAW_FAIL)["activity_id"] == 1
+          and rl.expected_ocsf(RAW_FAIL)["status_id"] == 2)
 
     parsed = rl.parse_ocsf_lines('noise line\n{"class_uid":3002,"user":"a"}\nlog: hi\n'
                                  '{"bad json\n{"class_uid":3002,"user":"b"}\n[1,2]')
@@ -61,7 +64,8 @@ def main():
     vb = rl.validate_against_contract([RAW_OK, RAW_FAIL], wrong_class, now_iso=NOW)
     check("wrong class_uid -> fail (meaning, not shape)", vb["status"] == "fail" and vb.get("fail_count") == 1)
 
-    drop_ip = [{"class_uid": 3002, "activity_id": 1, "user": "jdoe@acme.example", "status": "SUCCESS"}]
+    drop_ip = [{"class_uid": 3002, "category_uid": 3, "activity_id": 1, "status_id": 1,
+                "user": "jdoe@acme.example", "status": "SUCCESS"}]  # complete except the dropped src_ip
     vd = rl.validate_against_contract([RAW_OK], drop_ip, now_iso=NOW)
     check("transform drops src_ip -> fail (missing required field)", vd["status"] == "fail")
 

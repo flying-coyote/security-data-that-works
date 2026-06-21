@@ -32,14 +32,19 @@ ROUTERS = {"tenzir": "route-tenzir", "fluentbit": "route-fluentbit"}
 
 def expected_ocsf(raw):
     """The OCSF Authentication contract for an Okta `user.session.start` event, specified
-    independently of any router's transform. class_uid 3002 (Authentication) is required;
-    the actor's id must land in `user` and the client IP in `src_ip` (the identity/source
-    that flattening or a sloppy map would drop); SUCCESS->activity_id 1, FAILURE->2 is the
-    stack's established convention (all three routers agree, per swap-router)."""
+    independently of any router's transform. CANONICAL per OCSF 1.8.0 + ocsf/examples (the OCSF
+    project's own Okta mapping): `activity_id` encodes the OPERATION — 1 = Logon, derived from the
+    event type — and the success/failure OUTCOME lives in `status_id` (1 = Success / 2 = Failure
+    <- outcome.result), NOT in activity_id. class_uid 3002 sits under category_uid 3; the actor's
+    id must land in `user` and the client IP in `src_ip` (the identity/source a flattening or
+    sloppy map drops). Corrected from the prior activity_id-1/2-for-outcome conflation per owner
+    decision CON-AUTH-1 (2026-06-20)."""
     outcome = (raw.get("outcome") or {}).get("result")
     return {
         "class_uid": 3002,
-        "activity_id": 1 if outcome == "SUCCESS" else 2,
+        "category_uid": 3,
+        "activity_id": 1,
+        "status_id": 1 if outcome == "SUCCESS" else 2,
         "user": (raw.get("actor") or {}).get("alternateId"),
         "src_ip": (raw.get("client") or {}).get("ipAddress"),
         "status": outcome,

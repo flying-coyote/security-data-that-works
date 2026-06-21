@@ -20,8 +20,12 @@ transforms:
       . = {}
       .class_uid = 3002
       .class_name = "Authentication"
+      .category_uid = 3
       .time = to_unix_timestamp(parse_timestamp!(e.published, "%+"), unit: "milliseconds")
-      .activity_id = if e.outcome.result == "SUCCESS" { 1 } else { 2 }
+      # Canonical (CON-AUTH-1): activity_id = the operation (1 Logon, from the event type); the
+      # success/failure outcome lives in status_id (1 Success / 2 Failure), NOT in activity_id.
+      .activity_id = 1
+      .status_id = if e.outcome.result == "SUCCESS" { 1 } else { 2 }
       .user = e.actor.alternateId
       .src_ip = e.client.ipAddress
       .status = e.outcome.result
@@ -50,6 +54,8 @@ tests:
           - type: vrl
             source: |
               assert_eq!(.class_uid, 3002)
+              assert_eq!(.category_uid, 3)
               assert_eq!(.activity_id, 1)
+              assert_eq!(.status_id, 1)
               assert_eq!(.user, "jdoe@acme.example")
               assert_eq!(.src_ip, "10.10.1.21")
