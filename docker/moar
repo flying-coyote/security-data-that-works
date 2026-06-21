@@ -257,22 +257,29 @@ cmd_swap_router() {
   local tz fb vok=0 tzok=0 fbok=0
   # Tenzir + Fluent Bit emit OCSF JSON to stdout; assert both events carry the OCSF contract (key order is not
   # guaranteed across routers, so match on field/value presence, not byte-identical lines).
+  # Canonical (CON-AUTH-1): activity_id=1 (Logon) on BOTH events; the success/failure outcome is in
+  # status_id (1 Success / 2 Failure), NOT activity_id. Match each event order-independently.
   tz=$($DC run --rm -T route-tenzir 2>/dev/null) || true
-  if echo "$tz" | grep -q '"class_uid":3002.*"activity_id":1.*jdoe@acme.example.*10\.10\.1\.21' \
-     && echo "$tz" | grep -q '"activity_id":2.*svc@acme.example.*203\.0\.113\.7'; then tzok=1; fi
+  local tzj tzs
+  tzj=$(echo "$tz" | grep 'jdoe@acme.example'); tzs=$(echo "$tz" | grep 'svc@acme.example')
+  if echo "$tzj" | grep -q '"class_uid":3002' && echo "$tzj" | grep -q '"activity_id":1' \
+     && echo "$tzj" | grep -q '"status_id":1' && echo "$tzj" | grep -q '"src_ip":"10.10.1.21"' \
+     && echo "$tzs" | grep -q '"activity_id":1' && echo "$tzs" | grep -q '"status_id":2' \
+     && echo "$tzs" | grep -q '"src_ip":"203.0.113.7"'; then tzok=1; fi
   fb=$($DC run --rm -T route-fluentbit 2>/dev/null) || true
   # Fluent Bit serializes keys in a different order, so check each event's line for the required fields
   # independently rather than in one ordered regex (the order-independent form swap-router's comment calls for).
   local fbj fbs
   fbj=$(echo "$fb" | grep 'jdoe@acme.example'); fbs=$(echo "$fb" | grep 'svc@acme.example')
   if echo "$fbj" | grep -q '"class_uid":3002' && echo "$fbj" | grep -q '"activity_id":1' \
-     && echo "$fbj" | grep -q '"src_ip":"10.10.1.21"' \
-     && echo "$fbs" | grep -q '"activity_id":2' && echo "$fbs" | grep -q '"src_ip":"203.0.113.7"'; then fbok=1; fi
+     && echo "$fbj" | grep -q '"status_id":1' && echo "$fbj" | grep -q '"src_ip":"10.10.1.21"' \
+     && echo "$fbs" | grep -q '"activity_id":1' && echo "$fbs" | grep -q '"status_id":2' \
+     && echo "$fbs" | grep -q '"src_ip":"203.0.113.7"'; then fbok=1; fi
   # Vector has a native test harness for its transform
   $DC run --rm -T route test /etc/vector/vector.yaml >/dev/null 2>&1 && vok=1
   echo "  vector  (vector test):    $([ $vok  = 1 ] && echo 'PASS — okta_auth_to_ocsf' || echo 'FAIL')"
-  echo "  tenzir  (okta-ocsf.tql):  $([ $tzok = 1 ] && echo 'PASS — class_uid 3002, activity 1/2, user, src_ip' || echo 'FAIL')"
-  echo "  fluentbit (ocsf.lua):     $([ $fbok = 1 ] && echo 'PASS — class_uid 3002, activity 1/2, user, src_ip' || echo 'FAIL')"
+  echo "  tenzir  (okta-ocsf.tql):  $([ $tzok = 1 ] && echo 'PASS — class_uid 3002, activity 1, status 1/2, user, src_ip' || echo 'FAIL')"
+  echo "  fluentbit (ocsf.lua):     $([ $fbok = 1 ] && echo 'PASS — class_uid 3002, activity 1, status 1/2, user, src_ip' || echo 'FAIL')"
   if [[ $vok = 1 && $tzok = 1 && $fbok = 1 ]]; then
     echo "  ✓ router swap clean — all three routers emit the identical OCSF Authentication contract"
   else echo "  ✗ router swap problem (vector=$vok tenzir=$tzok fluentbit=$fbok)"; return 1; fi
