@@ -6,10 +6,14 @@
 from_file "/etc/tenzir/sample.ndjson" {
   read_ndjson
 }
+// Canonical per OCSF 1.8.0 + ocsf/examples (CON-AUTH-1): activity_id = the operation (1 Logon, from the
+// event type); the success/failure outcome lives in status_id (1 Success / 2 Failure), NOT activity_id.
 this = {
   class_uid: 3002,
   class_name: "Authentication",
-  activity_id: 1 if outcome.result == "SUCCESS" else 2,
+  category_uid: 3,
+  activity_id: 1,
+  status_id: 1 if outcome.result == "SUCCESS" else 2,
   user: actor.alternateId,
   src_ip: client.ipAddress,
   status: outcome.result,
