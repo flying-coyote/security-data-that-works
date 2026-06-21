@@ -36,6 +36,7 @@ def _():
     import ocsf_roundtrip_live as rl
     import flow_reconcile_live as fl
     import live_evidence as le
+    import pre_flight as pf
     import topology as topo
     import migrate as mig
     import analyze as az
@@ -44,7 +45,7 @@ def _():
 
     # Tolaria convention: point VAULT_PATH at the OKF vault (project1).
     VAULT_PATH = os.environ.get("VAULT_PATH", os.path.expanduser("~/project1"))
-    return P, RestCatalog, VAULT_PATH, antip, az, ca, cf, cpv, deployer, dets, dk, ev, fl, gl, l1, l3, l4, le, mig, mo, okf, os, rl, rp, subprocess, textwrap, topo, ui, yaml
+    return P, RestCatalog, VAULT_PATH, antip, az, ca, cf, cpv, deployer, dets, dk, ev, fl, gl, l1, l3, l4, le, mig, mo, okf, os, pf, rl, rp, subprocess, textwrap, topo, ui, yaml
 
 
 @app.cell(hide_code=True)
@@ -755,6 +756,23 @@ def _(config_path, deploy_btn, deployer, destroy_btn, gate, gate_override, mo, y
         except Exception as _e:
             deployment_status = mo.md(f"**Stack destruction failed:** {_e}")
     return deployment_status, logs
+
+
+@app.cell(hide_code=True)
+def _(config_path, deployer, mo, os, pf, ui, yaml):
+    # PE-1 (Setup pre-flight): before a deploy, check the things that silently fail a stack — Docker
+    # reachable, the ports the deploy will bind are free, the object store serves its bucket. Checks the
+    # SAME saved config the deploy uses; an unprobed / unreachable check is never reported as 'ready'.
+    _pf_cfg = {}
+    if os.path.exists(config_path):
+        try:
+            with open(config_path) as _pf_f:
+                _pf_cfg = yaml.safe_load(_pf_f) or {}
+        except Exception:  # noqa: BLE001 — a malformed config -> defaults, the checks still run honestly
+            _pf_cfg = {}
+    _pf_report = pf.assemble_report(pf.run_preflight(_pf_cfg, deployer.is_docker_available()))
+    preflight_panel = pf.preflight_panel(mo, ui, _pf_report)
+    return (preflight_panel,)
 
 
 @app.cell(hide_code=True)
@@ -1812,6 +1830,7 @@ def _(
     migrate_view_panel,
     cat,
     config_panel,
+    preflight_panel,
     deploy_btn,
     deployment_status,
     destroy_btn,
@@ -1862,6 +1881,7 @@ def _(
                   "The data-health gate authorizes the deploy — full breakdown in Flow › Health."),
         ),
         gate_chip,
+        preflight_panel,
         mo.hstack([deploy_btn, destroy_btn, gate_override]),
         deployment_status,
         mo.accordion({"Deployment Execution Logs":
