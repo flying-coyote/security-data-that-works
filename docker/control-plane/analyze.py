@@ -32,6 +32,8 @@ ever emits the grouping key and its count, never the underlying rows.
 """
 from __future__ import annotations
 
+import html
+
 # Low-cardinality categorical OCSF fields whose grouping-key VALUES are safe to
 # surface (small enumerated integers — class_uid, activity_id, status_id, etc.).
 # These are codepoints from the OCSF schema, not attacker-controlled free text.
@@ -58,20 +60,29 @@ _MAX_KEY_LEN = 64
 
 
 def _safe_key(value):
-    """Coerce a surfaced grouping key to a short, control-char-free string.
+    """Coerce a surfaced grouping key to a short, render-safe string — the one place a field's own
+    value reaches the output, so it is the telemetry-injection boundary.
 
-    Used for the high-cardinality top-N source values only — the one place a
-    field's own value reaches the output. Low-card categorical keys (class_uid,
-    activity_id) are integers and pass through untouched.
+    A source value is attacker-influenced, and the output is rendered through `mo.md()` (markdown +
+    raw HTML), so sanitizing control chars alone is not enough: an unescaped backtick or `<` breaks
+    out and renders live markup (stored XSS from one log field). This:
+      - rejects non-scalars (None -> "<null>", dict/list/etc -> "<non-scalar>") so a structured key
+        can't be str()'d verbatim and can't crash a downstream join;
+      - keeps PRINTABLE ASCII only (32..126) — strips C0 controls, DEL (0x7F), the C1 block
+        (0x80-0x9F, incl. the 8-bit CSI), and all other Unicode;
+      - drops backticks (the markdown code-span delimiter) and HTML-escapes the rest (`< > & " '`);
+      - length-bounds.
+    Low-card categorical keys (class_uid, activity_id) are integers and pass through as their digits.
     """
     if value is None:
-        return None
-    s = str(value)
-    # Strip control chars (keep printable + space); telemetry-injection rule.
-    s = "".join(ch for ch in s if ord(ch) >= 32)
+        return "<null>"
+    if not isinstance(value, (str, int, float)) or isinstance(value, bool):
+        return "<non-scalar>"
+    s = "".join(ch for ch in str(value) if 32 <= ord(ch) < 127)  # printable ASCII only
+    s = s.replace("`", "")                                        # no markdown code-span breakout
     if len(s) > _MAX_KEY_LEN:
         s = s[:_MAX_KEY_LEN] + "…"
-    return s
+    return html.escape(s, quote=True)                            # neutralize < > & " ' for the mo.md() render
 
 
 def _column_names(arrow_table):

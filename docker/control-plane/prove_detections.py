@@ -64,12 +64,35 @@ def main():
             check(f"{fid}: the finding exposes ONLY the declared measures (no leaked record fields)",
                   set(m) == set(dict(det.DETECTIONS[[d['id'] for d in det.DETECTIONS].index(fid)]["measures"])))
 
-    # injection bytes in an attacker-controlled src_ip must be stripped by the bounded key.
-    nasty = [{"class_uid": 4001, "src_ip": "10.9.9.9\n\x00; DROP TABLE", "dst_ip": "203.0.113.66",
-              "bytes_out": 80, "bytes_in": 100} for _ in range(3)]
-    fn = _by_id(det.scan(records + nasty))
-    check("injection bytes in src_ip are stripped from the finding key (control-char-safe)",
-          all("\n" not in k and "\x00" not in k for k, _m in fn["c2_beacon"]["top"]))
+    # attacker-controlled src_ip with control chars, a markdown code-span breakout, and an HTML payload —
+    # the finding key is rendered through mo.md() (markdown + raw HTML), so it must come out inert.
+    nasty = [{"class_uid": 4001, "src_ip": "10.9.9.9\n\x00`</code><img src=x onerror=alert(1)>",
+              "dst_ip": "203.0.113.66", "bytes_out": 80, "bytes_in": 100} for _ in range(3)]
+    nkeys = [k for k, _m in _by_id(det.scan(records + nasty))["c2_beacon"]["top"]]
+    check("control chars stripped from the finding key (\\n, \\x00)",
+          all("\n" not in k and "\x00" not in k for k in nkeys))
+    check("the markdown code-span backtick is stripped (no breakout)", all("`" not in k for k in nkeys))
+    check("HTML is escaped, not raw — no live <img and no unescaped '<' reaches the render",
+          all("<img" not in k and "<" not in k for k in nkeys))
+    check("the payload is rendered inert (escaped &lt; present where '<' was)",
+          any("&lt;" in k for k in nkeys))
+
+    print("\n=== safety is STRUCTURAL: scan/to_sql reject a row-leaking (free-text group) spec ===\n")
+    leaky = {"id": "leaky", "title": "x", "technique": "T0", "table": "network_activity",
+             "where": [("class_uid", "=", 4001)], "group": ("cmd_line",),
+             "measures": {"n": ("count", None)}, "having": [("n", ">=", 1)], "rank": "n"}
+    try:
+        det.scan([{"class_uid": 4001, "cmd_line": "secret raw value"}], [leaky])
+        check("scan() REJECTS a spec grouping on a free-text field (would leak rows)", False)
+    except ValueError:
+        check("scan() REJECTS a spec grouping on a free-text field (would leak rows)", True)
+    try:
+        det.to_sql(leaky, "t")
+        check("to_sql() REJECTS the same leaky spec", False)
+    except ValueError:
+        check("to_sql() REJECTS the same leaky spec", True)
+    check("a None/absent group value is coerced, not joined-on-None (no crash)",
+          isinstance(det.scan([{"class_uid": 4001, "src_ip": None, "dst_ip": None, "bytes_out": 80}] * 3), list))
 
     print("\n=== non-vacuous: a benign-only table fires nothing ===\n")
     benign = [{"class_uid": 4001, "activity_id": 2, "src_ip": "10.0.0.5", "dst_ip": "10.0.0.6",
