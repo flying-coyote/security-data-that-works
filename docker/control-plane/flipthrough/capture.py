@@ -55,6 +55,15 @@ RELEASE_JS = """() => {
 
 # (key, breadcrumb, [tab names to click in order], annotation-html)
 VIEWS = [
+    ("walkthrough", "Walkthrough", ["Walkthrough"],
+     "The guided walkthrough &mdash; the golden path (the operator workflow end to end) threaded "
+     "across the tabs as a progressive-disclosure stepper: declare constraints &rarr; wire a source "
+     "and watch the OCSF mapping &rarr; land data per OCSF class &rarr; the data-health gate certifies "
+     "it and every engine agrees &rarr; a hunt fires over the landed OCSF &rarr; any component is "
+     "reversible. Each step names where it lives and shows a live status &mdash; 'live' only when a "
+     "real signal backs it, 'waiting' until the value moment is actually demonstrated, never a bluffed "
+     "green. It is the product's narrative spine; the flip-through you're reading is the standing "
+     "visual record of it."),
     ("pick", "Startup › Strategy › Pick components", ["Startup", "Strategy", "Pick components"],
      "The constraint-first decision flow. You declare the binding constraints first "
      "(deployment, team size, vendor posture, workload, compliance, cost), and the funnel "
@@ -220,7 +229,7 @@ def build_html():
       <h1>MOAR Console &mdash; visual walkthrough</h1>
       <div class="sub">A flip-through of each console view, captured live from the marimo app, with the
       intent of each view annotated underneath. Generated from console <b>@{sha}</b>.</div>
-      <div class="tree">Startup &rsaquo; { '{' } Strategy &rsaquo; [ Pick components, Vault &amp; Matrix ], Configuration { '}' }<br>
+      <div class="tree">Walkthrough<br>Startup &rsaquo; { '{' } Strategy &rsaquo; [ Pick components, Vault &amp; Matrix ], Configuration { '}' }<br>
       Flow &rsaquo; [ Land, Health, Migrate ]<br>Analyze</div>
       <div class="note">These are real screenshots of the live UI, each shown in full &mdash; the marimo
       scroll shell is released at capture time so below-fold panels are not cropped. The data-driven panels
