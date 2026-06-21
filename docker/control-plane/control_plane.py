@@ -38,10 +38,11 @@ def _():
     import topology as topo
     import migrate as mig
     import analyze as az
+    import config_preview as cpv
 
     # Tolaria convention: point VAULT_PATH at the OKF vault (project1).
     VAULT_PATH = os.environ.get("VAULT_PATH", os.path.expanduser("~/project1"))
-    return P, RestCatalog, VAULT_PATH, antip, az, ca, cf, deployer, dk, ev, fl, gl, l1, l3, l4, mig, mo, okf, os, rl, rp, subprocess, textwrap, topo, ui, yaml
+    return P, RestCatalog, VAULT_PATH, antip, az, ca, cf, cpv, deployer, dk, ev, fl, gl, l1, l3, l4, mig, mo, okf, os, rl, rp, subprocess, textwrap, topo, ui, yaml
 
 
 @app.cell(hide_code=True)
@@ -1761,8 +1762,27 @@ def _(az, loaded_table, mo, ui):
 
 
 @app.cell(hide_code=True)
+def _(cpv, mo):
+    # PB-1: the Configuration value moment — pick a source, watch its raw event become OCSF.
+    config_preview_source = mo.ui.dropdown(
+        options=list(cpv.SOURCES.values()), value=cpv.SOURCES["zeek"], label="Preview source")
+    return (config_preview_source,)
+
+
+@app.cell(hide_code=True)
+def _(config_preview_source, cpv, mo, ui):
+    _src = next((k for k, v in cpv.SOURCES.items() if v == config_preview_source.value), "zeek")
+    config_preview_panel = mo.vstack([
+        mo.hstack([config_preview_source]),
+        cpv.config_preview_panel(mo, ui, cpv.build_preview(_src)),
+    ])
+    return (config_preview_panel,)
+
+
+@app.cell(hide_code=True)
 def _(
     analyze_view_panel,
+    config_preview_panel,
     land_panel,
     migrate_intent,
     migrate_view_panel,
@@ -1802,6 +1822,7 @@ def _(
     ])
 
     tab_config = mo.vstack([
+        config_preview_panel,
         config_panel,
         mo.hstack([save_btn, save_status]),
         ui.panel(mo,

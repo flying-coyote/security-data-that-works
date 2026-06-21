@@ -21,6 +21,7 @@ import constraint_filter as cf
 import anti_patterns as antip
 import cost_advisor as ca
 import reference_presets as rp
+import config_preview as cpv
 
 PASS, FAIL = "\033[92mPASS\033[0m", "\033[91mFAIL\033[0m"
 _failures = []
@@ -80,6 +81,14 @@ def build_funnel_viz_panel():
                       cf.funnel_viz_panel(mo, ui, none, label_for=lf)])
 
 
+def build_config_preview_panel():
+    # PB-1 Configuration raw->OCSF preview renderer — execute it for both sources (markdown table
+    # + json blocks), the path a graph-check doesn't run.
+    return mo.vstack([cpv.config_preview_panel(mo, ui, cpv.build_preview("zeek")),
+                      cpv.config_preview_panel(mo, ui, cpv.build_preview("sysmon")),
+                      cpv.config_preview_panel(mo, ui, cpv.build_preview("nope"))])  # error path renders too
+
+
 def build_presets_panel():
     cards = []
     for pr in rp.PRESETS:
@@ -113,6 +122,7 @@ def main():
     attempt("constraints_input", build_constraints_input)
     attempt("constraints_verdict_panel (+ funnel)", build_verdict_panel)
     attempt("funnel_viz_panel (T2 renderer — the f-string format-spec path)", build_funnel_viz_panel)
+    attempt("config_preview_panel (PB-1 — zeek/sysmon/error)", build_config_preview_panel)
     attempt("reference_presets_panel", build_presets_panel)
     attempt("anti_patterns_panel", build_anti_panel)
     attempt("cost_panel (+ widgets)", build_cost_panel)
