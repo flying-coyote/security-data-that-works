@@ -41,7 +41,12 @@ def main():
     exfil = [{"class_uid": 4001, "activity_id": 6, "src_ip": "10.0.1.200", "dst_ip": "198.51.100.9",
               "dst_port": 443, "bytes_in": 100, "bytes_out": 5000, "packets_out": 50, "packets_in": 5}
              for _ in range(3)]
-    records = landed + exfil
+    # planted failed-auth burst (3002, status_id 2) for credential stuffing: 6 fails / 6 distinct users.
+    auth = [{"class_uid": 3002, "category_uid": 3, "activity_id": 1, "status_id": 2,
+             "src_ip": "203.0.113.99", "user": f"user{i}@acme.example"} for i in range(6)]
+    auth += [{"class_uid": 3002, "category_uid": 3, "activity_id": 1, "status_id": 1,
+              "src_ip": "10.0.5.5", "user": "alice@acme.example"} for _ in range(2)]   # benign successes
+    records = landed + exfil + auth
 
     print("\n=== the detections find the planted attacker ===\n")
     f = _by_id(det.scan(records))
@@ -52,8 +57,15 @@ def main():
     check("exfil fires on the planted high-egress source", f["exfil_egress"]["match_count"] >= 1)
     check("the exfil finding is 10.0.1.200 with total_bytes_out 15000",
           any("10.0.1.200" in k and m["total_bytes_out"] == 15000 for k, m in f["exfil_egress"]["top"]))
+    check("credential stuffing fires on the failed-auth burst", f["credential_stuffing"]["match_count"] >= 1)
+    check("the cred-stuffing finding is 203.0.113.99 with 6 failed attempts across 6 distinct users",
+          any("203.0.113.99" in k and m["failed_attempts"] == 6 and m["distinct_users"] == 6
+              for k, m in f["credential_stuffing"]["top"]))
+    check("cred-stuffing surfaces a COUNT of distinct users, never a username (no '@' in the finding)",
+          all("@" not in k and all(isinstance(v, int) for v in m.values())
+              for k, m in f["credential_stuffing"]["top"]))
     check("findings carry the ATT&CK technique", f["c2_beacon"]["technique"] == "T1071"
-          and f["exfil_egress"]["technique"] == "T1048")
+          and f["exfil_egress"]["technique"] == "T1048" and f["credential_stuffing"]["technique"] == "T1110")
 
     print("\n=== aggregate-safe invariant: a finding is (bounded key, numeric measures) — never a row ===\n")
     for fid, finding in f.items():
@@ -100,6 +112,12 @@ def main():
     fb = _by_id(det.scan(benign))
     check("benign single connection -> beacon does NOT fire", fb["c2_beacon"]["match_count"] == 0)
     check("benign low-volume -> exfil does NOT fire", fb["exfil_egress"]["match_count"] == 0)
+    check("below-threshold failed logins (4 < 5) -> cred-stuffing does NOT fire",
+          _by_id(det.scan([{"class_uid": 3002, "status_id": 2, "src_ip": "10.0.5.6", "user": f"u{i}"}
+                           for i in range(4)]))["credential_stuffing"]["match_count"] == 0)
+    check("successful logins (status_id 1) -> cred-stuffing does NOT fire (rides the failed status_id)",
+          _by_id(det.scan([{"class_uid": 3002, "status_id": 1, "src_ip": "10.0.5.7", "user": f"u{i}"}
+                           for i in range(10)]))["credential_stuffing"]["match_count"] == 0)
     check("empty input -> no findings, no crash", all(x["match_count"] == 0 for x in det.scan([])))
 
     print("\n=== to_sql emits the GROUP BY/HAVING query for the live path ===\n")
