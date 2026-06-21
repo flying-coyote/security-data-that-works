@@ -23,14 +23,19 @@ function to_ocsf(tag, timestamp, record)
   local outcome = record["outcome"] or {}
   local result  = outcome["result"]
 
+  -- Canonical per OCSF 1.8.0 + ocsf/examples (CON-AUTH-1): activity_id = the operation (1 Logon, from the
+  -- event type); the success/failure outcome lives in status_id (1 Success / 2 Failure), NOT activity_id.
+  -- Field-for-field the same contract the Vector/VRL and Tenzir transforms emit.
   local ocsf = {
-    class_uid   = 3002,
-    class_name  = "Authentication",
-    time        = iso8601_to_epoch_ms(record["published"]),
-    activity_id = (result == "SUCCESS") and 1 or 2,
-    user        = actor["alternateId"],
-    src_ip      = client["ipAddress"],
-    status      = result,
+    class_uid    = 3002,
+    class_name   = "Authentication",
+    category_uid = 3,
+    time         = iso8601_to_epoch_ms(record["published"]),
+    activity_id  = 1,
+    status_id    = (result == "SUCCESS") and 1 or 2,
+    user         = actor["alternateId"],
+    src_ip       = client["ipAddress"],
+    status       = result,
   }
   -- return code 2 = keep original timestamp, replace the record with the flat OCSF object
   return 2, timestamp, ocsf
