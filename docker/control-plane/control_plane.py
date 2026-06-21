@@ -44,10 +44,11 @@ def _():
     import config_preview as cpv
     import deploy_progress as dp
     import detections as dets
+    import walkthrough as wt
 
     # Tolaria convention: point VAULT_PATH at the OKF vault (project1).
     VAULT_PATH = os.environ.get("VAULT_PATH", os.path.expanduser("~/project1"))
-    return P, RestCatalog, VAULT_PATH, antip, az, ca, cf, cpv, deployer, dets, dk, dp, ev, fl, gl, l1, l3, l4, le, mig, mo, okf, os, pf, rl, rp, sp, subprocess, textwrap, topo, ui, yaml
+    return P, RestCatalog, VAULT_PATH, antip, az, ca, cf, cpv, deployer, dets, dk, dp, ev, fl, gl, l1, l3, l4, le, mig, mo, okf, os, pf, rl, rp, sp, subprocess, textwrap, topo, ui, wt, yaml
 
 
 @app.cell(hide_code=True)
@@ -1849,10 +1850,33 @@ def _(config_preview_source, cpv, mo, ui):
 
 
 @app.cell(hide_code=True)
+def _(config_path, flow_reconcile, gate, le, mo, os, sel_schema, ui, wt):
+    # PF-1 guided walkthrough — the golden path threaded across the tabs with a live per-step status.
+    # Signals are pulled from the console's already-computed reactive state; an absent/None signal
+    # leaves that step 'waiting' (wt.step_status never bluffs a demonstrated value moment).
+    import datetime as _wtdt
+    _now = _wtdt.datetime.now(_wtdt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    _by = flow_reconcile.get("by_class_counts") if isinstance(flow_reconcile, dict) else None
+    _landed = {c: _by[c]["landed"] for c in _by} if _by else None
+    _signals = {
+        "spec_saved": os.path.exists(config_path),
+        "schema": sel_schema,
+        "landed": _landed,
+        "gate_green": isinstance(gate, dict) and not gate.get("unmeasured") and bool(gate.get("deploy_ok")),
+        "gate_unmeasured": isinstance(gate, dict) and bool(gate.get("unmeasured")),
+        "answer_equality": le.gate_status("answer_equality", _now),
+        "detections": le.gate_status("detections", _now),
+    }
+    walkthrough_panel = wt.walkthrough_panel(mo, ui, wt.assemble(_signals))
+    return (walkthrough_panel,)
+
+
+@app.cell(hide_code=True)
 def _(
     analyze_view_panel,
     detections_panel,
     config_preview_panel,
+    walkthrough_panel,
     land_panel,
     migrate_intent,
     migrate_view_panel,
@@ -1966,7 +1990,8 @@ def _(
         inspect_output,
     ])
 
-    dashboard = mo.ui.tabs({"Startup": startup_tabs, "Flow": flow_tabs, "Analyze": tab_analyze})
+    dashboard = mo.ui.tabs({"Walkthrough": walkthrough_panel, "Startup": startup_tabs,
+                            "Flow": flow_tabs, "Analyze": tab_analyze})
     dashboard
     return
 
