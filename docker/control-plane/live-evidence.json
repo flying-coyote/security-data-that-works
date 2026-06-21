@@ -1,0 +1,10 @@
+{
+  "ran_at": "2026-06-20T22:51:12",
+  "table": "ocsf.network_activity_demo",
+  "landed_rows": 11,
+  "catalog": "http://localhost:8181",
+  "findings": {
+    "c2_beacon": 1,
+    "exfil_egress": 1
+  }
+}
