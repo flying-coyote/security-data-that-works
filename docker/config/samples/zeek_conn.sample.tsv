@@ -1,0 +1,12 @@
+#separator \x09
+#path	conn
+#fields	ts	uid	id.orig_h	id.orig_p	id.resp_h	id.resp_p	proto	service	duration	orig_bytes	resp_bytes	conn_state	missed_bytes	history	orig_pkts	orig_ip_bytes	resp_pkts	resp_ip_bytes
+#types	time	string	addr	port	addr	port	enum	string	interval	count	count	string	count	string	count	count	count	count
+1767225601.0	CbenA	10.0.1.21	49210	10.0.0.10	443	tcp	ssl	2.31	520	8400	SF	0	ShADadFf	6	840	10	8760
+1767225602.0	CbenB	10.0.1.50	49233	10.0.0.10	445	tcp	-	0.85	1200	4096	SF	0	ShADadFf	5	1480	6	4344
+1767225603.0	CbeaA	10.0.1.77	51001	203.0.113.66	443	tcp	ssl	0.10	84	120	SF	0	ShADadFf	2	196	2	232
+1767225663.0	CbeaB	10.0.1.77	51002	203.0.113.66	443	tcp	ssl	0.10	86	118	SF	0	ShADadFf	2	198	2	230
+1767225723.0	CbeaC	10.0.1.77	51003	203.0.113.66	443	tcp	ssl	0.10	82	122	SF	0	ShADadFf	2	194	2	234
+1767225604.0	Cscan	10.0.1.90	52000	198.51.100.5	22	tcp	-	3.00	0	0	S0	0	S	1	40	0	0
+1767225605.0	Crej	10.0.1.91	52100	10.0.0.30	3306	tcp	-	0.00	0	0	REJ	0	Sr	1	40	1	40
+1767225606.0	Crsto	10.0.1.92	52200	10.0.0.40	8080	tcp	-	0.50	200	0	RSTO	0	ShR	3	320	1	40
