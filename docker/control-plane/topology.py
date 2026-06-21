@@ -261,6 +261,31 @@ def _legend_md(nodes, live_status) -> str:
     return f"{legend}<br/>{summary}"
 
 
+def live_status_from_flow(flow_result, selection):
+    """Map a flow_reconcile_live.run_pipeline result onto a topology `live_status` map: the route
+    node(s) carry the ingested OCSF count and the land node the per-OCSF-class landed counts — the
+    "watch data land per class" signal, drawn on the graph. Returns {} when there is no live PASS
+    (status missing / blocked / error, or no counts), so a node with no real signal stays design-time
+    "selected"/"—" instead of a fabricated green. Telemetry-honesty rule: only low-cardinality counts
+    (per-class landed numbers, OCSF class ids), never a raw row."""
+    if not flow_result or flow_result.get("status") != "pass":
+        return {}
+    by = flow_result.get("by_class_counts") or {}
+    if not by:
+        return {}
+    sel = selection or {}
+    total_ingested = sum((by[c].get("ingested") or 0) for c in by)
+    per_class_landed = " · ".join(f"{c}:{(by[c].get('landed') or 0)}" for c in sorted(by))
+    out: dict = {}
+    for code in (sel.get("ingest") or []):
+        if code:
+            out[f"route_{code}"] = {"status": STATUS_UP, "throughput": f"{total_ingested} OCSF"}
+    storage = sel.get("storage")
+    if storage:
+        out[f"land_{storage}"] = {"status": STATUS_UP, "throughput": f"landed {per_class_landed}"}
+    return out
+
+
 def topology_panel(mo, ui, selection, live_status=None):
     """Build the topology panel: header, the mermaid graph, and a legend/status line.
 

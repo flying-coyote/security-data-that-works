@@ -141,6 +141,28 @@ def main():
     check("mermaid labels are paren-free so mermaid parses (regression guard)",
           "(" not in _cat_m and ")" not in _cat_m)
 
+    print("\n=== PC-1: live_status_from_flow — per-class landed counts onto the graph ===\n")
+    flow_pass = {"status": "pass", "ran_at": "2026-06-21T00:00:00Z",
+                 "by_class_counts": {"3002": {"emitted": 8, "ingested": 8, "landed": 8},
+                                     "4001": {"emitted": 11, "ingested": 11, "landed": 11}}}
+    sel_f = {"storage": "minio", "ingest": ["tenzir"], "catalog": "lakekeeper",
+             "query": ["trino"], "schema": "ocsf"}
+    lsf = T.live_status_from_flow(flow_pass, sel_f)
+    check("a passing flow lights the route node 'up' with the ingested OCSF count",
+          lsf.get("route_tenzir", {}).get("status") == "up" and "19 OCSF" in lsf["route_tenzir"]["throughput"])
+    check("a passing flow lights the land node 'up' with the PER-CLASS landed counts",
+          lsf.get("land_minio", {}).get("status") == "up"
+          and "3002:8" in lsf["land_minio"]["throughput"] and "4001:11" in lsf["land_minio"]["throughput"])
+    check("no flow result -> {} (no fabricated status; topology stays design-time '—')",
+          T.live_status_from_flow(None, sel_f) == {})
+    check("a blocked / non-pass / empty-counts flow -> {} (honest, never a faked green)",
+          T.live_status_from_flow({"status": "blocked", "ran_at": "x"}, sel_f) == {}
+          and T.live_status_from_flow({"status": "pass", "by_class_counts": {}}, sel_f) == {})
+    _topo_live = T.build_topology(sel_f, live_status=lsf)
+    _land_node = next((n for n in _topo_live["nodes"] if n["id"] == "land_minio"), None)
+    check("build_topology with the flow-derived live_status marks the land node 'up'",
+          _land_node is not None and _land_node["status"] == "up")
+
     if _failures:
         print(f"\n\033[91m{len(_failures)} assertion(s) FAILED\033[0m")
         return 1
