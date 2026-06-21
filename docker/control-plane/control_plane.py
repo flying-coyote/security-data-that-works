@@ -37,6 +37,7 @@ def _():
     import flow_reconcile_live as fl
     import live_evidence as le
     import pre_flight as pf
+    import schema_preview as sp
     import topology as topo
     import migrate as mig
     import analyze as az
@@ -46,7 +47,7 @@ def _():
 
     # Tolaria convention: point VAULT_PATH at the OKF vault (project1).
     VAULT_PATH = os.environ.get("VAULT_PATH", os.path.expanduser("~/project1"))
-    return P, RestCatalog, VAULT_PATH, antip, az, ca, cf, cpv, deployer, dets, dk, dp, ev, fl, gl, l1, l3, l4, le, mig, mo, okf, os, pf, rl, rp, subprocess, textwrap, topo, ui, yaml
+    return P, RestCatalog, VAULT_PATH, antip, az, ca, cf, cpv, deployer, dets, dk, dp, ev, fl, gl, l1, l3, l4, le, mig, mo, okf, os, pf, rl, rp, sp, subprocess, textwrap, topo, ui, yaml
 
 
 @app.cell(hide_code=True)
@@ -791,6 +792,15 @@ def _(config_path, deployment_status, dp, mo, os, ui, yaml):
             _dp_cfg = {}
     deploy_progress_panel = dp.deploy_progress_panel(mo, ui, dp.assemble_progress(dp.deploy_progress(_dp_cfg)))
     return (deploy_progress_panel,)
+
+
+@app.cell(hide_code=True)
+def _(mo, sel_schema, sp, ui):
+    # PE-3 (schema preview): for the chosen standard, the OCSF classes the stack normalizes data INTO and
+    # their key fields — "your data lands in these classes, with these fields". OCSF-only; honest note
+    # otherwise. Grounded in the console's crosswalk + the CON-AUTH-1 canonical (status_id, 6003).
+    schema_preview_panel = sp.schema_preview_panel(mo, ui, sel_schema)
+    return (schema_preview_panel,)
 
 
 @app.cell(hide_code=True)
@@ -1850,6 +1860,7 @@ def _(
     config_panel,
     preflight_panel,
     deploy_progress_panel,
+    schema_preview_panel,
     deploy_btn,
     deployment_status,
     destroy_btn,
@@ -1885,6 +1896,7 @@ def _(
 
     tab_config = mo.vstack([
         config_preview_panel,
+        schema_preview_panel,
         config_panel,
         mo.hstack([save_btn, save_status]),
         ui.panel(mo,
