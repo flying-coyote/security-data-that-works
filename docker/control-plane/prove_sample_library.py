@@ -38,11 +38,11 @@ def check(label, cond):
 # --- independent mapping logic (the expectation the gold is checked against) ---
 
 _PROTO_NUM = {"tcp": 6, "udp": 17, "icmp": 1}
-# Zeek conn_state -> OCSF 4001 activity_id, grounded on the 4001 enum (1 Open / 2 Close /
-# 3 Reset / 4 Fail / 5 Refuse / 6 Traffic). A completed conn.log flow is a Traffic report (6);
-# the error states map to their lifecycle activity.
-_CONN_STATE_ACTIVITY = {"SF": 6, "S1": 6, "OTH": 6, "SF ": 6,
-                        "S0": 4, "REJ": 5, "RSTO": 3, "RSTR": 3, "RSTOS0": 3, "RSTRH": 3}
+# Zeek conn_state -> OCSF 4001 activity_id, the CANONICAL case table from ocsf/examples
+# (mappings/markdown/Zeek/v1.4.0/conn_log/README.md conditional table): a completed/closed
+# connection is Close (2); S0 -> Fail (4); REJ -> Refuse (5); OTH/S1/S2/S3/else -> Traffic (6).
+_CONN_STATE_ACTIVITY = {"SF": 2, "RSTO": 2, "RSTR": 2, "RSTRH": 2, "SH": 2, "SHR": 2,
+                        "S0": 4, "REJ": 5, "OTH": 6, "S1": 6, "S2": 6, "S3": 6}
 
 
 def _read_zeek_tsv(path):
@@ -73,14 +73,16 @@ def main():
     direction_trap_rows = 0
     for i, (r, g) in enumerate(zip(raws, gold)):
         ob, rb = int(r["orig_bytes"]), int(r["resp_bytes"])
-        # The byte-direction trap: bytes_in <- orig_bytes (NOT resp_bytes); bytes_out <- resp_bytes.
-        ok_dir = g["bytes_in"] == ob and g["bytes_out"] == rb
-        check(f"row {i} byte direction: bytes_in=orig({ob}) bytes_out=resp({rb})", ok_dir)
+        # CANONICAL direction (ocsf/examples Zeek conn_log): traffic is from src_endpoint's view, and
+        # orig_h -> src_endpoint, so the originator's SENT bytes are bytes_OUT and the responder's are
+        # bytes_IN. bytes_in <- resp_bytes, bytes_out <- orig_bytes.
+        ok_dir = g["bytes_in"] == rb and g["bytes_out"] == ob
+        check(f"row {i} byte direction (canonical): bytes_in=resp({rb}) bytes_out=orig({ob})", ok_dir)
         if ob != rb:
             direction_trap_rows += 1
-            # a name-based map (orig_bytes->bytes_out because both say 'bytes') would put rb here:
-            check(f"row {i} the trap is caught: bytes_in != resp_bytes ({g['bytes_in']} != {rb})",
-                  g["bytes_in"] != rb)
+            # the perspective-inversion trap: a confused map would put orig_bytes in bytes_in.
+            check(f"row {i} inversion avoided: bytes_in != orig_bytes ({g['bytes_in']} != {ob})",
+                  g["bytes_in"] != ob)
         check(f"row {i} class_uid 4001", g["class_uid"] == 4001)
         check(f"row {i} activity_id derived from conn_state '{r['conn_state']}'",
               g["activity_id"] == _CONN_STATE_ACTIVITY.get(r["conn_state"], 6))
@@ -89,11 +91,11 @@ def main():
               and g["src_port"] == int(r["id.orig_p"]) and g["dst_port"] == int(r["id.resp_p"]))
         check(f"row {i} protocol_num from proto '{r['proto']}'",
               g["protocol_num"] == _PROTO_NUM.get(r["proto"]))
-        check(f"row {i} packets_in<-orig_pkts, packets_out<-resp_pkts",
-              g["packets_in"] == int(r["orig_pkts"]) and g["packets_out"] == int(r["resp_pkts"]))
+        check(f"row {i} packets_in<-resp_pkts, packets_out<-orig_pkts",
+              g["packets_in"] == int(r["resp_pkts"]) and g["packets_out"] == int(r["orig_pkts"]))
     check("the byte-direction trap is actually exercised (>=1 asymmetric row)", direction_trap_rows >= 1)
-    check("the planted C2 beacon is present (rare dst 203.0.113.66, low bytes_in)",
-          any(g["dst_ip"] == "203.0.113.66" and g["bytes_in"] < 100 for g in gold))
+    check("the planted C2 beacon is present (rare dst 203.0.113.66, low bytes_OUT — small outbound check-in)",
+          any(g["dst_ip"] == "203.0.113.66" and g["bytes_out"] < 100 for g in gold))
     check("conn_state derivation spans multiple activity_ids (not a constant)",
           len({g["activity_id"] for g in gold}) >= 3)
 

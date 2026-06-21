@@ -1,8 +1,8 @@
-{"class_uid":4001,"activity_id":6,"src_ip":"10.0.1.21","src_port":49210,"dst_ip":"10.0.0.10","dst_port":443,"protocol_num":6,"bytes_in":520,"bytes_out":8400,"packets_in":6,"packets_out":10,"time":1767225601.0}
-{"class_uid":4001,"activity_id":6,"src_ip":"10.0.1.50","src_port":49233,"dst_ip":"10.0.0.10","dst_port":445,"protocol_num":6,"bytes_in":1200,"bytes_out":4096,"packets_in":5,"packets_out":6,"time":1767225602.0}
-{"class_uid":4001,"activity_id":6,"src_ip":"10.0.1.77","src_port":51001,"dst_ip":"203.0.113.66","dst_port":443,"protocol_num":6,"bytes_in":84,"bytes_out":120,"packets_in":2,"packets_out":2,"time":1767225603.0}
-{"class_uid":4001,"activity_id":6,"src_ip":"10.0.1.77","src_port":51002,"dst_ip":"203.0.113.66","dst_port":443,"protocol_num":6,"bytes_in":86,"bytes_out":118,"packets_in":2,"packets_out":2,"time":1767225663.0}
-{"class_uid":4001,"activity_id":6,"src_ip":"10.0.1.77","src_port":51003,"dst_ip":"203.0.113.66","dst_port":443,"protocol_num":6,"bytes_in":82,"bytes_out":122,"packets_in":2,"packets_out":2,"time":1767225723.0}
-{"class_uid":4001,"activity_id":4,"src_ip":"10.0.1.90","src_port":52000,"dst_ip":"198.51.100.5","dst_port":22,"protocol_num":6,"bytes_in":0,"bytes_out":0,"packets_in":1,"packets_out":0,"time":1767225604.0}
+{"class_uid":4001,"activity_id":2,"src_ip":"10.0.1.21","src_port":49210,"dst_ip":"10.0.0.10","dst_port":443,"protocol_num":6,"bytes_in":8400,"bytes_out":520,"packets_in":10,"packets_out":6,"time":1767225601.0}
+{"class_uid":4001,"activity_id":2,"src_ip":"10.0.1.50","src_port":49233,"dst_ip":"10.0.0.10","dst_port":445,"protocol_num":6,"bytes_in":4096,"bytes_out":1200,"packets_in":6,"packets_out":5,"time":1767225602.0}
+{"class_uid":4001,"activity_id":2,"src_ip":"10.0.1.77","src_port":51001,"dst_ip":"203.0.113.66","dst_port":443,"protocol_num":6,"bytes_in":120,"bytes_out":84,"packets_in":2,"packets_out":2,"time":1767225603.0}
+{"class_uid":4001,"activity_id":2,"src_ip":"10.0.1.77","src_port":51002,"dst_ip":"203.0.113.66","dst_port":443,"protocol_num":6,"bytes_in":118,"bytes_out":86,"packets_in":2,"packets_out":2,"time":1767225663.0}
+{"class_uid":4001,"activity_id":2,"src_ip":"10.0.1.77","src_port":51003,"dst_ip":"203.0.113.66","dst_port":443,"protocol_num":6,"bytes_in":122,"bytes_out":82,"packets_in":2,"packets_out":2,"time":1767225723.0}
+{"class_uid":4001,"activity_id":4,"src_ip":"10.0.1.90","src_port":52000,"dst_ip":"198.51.100.5","dst_port":22,"protocol_num":6,"bytes_in":0,"bytes_out":0,"packets_in":0,"packets_out":1,"time":1767225604.0}
 {"class_uid":4001,"activity_id":5,"src_ip":"10.0.1.91","src_port":52100,"dst_ip":"10.0.0.30","dst_port":3306,"protocol_num":6,"bytes_in":0,"bytes_out":0,"packets_in":1,"packets_out":1,"time":1767225605.0}
-{"class_uid":4001,"activity_id":3,"src_ip":"10.0.1.92","src_port":52200,"dst_ip":"10.0.0.40","dst_port":8080,"protocol_num":6,"bytes_in":200,"bytes_out":0,"packets_in":3,"packets_out":1,"time":1767225606.0}
+{"class_uid":4001,"activity_id":2,"src_ip":"10.0.1.92","src_port":52200,"dst_ip":"10.0.0.40","dst_port":8080,"protocol_num":6,"bytes_in":0,"bytes_out":200,"packets_in":1,"packets_out":3,"time":1767225606.0}
