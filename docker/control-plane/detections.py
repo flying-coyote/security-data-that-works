@@ -19,7 +19,10 @@ import operator
 from analyze import _safe_key
 
 _OPS = {"=": operator.eq, "!=": operator.ne, ">": operator.gt, ">=": operator.ge,
-        "<": operator.lt, "<=": operator.le}
+        "<": operator.lt, "<=": operator.le,
+        # substring match for keyword predicates (e.g. cmd_line contains "vssadmin delete shadows").
+        # case-insensitive; only ever used in `where` (a MATCH on a field), never to surface a value.
+        "contains": lambda a, b: isinstance(a, str) and isinstance(b, str) and b.lower() in a.lower()}
 
 # Declarative detection specs. where/having: lists of (field|measure, op, value). group: fields to
 # aggregate by. measures: name -> (agg, field) with agg in {count, sum, avg}. rank: the measure to sort by.
@@ -27,7 +30,7 @@ DETECTIONS = [
     {
         "id": "c2_beacon",
         "title": "C2 beacon — low-byte repeated outbound to a rare destination",
-        "technique": "T1071", "table": "network_activity",
+        "technique": "T1071", "tactic": "Command & Control", "table": "network_activity",
         "where": [("class_uid", "=", 4001)],
         "group": ("src_ip", "dst_ip"),
         "measures": {"connections": ("count", None), "avg_bytes_out": ("avg", "bytes_out")},
@@ -39,7 +42,7 @@ DETECTIONS = [
     {
         "id": "exfil_egress",
         "title": "Data exfiltration — high outbound volume by source",
-        "technique": "T1048", "table": "network_activity",
+        "technique": "T1048", "tactic": "Exfiltration", "table": "network_activity",
         "where": [("class_uid", "=", 4001)],
         "group": ("src_ip",),
         "measures": {"total_bytes_out": ("sum", "bytes_out"), "flows": ("count", None)},
@@ -50,7 +53,7 @@ DETECTIONS = [
     {
         "id": "credential_stuffing",
         "title": "Credential stuffing / password spray — failed-auth burst from one source",
-        "technique": "T1110", "table": "authentication",
+        "technique": "T1110", "tactic": "Credential Access", "table": "authentication",
         "where": [("class_uid", "=", 3002), ("status_id", "=", 2)],   # FAILED auth (the corrected CON-AUTH-1 status_id)
         "group": ("src_ip",),
         "measures": {"failed_attempts": ("count", None), "distinct_users": ("distinct", "user")},
@@ -58,6 +61,45 @@ DETECTIONS = [
         "rank": "failed_attempts",
         "why": "Many failed logins from one source. distinct_users separates targeted stuffing (few accounts) "
                "from spraying (many) — it is a COUNT, never the usernames.",
+    },
+    {
+        "id": "shadow_copy_deletion",
+        "title": "Volume shadow copy deletion — ransomware anti-recovery",
+        "technique": "T1490", "tactic": "Impact", "table": "process_activity",
+        "where": [("class_uid", "=", 1007), ("cmd_line", "contains", "vssadmin delete shadows")],
+        "group": ("device_hostname",),
+        "measures": {"executions": ("count", None)},
+        "having": [("executions", ">=", 1)],
+        "rank": "executions",
+        "why": "A process running `vssadmin delete shadows` (or wmic shadowcopy delete) destroys backups "
+               "before encryption — a high-signal ransomware pre-cursor. The cmd_line is MATCHED in the "
+               "predicate, never surfaced; the finding is a per-host count.",
+    },
+    {
+        "id": "lsass_credential_access",
+        "title": "LSASS access — OS credential dumping",
+        "technique": "T1003.001", "tactic": "Credential Access", "table": "process_activity",
+        "where": [("class_uid", "=", 1007), ("cmd_line", "contains", "lsass")],
+        "group": ("device_hostname",),
+        "measures": {"events": ("count", None)},
+        "having": [("events", ">=", 1)],
+        "rank": "events",
+        "why": "A process referencing lsass.exe (procdump, comsvcs.dll minidump, or an explicit lsass "
+               "cmd_line) is the classic credential-dumping signal. Same discipline: cmd_line matched, the "
+               "finding is a per-host count, never the command line itself.",
+    },
+    {
+        "id": "api_bulk_retrieval",
+        "title": "Bulk cloud data retrieval — abnormal egress by one identity",
+        "technique": "T1530", "tactic": "Collection", "table": "api_activity",
+        "where": [("class_uid", "=", 6003)],
+        "group": ("actor_user",),
+        "measures": {"operations": ("count", None), "total_bytes": ("sum", "bytes_out")},
+        "having": [("total_bytes", ">=", 50000)],
+        "rank": "total_bytes",
+        "why": "One identity pulling an unusually large volume through cloud API operations — the OCSF API "
+               "Activity (6003) egress shape of bulk retrieval / staging. Grouped by actor (bounded, "
+               "sanitized), measured by a byte sum — never the records.",
     },
 ]
 
@@ -86,6 +128,9 @@ def _measure(agg, field, group_rows):
 _SAFE_GROUP_FIELDS = frozenset({
     "src_ip", "dst_ip", "src_endpoint_ip", "src", "dst_port", "src_port",
     "class_uid", "category_uid", "activity_id", "status_id", "protocol_num",
+    # identifier-shaped keys (same risk class as src_ip: attacker-influenceable but bounded, and
+    # surfaced only through analyze._safe_key). NOT free-text (cmd_line/url/message) — those stay barred.
+    "user", "actor_user", "device_hostname",
 })
 
 
@@ -130,6 +175,15 @@ _AGG_SQL = {"count": "count(*)", "sum": "sum({field})", "avg": "avg({field})",
             "distinct": "count(DISTINCT {field})"}
 
 
+def _sql_predicate(f, op, v):
+    """One WHERE token for the live SQL. 'contains' -> a LIKE substring match (the SQL form of the
+    keyword predicate); everything else is a direct comparison. v comes only from code-defined specs,
+    never user input, so the literal interpolation is not an attacker SQL-injection surface."""
+    if op == "contains":
+        return f"{f} LIKE {'%' + str(v) + '%'!r}"
+    return f"{f} {op} {v!r}" if isinstance(v, str) else f"{f} {op} {v}"
+
+
 def to_sql(detection, table):
     """Emit the GROUP BY/HAVING SQL for the live path (run_detections.py over the Iceberg table).
     Same spec as scan(), so the live query and the pure preview can't drift. validate_spec()'d, so the
@@ -139,8 +193,7 @@ def to_sql(detection, table):
     having tokens come only from code-defined specs (not user input), so the interpolation is not an
     attacker SQL-injection surface."""
     d = validate_spec(detection)
-    where = " AND ".join(f"{f} {op} {v!r}" if isinstance(v, str) else f"{f} {op} {v}"
-                         for f, op, v in d["where"])
+    where = " AND ".join(_sql_predicate(f, op, v) for f, op, v in d["where"])
     group = ", ".join(d["group"])
     meas = ", ".join(f"{_AGG_SQL[agg].format(field=field)} AS {name}"
                      for name, (agg, field) in d["measures"].items())
@@ -170,7 +223,60 @@ def demo_records(samples_dir=None):
               "src_ip": "203.0.113.99", "user": f"user{i}@acme.example"} for i in range(6)]
     recs += [{"class_uid": 3002, "category_uid": 3, "activity_id": 1, "status_id": 1,
               "src_ip": "10.0.5.5", "user": "alice@acme.example"} for _ in range(2)]
+    # process activity (1007): a host running ransomware anti-recovery + a credential-dump tool, plus a
+    # benign process that must NOT fire (cmd_line is matched in the predicate, never surfaced).
+    recs += [{"class_uid": 1007, "category_uid": 1, "activity_id": 1, "device_hostname": "FIN-WS-07",
+              "process_name": "cmd.exe", "cmd_line": "vssadmin delete shadows /all /quiet"},
+             {"class_uid": 1007, "category_uid": 1, "activity_id": 1, "device_hostname": "FIN-WS-07",
+              "process_name": "procdump64.exe", "cmd_line": "procdump -ma lsass.exe c:\\temp\\out.dmp"},
+             {"class_uid": 1007, "category_uid": 1, "activity_id": 1, "device_hostname": "HR-WS-02",
+              "process_name": "outlook.exe", "cmd_line": "outlook.exe /recycle"}]
+    # api activity (6003): one identity bulk-retrieving (3 x 25000 = 75000 -> fires), one benign low-volume.
+    recs += [{"class_uid": 6003, "category_uid": 6, "activity_id": 2, "actor_user": "svc_backup@acme.example",
+              "api_operation": "GetObject", "bytes_out": 25000} for _ in range(3)]
+    recs += [{"class_uid": 6003, "category_uid": 6, "activity_id": 2, "actor_user": "analyst@acme.example",
+              "api_operation": "GetObject", "bytes_out": 800} for _ in range(2)]
     return recs
+
+
+def _class_of(d):
+    """The OCSF class_uid a spec runs over (from its where clause), for the catalog view."""
+    return next((v for f, op, v in d["where"] if f == "class_uid"), None)
+
+
+def library_catalog(detections=None):
+    """The hunt library as a documented catalog (no data needed): each hunt's id, title, ATT&CK
+    technique + tactic, the OCSF class/table it runs over, and the rationale. This is the 'what hunts do
+    I have' view; scan() is the 'what fired' view. Every spec is validate_spec()'d (group fields
+    allow-listed), so the catalog only lists hunts that are structurally aggregate-safe."""
+    out = []
+    for d in (detections or DETECTIONS):
+        validate_spec(d)
+        out.append({"id": d["id"], "title": d["title"], "technique": d["technique"],
+                    "tactic": d.get("tactic", "—"), "table": d["table"],
+                    "class_uid": _class_of(d), "why": d.get("why", "")})
+    return out
+
+
+def hunt_library_panel(mo, ui, detections=None):
+    """The hunt-library catalog — the documented, runnable set of hunts, grouped by ATT&CK tactic."""
+    cat = library_catalog(detections)
+    by_tactic = {}
+    for h in cat:
+        by_tactic.setdefault(h["tactic"], []).append(h)
+    sections = []
+    for tactic in sorted(by_tactic):
+        rows = "\n".join(
+            f"| `{h['technique']}` | {h['title']} | OCSF {h['class_uid']} |"
+            for h in by_tactic[tactic])
+        sections.append(f"**{tactic}**\n\n| Technique | Hunt | Class |\n|---|---|---|\n{rows}")
+    return ui.panel(mo,
+        ui.header(mo, "Hunt library — the catalog of detections (runnable over landed OCSF)"),
+        mo.md(f"**{len(cat)} hunts**, each a declarative spec that runs two ways: a pure-Python preview "
+              "and the GROUP BY/HAVING SQL over the Iceberg table at scale (so the preview and the live "
+              "query can't drift). Every finding is an aggregate — a bounded key plus counts, never a raw "
+              "row — and the cmd_line keyword hunts MATCH on the command line without ever surfacing it.\n\n"
+              + "\n\n".join(sections)))
 
 
 def detections_panel(mo, ui, findings, *, source_note=""):

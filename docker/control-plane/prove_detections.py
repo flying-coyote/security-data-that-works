@@ -46,7 +46,13 @@ def main():
              "src_ip": "203.0.113.99", "user": f"user{i}@acme.example"} for i in range(6)]
     auth += [{"class_uid": 3002, "category_uid": 3, "activity_id": 1, "status_id": 1,
               "src_ip": "10.0.5.5", "user": "alice@acme.example"} for _ in range(2)]   # benign successes
-    records = landed + exfil + auth
+    # process activity (1007) for the cmd_line-keyword hunts; api activity (6003) for bulk-retrieval.
+    proc = [{"class_uid": 1007, "device_hostname": "FIN-WS-07", "cmd_line": "vssadmin delete shadows /all /quiet"},
+            {"class_uid": 1007, "device_hostname": "FIN-WS-07", "cmd_line": "procdump -ma lsass.exe out.dmp"},
+            {"class_uid": 1007, "device_hostname": "HR-WS-02", "cmd_line": "outlook.exe /recycle"}]  # benign
+    api = [{"class_uid": 6003, "actor_user": "svc_backup@acme.example", "bytes_out": 25000} for _ in range(3)]
+    api += [{"class_uid": 6003, "actor_user": "analyst@acme.example", "bytes_out": 800} for _ in range(2)]
+    records = landed + exfil + auth + proc + api
 
     print("\n=== the detections find the planted attacker ===\n")
     f = _by_id(det.scan(records))
@@ -66,6 +72,23 @@ def main():
               for k, m in f["credential_stuffing"]["top"]))
     check("findings carry the ATT&CK technique", f["c2_beacon"]["technique"] == "T1071"
           and f["exfil_egress"]["technique"] == "T1048" and f["credential_stuffing"]["technique"] == "T1110")
+
+    print("\n=== PG-2 hunt library: the new OCSF-class hunts fire (DR-grounded) ===\n")
+    check("shadow-copy deletion (T1490) fires on FIN-WS-07 via cmd_line 'vssadmin delete shadows' (count 1)",
+          any("FIN-WS-07" in k and m["executions"] == 1 for k, m in f["shadow_copy_deletion"]["top"]))
+    check("LSASS access (T1003.001) fires on FIN-WS-07 via cmd_line 'lsass'",
+          any("FIN-WS-07" in k for k, m in f["lsass_credential_access"]["top"]))
+    check("API bulk retrieval (T1530) fires on svc_backup (3 x 25000 = 75000 total_bytes)",
+          any("svc_backup" in k and m["total_bytes"] == 75000 for k, m in f["api_bulk_retrieval"]["top"]))
+    check("the cmd_line is MATCHED, never surfaced — no finding key carries vssadmin/procdump/lsass/shadows",
+          all(all(s not in k for s in ("vssadmin", "procdump", "lsass", "delete shadows"))
+              for fid in ("shadow_copy_deletion", "lsass_credential_access") for k, _m in f[fid]["top"]))
+    check("benign process (HR-WS-02 outlook) does NOT fire either cmd_line hunt",
+          all("HR-WS-02" not in k for fid in ("shadow_copy_deletion", "lsass_credential_access")
+              for k, _m in f[fid]["top"]))
+    check("benign low-volume API user does NOT fire bulk-retrieval",
+          all("analyst@" not in k for k, _m in f["api_bulk_retrieval"]["top"]))
+    check("every hunt in the library carries an ATT&CK tactic", all(d.get("tactic") for d in det.DETECTIONS))
 
     print("\n=== aggregate-safe invariant: a finding is (bounded key, numeric measures) — never a row ===\n")
     for fid, finding in f.items():
@@ -125,6 +148,15 @@ def main():
     check("to_sql is a GROUP BY ... HAVING aggregate over the named table",
           "GROUP BY src_ip, dst_ip" in sql and "HAVING" in sql and "ocsf.network_activity" in sql
           and "count(*)" in sql and "ORDER BY" in sql)
+
+    print("\n=== PG-2: the 'contains' predicate + the library catalog ===\n")
+    _shadow = next(d for d in det.DETECTIONS if d["id"] == "shadow_copy_deletion")
+    sql_p = det.to_sql(_shadow, "ocsf.process_activity")
+    check("a cmd_line 'contains' hunt compiles to a LIKE predicate (not an invalid 'contains' token)",
+          "LIKE" in sql_p and "vssadmin delete shadows" in sql_p and "contains" not in sql_p)
+    cat = det.library_catalog()
+    check("library_catalog lists every hunt with technique + tactic + OCSF class",
+          len(cat) == len(det.DETECTIONS) and all(h["technique"] and h["tactic"] and h["class_uid"] for h in cat))
 
     if _failures:
         print(f"\n\033[91m{len(_failures)} assertion(s) FAILED\033[0m")

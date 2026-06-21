@@ -1873,6 +1873,13 @@ def _(config_path, flow_reconcile, gate, le, mo, os, sel_schema, ui, wt):
 
 
 @app.cell(hide_code=True)
+def _(dets, mo, ui):
+    # PG-2 — the hunt-library catalog (the documented, runnable set of hunts, grouped by ATT&CK tactic).
+    hunt_library_panel = dets.hunt_library_panel(mo, ui)
+    return (hunt_library_panel,)
+
+
+@app.cell(hide_code=True)
 def _(epv, mo):
     # Phase G flagship — the entity-pivot picker. Suggested entities present in the synthetic preview
     # data so the pivot self-demonstrates; the value encodes "type|value".
@@ -1900,6 +1907,7 @@ def _(epv, mo, pivot_pick, ui):
 def _(
     analyze_view_panel,
     detections_panel,
+    hunt_library_panel,
     config_preview_panel,
     entity_pivot_panel,
     walkthrough_panel,
@@ -2005,6 +2013,7 @@ def _(
                             if (cat and hasattr(ns_selector, "value")) else ns_selector)
     tab_analyze = mo.vstack([
         entity_pivot_panel,
+        hunt_library_panel,
         detections_panel,
         analyze_view_panel,
         ui.panel(mo,
