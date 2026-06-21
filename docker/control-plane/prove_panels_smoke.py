@@ -22,6 +22,7 @@ import anti_patterns as antip
 import cost_advisor as ca
 import reference_presets as rp
 import config_preview as cpv
+import detections as dets
 
 PASS, FAIL = "\033[92mPASS\033[0m", "\033[91mFAIL\033[0m"
 _failures = []
@@ -88,6 +89,11 @@ def build_config_preview_panel():
                       for s in ("zeek", "sysmon", "cloudtrail", "nope")])  # incl. nested-path + error path
 
 
+def build_detections_panel():
+    # PD-network detections renderer over the worked sample (beacon + exfil fire).
+    return dets.detections_panel(mo, ui, dets.scan(dets.demo_records()), source_note="*sample*")
+
+
 def build_presets_panel():
     cards = []
     for pr in rp.PRESETS:
@@ -121,7 +127,8 @@ def main():
     attempt("constraints_input", build_constraints_input)
     attempt("constraints_verdict_panel (+ funnel)", build_verdict_panel)
     attempt("funnel_viz_panel (T2 renderer — the f-string format-spec path)", build_funnel_viz_panel)
-    attempt("config_preview_panel (PB-1 — zeek/sysmon/error)", build_config_preview_panel)
+    attempt("config_preview_panel (PB-1 — zeek/sysmon/cloudtrail/error)", build_config_preview_panel)
+    attempt("detections_panel (PD-network — beacon/exfil findings)", build_detections_panel)
     attempt("reference_presets_panel", build_presets_panel)
     attempt("anti_patterns_panel", build_anti_panel)
     attempt("cost_panel (+ widgets)", build_cost_panel)
