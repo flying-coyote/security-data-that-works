@@ -1,10 +1,49 @@
 {
-  "ran_at": "2026-06-20T22:51:12",
-  "table": "ocsf.network_activity_demo",
-  "landed_rows": 11,
-  "catalog": "http://localhost:8181",
-  "findings": {
-    "c2_beacon": 1,
-    "exfil_egress": 1
+  "answer_equality": {
+    "agree": true,
+    "engines": {
+      "clickhouse": [
+        1000,
+        125
+      ],
+      "duckdb": [
+        1000,
+        125
+      ],
+      "trino": [
+        1000,
+        125
+      ]
+    },
+    "hypothesis": "answer-equality (cross-engine)",
+    "ran_at": "2026-06-21T08:23:44Z",
+    "status": "pass"
+  },
+  "detections": {
+    "catalog": "http://localhost:8181",
+    "findings": {
+      "c2_beacon": 1,
+      "exfil_egress": 1
+    },
+    "landed_rows": 11,
+    "ran_at": "2026-06-21T04:25:04",
+    "table": "ocsf.network_activity_demo"
+  },
+  "flow_reconcile": {
+    "by_class_counts": {
+      "3002": {
+        "emitted": 8,
+        "ingested": 8,
+        "landed": 8
+      }
+    },
+    "ran_at": "2026-06-21T08:23:52Z",
+    "status": "pass"
+  },
+  "ocsf_roundtrip": {
+    "events_faithful": 8,
+    "ran_at": "2026-06-21T08:24:00Z",
+    "router": "tenzir",
+    "status": "pass"
   }
 }

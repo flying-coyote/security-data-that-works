@@ -14,12 +14,12 @@ Run:  VENV/bin/python prove_detections_live.py   (needs pyiceberg + duckdb; the 
 """
 from __future__ import annotations
 
-import json
 import os
 import sys
 import time
 
 import detections as det
+import live_evidence as le
 from analyze import _safe_key
 
 PASS, FAIL = "\033[92mPASS\033[0m", "\033[91mFAIL\033[0m"
@@ -115,10 +115,12 @@ def main():
                 safe_ok = False
     check("live findings are aggregate-safe (group keys = sanitized strings, measures = numbers)", safe_ok)
 
-    json.dump(evidence, open(os.path.join(HERE, "live-evidence.json"), "w"), indent=2)
-    check("wrote live-evidence.json (ran_at + per-detection counts — the stack-UP record)",
-          os.path.exists(os.path.join(HERE, "live-evidence.json")))
-    print(f"\n  live-evidence: {evidence}")
+    # record the detections arm into the keyed live-evidence.json (read-merge-write — leaves the
+    # answer_equality / ocsf_roundtrip / flow_reconcile arms intact).
+    le.record_arm("detections", evidence)
+    check("recorded the detections arm in live-evidence.json (ran_at + per-detection counts — the stack-UP record)",
+          le.load().get("detections", {}).get("ran_at") == evidence["ran_at"])
+    print(f"\n  live-evidence[detections]: {evidence}")
 
     if _failures:
         print(f"\n\033[91m{len(_failures)} live assertion(s) FAILED\033[0m")
