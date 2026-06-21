@@ -41,11 +41,12 @@ def _():
     import migrate as mig
     import analyze as az
     import config_preview as cpv
+    import deploy_progress as dp
     import detections as dets
 
     # Tolaria convention: point VAULT_PATH at the OKF vault (project1).
     VAULT_PATH = os.environ.get("VAULT_PATH", os.path.expanduser("~/project1"))
-    return P, RestCatalog, VAULT_PATH, antip, az, ca, cf, cpv, deployer, dets, dk, ev, fl, gl, l1, l3, l4, le, mig, mo, okf, os, pf, rl, rp, subprocess, textwrap, topo, ui, yaml
+    return P, RestCatalog, VAULT_PATH, antip, az, ca, cf, cpv, deployer, dets, dk, dp, ev, fl, gl, l1, l3, l4, le, mig, mo, okf, os, pf, rl, rp, subprocess, textwrap, topo, ui, yaml
 
 
 @app.cell(hide_code=True)
@@ -773,6 +774,23 @@ def _(config_path, deployer, mo, os, pf, ui, yaml):
     _pf_report = pf.assemble_report(pf.run_preflight(_pf_cfg, deployer.is_docker_available()))
     preflight_panel = pf.preflight_panel(mo, ui, _pf_report)
     return (preflight_panel,)
+
+
+@app.cell(hide_code=True)
+def _(config_path, deployment_status, dp, mo, os, ui, yaml):
+    # PE-2 (deploy progress): the deploy as a checklist of the containers it creates, each in its real
+    # docker state (up / starting / pending). Depends on deployment_status so it refreshes after a deploy;
+    # honest — a container not yet created reads 'pending', never a faked 'up'.
+    _ = deployment_status  # dependency: refresh the progress after a deploy action
+    _dp_cfg = {}
+    if os.path.exists(config_path):
+        try:
+            with open(config_path) as _dp_f:
+                _dp_cfg = yaml.safe_load(_dp_f) or {}
+        except Exception:  # noqa: BLE001 — malformed config -> defaults, the checklist still renders honestly
+            _dp_cfg = {}
+    deploy_progress_panel = dp.deploy_progress_panel(mo, ui, dp.assemble_progress(dp.deploy_progress(_dp_cfg)))
+    return (deploy_progress_panel,)
 
 
 @app.cell(hide_code=True)
@@ -1831,6 +1849,7 @@ def _(
     cat,
     config_panel,
     preflight_panel,
+    deploy_progress_panel,
     deploy_btn,
     deployment_status,
     destroy_btn,
@@ -1884,6 +1903,7 @@ def _(
         preflight_panel,
         mo.hstack([deploy_btn, destroy_btn, gate_override]),
         deployment_status,
+        deploy_progress_panel,
         mo.accordion({"Deployment Execution Logs":
                       mo.Html(f"<pre style='max-height:250px; overflow-y:auto;'>{''.join(logs)}</pre>")}),
     ])
