@@ -65,12 +65,36 @@ def _measure(agg, field, group_rows):
     return 0
 
 
+# Group fields a finding key may surface — bounded/categorical only. A spec grouping on a free-text
+# field (url / user_name / cmd_line / message) would make each group a single record and emit that
+# record's raw value as the key — a row leak disguised as an aggregate. The allow-list makes
+# aggregate-safety a property of scan()/to_sql(), not just of the two current specs.
+_SAFE_GROUP_FIELDS = frozenset({
+    "src_ip", "dst_ip", "src_endpoint_ip", "src", "dst_port", "src_port",
+    "class_uid", "category_uid", "activity_id", "status_id", "protocol_num",
+})
+
+
+def validate_spec(d):
+    """Reject a detection that could leak rows. Every group field must be on _SAFE_GROUP_FIELDS
+    (bounded/categorical); a measure may only count/sum/avg a field, never surface one. Raises
+    ValueError on a leaky spec — a programming error caught by the proof, not a runtime surprise."""
+    bad = [g for g in d.get("group", ()) if g not in _SAFE_GROUP_FIELDS]
+    if bad:
+        raise ValueError(
+            f"detection '{d.get('id')}' groups on non-allow-listed field(s) {bad} — that would surface "
+            f"raw record values as the key. Allowed group fields: {sorted(_SAFE_GROUP_FIELDS)}.")
+    return d
+
+
 def scan(records, detections=None, *, top_n=10):
     """Run every detection over `records` (a list of landed OCSF dicts) and return aggregate-safe
     findings: [{id, title, technique, table, match_count, top: [(safe_key, {measure: number})]}].
-    The grouping key is bounded via analyze._safe_key; the only other output is numeric measures."""
+    Each spec is validate_spec()'d first (group fields allow-listed); the grouping key is bounded +
+    render-escaped via analyze._safe_key; the only other output is numeric measures."""
     out = []
     for d in (detections or DETECTIONS):
+        validate_spec(d)
         hits = [r for r in records if isinstance(r, dict) and _match(r, d["where"])]
         groups = {}
         for r in hits:
@@ -93,8 +117,13 @@ _AGG_SQL = {"count": "count(*)", "sum": "sum({field})", "avg": "avg({field})"}
 
 def to_sql(detection, table):
     """Emit the GROUP BY/HAVING SQL for the live path (run_detections.py over the Iceberg table).
-    Same spec as scan(), so the live query and the pure preview can't drift."""
-    d = detection
+    Same spec as scan(), so the live query and the pure preview can't drift. validate_spec()'d, so the
+    SELECTed group columns are bounded/categorical (no free-text column surfaced). CONTRACT: the caller
+    MUST route every surfaced key cell through analyze._safe_key before rendering — the SQL result is raw
+    and untruncated; the allow-list bounds *which* columns, _safe_key bounds *the values*. The where/group/
+    having tokens come only from code-defined specs (not user input), so the interpolation is not an
+    attacker SQL-injection surface."""
+    d = validate_spec(detection)
     where = " AND ".join(f"{f} {op} {v!r}" if isinstance(v, str) else f"{f} {op} {v}"
                          for f, op, v in d["where"])
     group = ", ".join(d["group"])
