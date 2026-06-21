@@ -32,10 +32,10 @@ def main():
     check("every zeek row resolves a raw value and an OCSF value",
           all(r["raw_value"] is not None and r["ocsf_value"] is not None for r in z["rows"]))
     zmap = {r["ocsf_field"]: r for r in z["rows"]}
-    check("the byte-direction trap is FLAGGED on orig_bytes -> bytes_in",
-          zmap["bytes_in"]["trap"] and zmap["bytes_in"]["raw_field"] == "orig_bytes")
-    check("bytes_in value comes from orig_bytes (direction correct in the preview)",
-          str(zmap["bytes_in"]["ocsf_value"]) == str(z["raw"]["orig_bytes"]))
+    check("the byte-direction trap is FLAGGED on orig_bytes -> bytes_out (canonical)",
+          zmap["bytes_out"]["trap"] and zmap["bytes_out"]["raw_field"] == "orig_bytes")
+    check("bytes_out value comes from orig_bytes (canonical direction in the preview)",
+          str(zmap["bytes_out"]["ocsf_value"]) == str(z["raw"]["orig_bytes"]))
     check("the conn_state -> activity_id row is annotated as derived (not a plain copy)",
           "derived" in zmap["activity_id"]["note"].lower())
 

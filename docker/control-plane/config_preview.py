@@ -33,14 +33,15 @@ CROSSWALK = {
             ("id.resp_h", "dst_ip", ""),
             ("id.resp_p", "dst_port", ""),
             ("proto", "protocol_num", "string -> IANA number (tcp=6, udp=17, icmp=1)"),
-            ("orig_bytes", "bytes_in",
-             f"{_WARN} direction: originator bytes are bytes_IN — OCSF measures traffic from the "
-             "destination, so a name-match to bytes_out is the canonical exfil false-negative"),
-            ("resp_bytes", "bytes_out", f"{_WARN} direction: responder bytes are bytes_OUT"),
-            ("orig_pkts", "packets_in", ""),
-            ("resp_pkts", "packets_out", ""),
+            ("orig_bytes", "bytes_out",
+             f"{_WARN} direction: traffic is from src_endpoint's view and orig_h->src_endpoint, so the "
+             "originator's SENT bytes are bytes_OUT — a perspective-confused map inverts this "
+             "(canonical: ocsf/examples Zeek conn_log)"),
+            ("resp_bytes", "bytes_in", f"{_WARN} direction: the responder's bytes are bytes_IN (received by src)"),
+            ("orig_pkts", "packets_out", ""),
+            ("resp_pkts", "packets_in", ""),
             ("conn_state", "activity_id",
-             "derived, not copied: SF->6 Traffic | S0->4 Fail | REJ->5 Refuse | RSTO->3 Reset"),
+             "derived, not copied (canonical case table): SF/RSTO->2 Close | S0->4 Fail | REJ->5 Refuse | else->6 Traffic"),
         ],
     },
     "sysmon": {
