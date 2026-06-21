@@ -45,10 +45,11 @@ def _():
     import deploy_progress as dp
     import detections as dets
     import walkthrough as wt
+    import entity_pivot as epv
 
     # Tolaria convention: point VAULT_PATH at the OKF vault (project1).
     VAULT_PATH = os.environ.get("VAULT_PATH", os.path.expanduser("~/project1"))
-    return P, RestCatalog, VAULT_PATH, antip, az, ca, cf, cpv, deployer, dets, dk, dp, ev, fl, gl, l1, l3, l4, le, mig, mo, okf, os, pf, rl, rp, sp, subprocess, textwrap, topo, ui, wt, yaml
+    return P, RestCatalog, VAULT_PATH, antip, az, ca, cf, cpv, deployer, dets, dk, dp, epv, ev, fl, gl, l1, l3, l4, le, mig, mo, okf, os, pf, rl, rp, sp, subprocess, textwrap, topo, ui, wt, yaml
 
 
 @app.cell(hide_code=True)
@@ -1872,10 +1873,35 @@ def _(config_path, flow_reconcile, gate, le, mo, os, sel_schema, ui, wt):
 
 
 @app.cell(hide_code=True)
+def _(epv, mo):
+    # Phase G flagship — the entity-pivot picker. Suggested entities present in the synthetic preview
+    # data so the pivot self-demonstrates; the value encodes "type|value".
+    _opts = {lbl: f"{et}|{val}" for et, val, lbl in epv.demo_entities()}
+    pivot_pick = mo.ui.dropdown(options=_opts, value=list(_opts)[0], label="Investigate entity")
+    return (pivot_pick,)
+
+
+@app.cell(hide_code=True)
+def _(epv, mo, pivot_pick, ui):
+    # Profile the chosen entity across every OCSF class — aggregate-safe (scan_entity is pure; the live
+    # path runs epv.to_sql over the landed Iceberg tables). Preview over synthetic OCSF; honest note.
+    _et, _val = (pivot_pick.value or "ip|10.0.1.50").split("|", 1)
+    _profile = epv.scan_entity(epv.demo_records(), _et, _val)
+    entity_pivot_panel = mo.vstack([
+        mo.hstack([pivot_pick]),
+        epv.entity_pivot_panel(mo, ui, _profile,
+            source_note="*(Preview over a synthetic OCSF sample; the live version profiles the entity "
+                        "over the landed Iceberg tables via the same aggregate query.)*"),
+    ])
+    return (entity_pivot_panel,)
+
+
+@app.cell(hide_code=True)
 def _(
     analyze_view_panel,
     detections_panel,
     config_preview_panel,
+    entity_pivot_panel,
     walkthrough_panel,
     land_panel,
     migrate_intent,
@@ -1978,6 +2004,7 @@ def _(
     _inspector_selectors = (mo.hstack([ns_selector, table_selector])
                             if (cat and hasattr(ns_selector, "value")) else ns_selector)
     tab_analyze = mo.vstack([
+        entity_pivot_panel,
         detections_panel,
         analyze_view_panel,
         ui.panel(mo,
