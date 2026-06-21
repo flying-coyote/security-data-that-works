@@ -1725,10 +1725,13 @@ def _(capture_baseline, consultant_mode, docs_panel, evidence_panel, evidence_se
 
 # ----- Planned components, now built: Land topology · Migrate cockpit · Analyze -----
 @app.cell(hide_code=True)
-def _(mo, sel_catalog, sel_ingest, sel_query, sel_schema, sel_storage, topo, ui):
+def _(flow_reconcile, mo, sel_catalog, sel_ingest, sel_query, sel_schema, sel_storage, topo, ui):
     _sel = {"storage": sel_storage, "catalog": sel_catalog, "ingest": sel_ingest,
             "query": sel_query, "schema": sel_schema}
-    land_panel = topo.topology_panel(mo, ui, _sel)
+    # PC-1: light the path with the live per-OCSF-class landed counts from the flow reconcile (run via
+    # Flow › Health). No live pass -> {} -> the topology stays design-time "—", never a fabricated green.
+    _live = topo.live_status_from_flow(flow_reconcile, _sel)
+    land_panel = topo.topology_panel(mo, ui, _sel, live_status=_live)
     return (land_panel,)
 
 
