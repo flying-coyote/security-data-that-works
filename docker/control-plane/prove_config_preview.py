@@ -52,10 +52,21 @@ def main():
     check("default row is the office->powershell event (the demonstrative one)",
           "powershell" in str(s["ocsf"].get("process_path", "")).lower())
 
+    print("\n=== AWS CloudTrail -> Authentication 3002 / API Activity 6003 preview ===\n")
+    c = cpv.build_preview("cloudtrail")
+    check("cloudtrail preview builds without error", c.get("error") is None and c["rows"])
+    cmap = {(r["ocsf_field"], r["raw_field"]): r for r in c["rows"]}
+    mfa = cmap[("is_mfa", "additionalEventData.MFAUsed")]
+    check("the MFA three-state trap is FLAGGED on additionalEventData.MFAUsed -> is_mfa", mfa["trap"])
+    check("the default row IS the MFA-absent case (raw MFAUsed resolves to None — the trap shown)",
+          mfa["raw_value"] is None)
+    route = cmap[("class_uid", "eventName")]
+    check("the routing note names 3002 vs 6003 (ConsoleLogin -> Authentication, not API)",
+          "3002" in route["note"] and "6003" in route["note"])
+
     print("\n=== exactly the intended traps are flagged; degrades honestly ===\n")
     check("each source flags >=1 trap and not every row (the flags are meaningful)",
-          0 < sum(r["trap"] for r in z["rows"]) < len(z["rows"])
-          and 0 < sum(r["trap"] for r in s["rows"]) < len(s["rows"]))
+          all(0 < sum(r["trap"] for r in p["rows"]) < len(p["rows"]) for p in (z, s, c)))
     bad = cpv.build_preview("nope")
     check("an unknown source returns an error structure, does not raise",
           bad.get("error") and bad["rows"] == [])
