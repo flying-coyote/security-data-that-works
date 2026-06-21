@@ -16,6 +16,7 @@ import subprocess
 import sys
 
 import flow_reconcile_live as fl
+import live_evidence as le
 
 PASS, FAIL = "\033[92mPASS\033[0m", "\033[91mFAIL\033[0m"
 _failures = []
@@ -85,6 +86,12 @@ def main():
             check("live route->land pipeline reconciles clean", r["status"] == "pass")
             check("live run is dated and carries per-class counts",
                   bool(r.get("ran_at")) and bool(r.get("by_class_counts")))
+            # record the arm — by_class_counts is per-OCSF-class emitted/ingested/landed counts
+            # (low-cardinality, telemetry-safe): the "watch data land per class" evidence.
+            le.record_arm("flow_reconcile", {"ran_at": r["ran_at"], "status": r["status"],
+                                             "by_class_counts": r.get("by_class_counts")})
+            check("recorded the flow_reconcile arm in live-evidence.json",
+                  le.load().get("flow_reconcile", {}).get("ran_at") == r["ran_at"])
         else:
             # Daemon up but the route/lab services aren't deployed (e.g. a clean clone): the
             # pipeline must degrade to a labeled non-pass, never a fabricated success.

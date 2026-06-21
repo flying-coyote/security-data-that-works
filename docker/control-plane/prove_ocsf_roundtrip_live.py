@@ -15,6 +15,7 @@ import os
 import subprocess
 import sys
 
+import live_evidence as le
 import ocsf_roundtrip_live as rl
 
 PASS, FAIL = "\033[92mPASS\033[0m", "\033[91mFAIL\033[0m"
@@ -102,6 +103,11 @@ def main():
             # The route service is deployable: the live transform ran and was faithful.
             check("live tenzir transform faithful to the OCSF contract", r["status"] == "pass")
             check("live run is dated and carries per-event results", bool(r.get("ran_at")) and bool(r.get("events")))
+            # record the arm (counts only — events_faithful is a length, not the rows).
+            le.record_arm("ocsf_roundtrip", {"ran_at": r["ran_at"], "status": r["status"],
+                                             "router": r.get("router"), "events_faithful": len(r.get("events") or [])})
+            check("recorded the ocsf_roundtrip arm in live-evidence.json",
+                  le.load().get("ocsf_roundtrip", {}).get("ran_at") == r["ran_at"])
         else:
             # Daemon up but the route image/service isn't available (e.g. a clean clone): the
             # check must degrade to a labeled non-pass, never a fabricated success.
