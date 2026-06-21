@@ -39,10 +39,11 @@ def _():
     import migrate as mig
     import analyze as az
     import config_preview as cpv
+    import detections as dets
 
     # Tolaria convention: point VAULT_PATH at the OKF vault (project1).
     VAULT_PATH = os.environ.get("VAULT_PATH", os.path.expanduser("~/project1"))
-    return P, RestCatalog, VAULT_PATH, antip, az, ca, cf, cpv, deployer, dk, ev, fl, gl, l1, l3, l4, mig, mo, okf, os, rl, rp, subprocess, textwrap, topo, ui, yaml
+    return P, RestCatalog, VAULT_PATH, antip, az, ca, cf, cpv, deployer, dets, dk, ev, fl, gl, l1, l3, l4, mig, mo, okf, os, rl, rp, subprocess, textwrap, topo, ui, yaml
 
 
 @app.cell(hide_code=True)
@@ -1762,6 +1763,15 @@ def _(az, loaded_table, mo, ui):
 
 
 @app.cell(hide_code=True)
+def _(dets, mo, ui):
+    # PD-network: worked detections over landed OCSF — the SOC "found something" moment, aggregate-safe.
+    detections_panel = dets.detections_panel(mo, ui, dets.scan(dets.demo_records()),
+        source_note="*Worked over the Zeek 4001 sample library (a planted beacon + a high-egress source); "
+                    "the live version runs run_detections.py over the landed `ocsf.network_activity` table.*")
+    return (detections_panel,)
+
+
+@app.cell(hide_code=True)
 def _(cpv, mo):
     # PB-1: the Configuration value moment — pick a source, watch its raw event become OCSF.
     config_preview_source = mo.ui.dropdown(
@@ -1782,6 +1792,7 @@ def _(config_preview_source, cpv, mo, ui):
 @app.cell(hide_code=True)
 def _(
     analyze_view_panel,
+    detections_panel,
     config_preview_panel,
     land_panel,
     migrate_intent,
@@ -1878,6 +1889,7 @@ def _(
     _inspector_selectors = (mo.hstack([ns_selector, table_selector])
                             if (cat and hasattr(ns_selector, "value")) else ns_selector)
     tab_analyze = mo.vstack([
+        detections_panel,
         analyze_view_panel,
         ui.panel(mo,
             ui.header(mo, "Iceberg Metadata Inspector"),
