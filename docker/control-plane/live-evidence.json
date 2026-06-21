@@ -24,7 +24,7 @@
       ]
     },
     "hypothesis": "answer-equality (cross-engine)",
-    "ran_at": "2026-06-21T22:56:42Z",
+    "ran_at": "2026-06-21T23:37:42Z",
     "status": "pass"
   },
   "detections": {
@@ -34,7 +34,7 @@
       "exfil_egress": 1
     },
     "landed_rows": 11,
-    "ran_at": "2026-06-21T22:56:53Z",
+    "ran_at": "2026-06-21T23:37:54Z",
     "table": "ocsf.network_activity_demo"
   },
   "flow_reconcile": {
@@ -45,12 +45,12 @@
         "landed": 8
       }
     },
-    "ran_at": "2026-06-21T22:56:54Z",
+    "ran_at": "2026-06-21T23:37:55Z",
     "status": "pass"
   },
   "ocsf_roundtrip": {
     "events_faithful": 8,
-    "ran_at": "2026-06-21T22:57:02Z",
+    "ran_at": "2026-06-21T23:38:03Z",
     "router": "tenzir",
     "status": "pass"
   }
