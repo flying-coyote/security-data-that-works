@@ -36,7 +36,11 @@ tbl = pa.table({
 cat.create_namespace_if_not_exists("ocsf")
 ident = "ocsf.network_activity"
 try:
-    cat.drop_table(ident)
+    # purge (not just drop): delete the data+metadata files too, so a catalog-LESS reader (e.g. ClickHouse
+    # icebergS3) can't resolve a STALE snapshot from files lingering in the S3 prefix after this drop+recreate.
+    # That stale-read is the documented catalog-less trap (breaking-points-combination-matrix.md finding #3);
+    # catalog-mediated engines never drift, and purging the prefix keeps the catalog-less cell honest too.
+    cat.purge_table(ident)
 except Exception:
     pass
 it = cat.create_table(ident, schema=tbl.schema)
