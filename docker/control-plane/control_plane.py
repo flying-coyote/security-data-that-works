@@ -46,10 +46,12 @@ def _():
     import detections as dets
     import walkthrough as wt
     import entity_pivot as epv
+    import d3fend_bridge as br
+    import attack_coverage as acov
 
     # Tolaria convention: point VAULT_PATH at the OKF vault (project1).
     VAULT_PATH = os.environ.get("VAULT_PATH", os.path.expanduser("~/project1"))
-    return P, RestCatalog, VAULT_PATH, antip, az, ca, cf, cpv, deployer, dets, dk, dp, epv, ev, fl, gl, l1, l3, l4, le, mig, mo, okf, os, pf, rl, rp, sp, subprocess, textwrap, topo, ui, wt, yaml
+    return P, RestCatalog, VAULT_PATH, acov, antip, az, br, ca, cf, cpv, deployer, dets, dk, dp, epv, ev, fl, gl, l1, l3, l4, le, mig, mo, okf, os, pf, rl, rp, sp, subprocess, textwrap, topo, ui, wt, yaml
 
 
 @app.cell(hide_code=True)
@@ -1833,6 +1835,28 @@ def _(dets, mo, ui):
 
 
 @app.cell(hide_code=True)
+def _(acov, dets, mo, ui):
+    # PG-4 — ATT&CK coverage as DESIGN-TIME defensive STRUCTURE (intent-blind), NOT coverage of
+    # your telemetry. VISIBILITY (by_class) is computed from the synthetic OCSF preview's class_uids
+    # (an aggregate count per class), so the panel doesn't depend on a loaded Iceberg table; the live
+    # version would feed az.analyze_table(loaded_arrow)['by_class']. FIRED comes from the same
+    # dets.scan() the Detections pane runs. Every label routes through analyze._safe_key in the module.
+    _findings = dets.scan(dets.demo_records())
+    _by_class = {}
+    for _r in dets.demo_records():
+        _cu = _r.get("class_uid")
+        if _cu is not None:
+            _by_class[_cu] = _by_class.get(_cu, 0) + 1
+    _records = acov.assess(_findings, _by_class)
+    _layer = acov.navigator_layer(_records)
+    coverage_panel = acov.coverage_panel(mo, ui, _records, _layer,
+        source_note="*Design-time structure over the synthetic OCSF preview (the same Zeek 4001 sample "
+                    "+ planted rows the Detections pane scans); visibility is the per-class count, fired is "
+                    "the live scan. Intent-blind — counters≠detects — never coverage of your telemetry.*")
+    return (coverage_panel,)
+
+
+@app.cell(hide_code=True)
 def _(cpv, mo):
     # PB-1: the Configuration value moment — pick a source, watch its raw event become OCSF.
     config_preview_source = mo.ui.dropdown(
@@ -1906,6 +1930,7 @@ def _(epv, mo, pivot_pick, ui):
 @app.cell(hide_code=True)
 def _(
     analyze_view_panel,
+    coverage_panel,
     detections_panel,
     hunt_library_panel,
     config_preview_panel,
@@ -2015,6 +2040,7 @@ def _(
         entity_pivot_panel,
         hunt_library_panel,
         detections_panel,
+        coverage_panel,
         analyze_view_panel,
         ui.panel(mo,
             ui.header(mo, "Iceberg Metadata Inspector"),
