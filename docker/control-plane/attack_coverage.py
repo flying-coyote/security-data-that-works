@@ -414,6 +414,114 @@ def recommendation_panel(mo, ui, records, *, paid=False, selection=None, source_
     return ui.panel(mo, *children)
 
 
+def zero_defense_panel(mo, ui, *, source_note=""):
+    """The 27 zero-defense techniques as a standing fair-broker WARN surface (PG-6).
+
+    DESIGN-TIME STRUCTURE, NOT telemetry. These are the band=='zero_defense'
+    sentinel rows in the vendored D3FEND corpus: techniques that ARE measured
+    (in_corpus True) but for which NO D3FEND technique watches the artifacts they
+    produce. The set is derived at render time from the corpus band column via
+    br._zero_ids(br.load_corpus()) — there is no precomputed list constant — and
+    is exactly 27 (asserted in prove). Each row is rendered as a warn-note whose
+    body is the bridge's own zero-defense reason string verbatim; every id is
+    routed through _safe_key before interpolation (the raw off_tech_id comes
+    straight off the CSV). This is a WARNING surface — "artifacts exist but no
+    D3FEND control watches them" — never coverage of your telemetry.
+    """
+    ids = sorted(br._zero_ids(br.load_corpus()))
+    notes = [
+        ui.note(mo, "warn", _safe_key(i),
+                "Artifacts exist but no D3FEND control watches them")
+        for i in ids
+    ]
+    intro = mo.md(
+        f"**{len(ids)} measured techniques** carry digital artifacts that some "
+        "telemetry could produce, yet **no D3FEND defensive technique watches "
+        "those artifacts** — they are `band==zero_defense` sentinels in the "
+        "vendored corpus. This is **design-time structure** (the artifacts exist "
+        "in the standards, and no D3FEND technique joins to them), **not coverage "
+        "of your telemetry** and not a claim that your stack is exposed. Each line "
+        "below is the bridge's own fair-broker warning, verbatim."
+    )
+    return ui.panel(
+        mo,
+        ui.header(mo, "Zero-defense — measured techniques no D3FEND control watches"),
+        intro,
+        *notes,
+        mo.md(source_note),
+    )
+
+
+def detection_defense_panel(mo, ui, records, *, source_note=""):
+    """For each FIRED detection, the D3FEND defensive technique it instantiates,
+    at the curated 0.70 ontology_curated tier — NEVER the inferred 0.25 (PG-6).
+
+    Reads ONLY rec["curated_defense"] (the SEPARATE hand-authored, intent-AWARE
+    detect-defense map, populated by assess() via br.curated_defense_for and
+    already _safe_key'd). Only records that actually FIRED this run appear
+    (rec["fired"] True, equivalently status=="fired", which is match_count>0 on the
+    underlying scan finding) — a covered / dark_spot / blind technique never
+    surfaces. The inferred artifact_cooccurrence 0.25 edges and the weakest-link
+    MIN are deliberately NOT shown here; this panel is the 0.70 curated tier on its
+    own terms. When a fired technique has no curated entry (the honest T1530 gap),
+    the row says so rather than fabricate a defense.
+    """
+    fired = [r for r in records if r.get("fired")]
+
+    header = ui.header(
+        mo, "Detection → D3FEND defense — curated detect-defense (intent-aware, 0.70)")
+    intro = mo.md(
+        "Each row below maps a detection that **actually fired this run** to the one "
+        "D3FEND DETECT-phase technique that genuinely detects it. This is the "
+        "**hand-authored, intent-AWARE** detect-defense map at trust **0.70** "
+        "`ontology_curated` — a **separate source** from the 0.25 intent-blind "
+        "`artifact_cooccurrence` inferred matrix (counters≠detects), and the 0.25 "
+        "edges are deliberately **not** shown here. Only detections that fired "
+        "appear; a covered / dark-spot / blind technique never surfaces."
+    )
+
+    if not fired:
+        return ui.panel(
+            mo, header, intro,
+            ui.note(mo, "info", "No detections fired",
+                    "Nothing matched this run — there is no fired detection to map "
+                    "to a curated D3FEND defense."),
+            mo.md(source_note),
+        )
+
+    rows = []
+    for rec in fired:
+        cur = rec.get("curated_defense")
+        if cur:
+            defense = f"`{cur['d3fend_id']}` {cur['def_tech']}"
+            trust = cur["trust"]          # the literal 0.70 from the curated dict
+            tier = cur["proxy_quality"]   # "ontology_curated"
+        else:
+            defense = "— (no curated detect-defense; honest gap)"
+            trust = "—"
+            tier = "—"
+        rows.append(
+            f"| `{rec['technique']}` | {rec['title']} | {defense} | {trust} | {tier} |"
+        )
+    table = mo.md(
+        "| Technique | Detection (fired) | D3FEND defense | Trust | Tier |\n"
+        "|---|---|---|---|---|\n"
+        + "\n".join(rows)
+    )
+
+    return ui.panel(
+        mo,
+        header,
+        intro,
+        table,
+        ui.note(mo, "info", "Separate from the inferred matrix",
+                "The trust here is the curated **0.70** `ontology_curated` tier read "
+                "directly from the hand-authored map — never the inferred **0.25** "
+                "`artifact_cooccurrence` edge, and never lifted by a weakest-link MIN."),
+        mo.md(source_note),
+    )
+
+
 def coverage_panel(mo, ui, records, navigator_json, *, source_note=""):
     """The ATT&CK coverage status table + the Navigator download.
 
