@@ -1899,6 +1899,35 @@ def _(acov, dets, mo, ui):
 
 
 @app.cell(hide_code=True)
+def _(acov, dets, mo, ui):
+    # PG-7 / CF-ART — the measured-firing OVERLAY. Reconciles the design-time prediction
+    # (acov.assess over the synthetic preview — where defenses are MAPPED) against the lab's
+    # ocsf-attack-coverage bench verdicts (C5 — where detections actually FIRE), joined on
+    # technique id, and surfaces the DISAGREEMENT. The console reads ONLY the vendored
+    # AGGREGATE verdicts (technique id + DETECTED/MISSED/NOISY + counts + precision + a public
+    # Sigma filename) — never a raw event — and computes NO coverage number of its own; the
+    # measured headline traces to coverage.json via the vendored _meta. A technique absent from
+    # the measured set honest-degrades to not_measured (fail-closed, the decay `stale` analog).
+    _f = dets.scan(dets.demo_records())
+    _bc = {}
+    for _r in dets.demo_records():
+        _cu = _r.get("class_uid")
+        if _cu is not None:
+            _bc[_cu] = _bc.get(_cu, 0) + 1
+    _recs = acov.assess(_f, _bc)
+    _meta, _measured = acov.load_measured_verdicts()
+    _reconciled = acov.reconcile(_recs, _measured, _meta)
+    measured_overlay_panel = ui.disagreement_panel(
+        mo, ui, _reconciled, _meta,
+        source_note="*Design-time prediction (acov.assess over the synthetic OCSF preview) "
+                    "reconciled against the lab's ocsf-attack-coverage bench verdicts (C5, "
+                    "tier B synthetic testbed), joined on technique id. The measured side is "
+                    "vendored aggregate verdicts only — no raw events; the headline number is "
+                    "read from coverage.json, never computed here.*")
+    return (measured_overlay_panel,)
+
+
+@app.cell(hide_code=True)
 def _(cpv, mo):
     # PB-1: the Configuration value moment — pick a source, watch its raw event become OCSF.
     config_preview_source = mo.ui.dropdown(
@@ -1973,6 +2002,7 @@ def _(epv, mo, pivot_pick, ui):
 def _(
     analyze_view_panel,
     coverage_panel,
+    measured_overlay_panel,
     recommendation_panel,
     detection_defense_panel,
     zero_defense_panel,
@@ -2087,6 +2117,7 @@ def _(
         detections_panel,
         detection_defense_panel,
         coverage_panel,
+        measured_overlay_panel,
         zero_defense_panel,
         recommendation_panel,
         analyze_view_panel,
