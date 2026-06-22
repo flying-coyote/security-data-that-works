@@ -108,9 +108,16 @@ VIEWS = [
     ("analyze", "Analyze", ["Analyze"],
      "Aggregate-only analysis over the loaded OCSF table &mdash; row and per-class/activity "
      "counts, top-N sources, field population, time span &mdash; plus the Iceberg metadata "
-     "inspector. It never renders a raw telemetry row: real security data is a prompt-injection "
-     "and control-char surface, so only counts and low-cardinality keys leave the query, and "
-     "source values are control-char-stripped and length-bounded."),
+     "inspector, and the ATT&amp;CK&rarr;D3FEND coverage read built on the lab's measured bench: "
+     "per-technique fired / covered / dark-spot / blind status with an ATT&amp;CK-Navigator export, "
+     "the dark-spot recommendations (which OCSF classes to land), the 27 zero-defense holes and the "
+     "fired&rarr;D3FEND-defense mapping, and the measured-firing overlay where the design-time "
+     "structure and the measured firing disagree. Every D3FEND edge carries its trust tier and the "
+     "intent-blind co-occurrence leads (0.25) are never laundered into coverage; this is design-time "
+     "defensive structure, never a claim about your telemetry. It never renders a raw telemetry row: "
+     "real security data is a prompt-injection and control-char surface, so only counts and "
+     "low-cardinality keys leave the query, and source values are control-char-stripped and "
+     "length-bounded."),
 ]
 
 MAX_H = 12000  # safety cap on a runaway content-height measurement
