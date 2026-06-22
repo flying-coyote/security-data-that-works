@@ -252,6 +252,168 @@ def summarize(records) -> dict:
     return out
 
 
+def recommend(record, corpus=None, *, ingest_code="ingest"):
+    """For a DARK_SPOT CoverageRecord, the design-time "land this source" recommendation.
+
+    FIRING RULE (intent-honest): recommend() fires ONLY for a dark_spot — a hunt
+    exists (has_detection) but its OCSF class never landed (visible False), so the
+    class is the gap to close. It returns None for blind / fired / covered; the
+    firing rule IS the filter (status from assess()).
+
+    WHAT IT BUILDS, all from already-aggregate inputs (invents nothing):
+      - the detect-band D3FEND leads RE-DERIVED via br.defenses_for(technique,
+        "detect") — assess() stores only the COUNT (:177), not the edge labels, so
+        recommend re-derives them. The reason-only honest-degrade sentinels
+        (not-in-corpus / zero-defense) are filtered exactly as assess does (:144).
+        Each surviving lead is STAMPED intent-blind: proxy_quality
+        "artifact_cooccurrence", trust 0.25, intent_blind True, and the literal
+        stamp "artifact_cooccurrence — intent-blind possibility". trust /
+        proxy_quality come verbatim from defenses_for (:239-240), never recomputed.
+      - the OCSF classes to land = required_classes minus landed_classes. For a
+        dark_spot landed_classes is [] (nothing landed), so it's the full required
+        set. Cross-checked against the real edges' required_ocsf_classes and
+        asserted a subset of the closed {1007,3002,4001,6003}.
+      - a topology "land this source" target per class: the route NODE id
+        `route_{ingest_code}` (topology.py:150) — NOT a named customer source
+        (topology has no named-source model, topology.py:9,142). The action copy
+        says "wire an ingest router", never claims a source exists.
+
+    Honest degrade: a dark_spot whose technique is not-in-corpus / zero-defense
+    yields defenses=[] with a degrade note carrying the sentinel reason — never a
+    fabricated defense. Pure (no marimo); reuses br + the record fields.
+    """
+    if record.get("status") != "dark_spot":
+        return None  # NEVER fires for blind / fired / covered
+
+    corpus = corpus if corpus is not None else br.load_corpus()
+    technique = record["technique"]
+
+    # Re-derive the detect-band leads (assess kept only the count, not the labels).
+    edges = br.defenses_for(technique, band="detect", corpus=corpus)
+    leads = [e for e in edges if "reason" not in e]  # drop the honest-degrade sentinels (as :144)
+
+    # OCSF classes to land = required minus landed (landed is [] for a dark_spot).
+    landed = list(record.get("landed_classes") or [])
+    required = list(record.get("required_classes") or [])
+    classes_to_land = sorted(c for c in required if c not in landed)
+    # Cross-check: every class is real and matches the edges' own derivation.
+    edge_classes = sorted({cu for e in leads for cu in br.required_ocsf_classes(e)})
+    assert all(cu in br._OCSF_ALLOWED for cu in classes_to_land), "fabricated class_uid"
+    assert all(cu in br._OCSF_ALLOWED for cu in edge_classes), "fabricated class_uid (edge)"
+
+    # Stamp every defense intent-blind. trust/proxy_quality verbatim from the edge.
+    defenses = [{
+        "d3fend_id": e["d3fend_id"],
+        "def_tech": e["def_tech"],
+        "phase": e["phase"],
+        "shared_artifact_names": e["shared_artifact_names"],
+        "proxy_quality": "artifact_cooccurrence",
+        "trust": 0.25,
+        "intent_blind": True,
+        "stamp": "artifact_cooccurrence — intent-blind possibility",
+    } for e in leads]
+
+    # Topology "land this source" target per class: the route node id route_{code}.
+    topology_targets = [{
+        "class_uid": cu,
+        "route_target": f"route_{ingest_code}",
+        "action": (f"land OCSF class {cu} — wire an ingest router "
+                   f"(route_{ingest_code}) so this class arrives"),
+    } for cu in classes_to_land]
+
+    out = {
+        "technique": technique,
+        "tactic": record.get("tactic", "—"),
+        "class_uid": record.get("class_uid"),
+        "classes_to_land": classes_to_land,
+        "defenses": defenses,
+        "topology_targets": topology_targets,
+        "weakest_trust_tier": record.get("weakest_trust_tier"),
+        "caveat": record.get("caveat", br.COOCCURRENCE_CAVEAT),
+    }
+    if not leads:
+        # Honest "no detect-band lead": carry the sentinel reason, never a fake defense.
+        out["degrade"] = edges[0]["reason"] if edges else "no detect-band lead"
+    return out
+
+
+def recommendation_panel(mo, ui, records, *, paid=False, selection=None, source_note=""):
+    """The "land-this-source" recommendation table — one row per dark spot.
+
+    PUBLIC / PAID BOUNDARY. The DEFAULT (paid False) renders the GENERIC method on
+    SYNTHETIC data only — "here is how you'd find what to land" over the synthetic
+    stack's route codes / class_uids, every D3FEND defense stamped intent-blind at
+    trust 0.25. The PER-CUSTOMER recommender ("what YOUR stack should deploy")
+    renders ONLY inside the `paid` branch, mirroring the Matrix gate
+    (control_plane.py:1051/:1081). The firing rule (dark_spot only) and the
+    intent-blind stamp hold in BOTH modes; only the per-environment binding is gated.
+
+    Every surfaced label is already _safe_key'd upstream (assess + defenses_for).
+    """
+    # In the paid branch we MAY bind the route target to the live selection's actual
+    # ingest code; in the default branch the route code stays generic.
+    ingest = (selection or {}).get("ingest") if isinstance(selection, dict) else None
+    sel_codes = [c for c in (ingest or []) if c]
+    ingest_code = sel_codes[0] if (paid and sel_codes) else "ingest"
+
+    recs = [r for r in (recommend(rec, ingest_code=ingest_code) for rec in records) if r]
+
+    header = ui.header(
+        mo, "Land-this-source recommendations — design-time possibilities (intent-blind)")
+    intro = mo.md(
+        "This is the **generic method on synthetic data** — *here is how you'd find what "
+        "to land*. Every D3FEND defense below is an intent-blind `artifact_cooccurrence` "
+        "lead at trust **0.25** (counters≠detects), a design-time possibility, **NOT** a "
+        "guarantee and **NOT** coverage of your telemetry. " + br.COOCCURRENCE_CAVEAT
+    )
+
+    if not recs:
+        return ui.panel(
+            mo, header, intro,
+            ui.note(mo, "info", "No dark spots",
+                    "Every hunt's OCSF class has landed — nothing to recommend landing."),
+            mo.md(source_note),
+        )
+
+    rows = []
+    for r in recs:
+        land_classes = ", ".join(str(c) for c in r["classes_to_land"]) or "—"
+        land_via = ", ".join(sorted({t["route_target"] for t in r["topology_targets"]})) or "—"
+        if r["defenses"]:
+            leads = "<br/>".join(
+                f"`{d['d3fend_id']}` {d['def_tech']} [{d['stamp']}]" for d in r["defenses"])
+        else:
+            leads = f"*honest degrade — {r.get('degrade', 'no detect-band lead')}*"
+        rows.append(
+            f"| `{r['technique']}` | {r['tactic']} | {r['class_uid']} "
+            f"| {land_classes} | {land_via} | {leads} | {r['weakest_trust_tier']} |"
+        )
+    table = mo.md(
+        "| Technique | Tactic | OCSF class (dark) | Land these OCSF classes "
+        "| Land via (route) | D3FEND detect leads (intent-blind 0.25) | Weakest trust |\n"
+        "|---|---|---|---|---|---|---|\n"
+        + "\n".join(rows)
+    )
+
+    children = [header, intro, table]
+    if not paid:
+        # DEFAULT / public surface: generic-on-synthetic only. NO per-customer content.
+        children.append(ui.note(
+            mo, "info", "Generic method (public)",
+            "This shows HOW to find what to land on synthetic data. The per-environment "
+            "recommender — the one that binds these targets to a specific ingest route — is "
+            "consultant IP; run with MOAR_PAID_MODE=1."))
+    else:
+        # GATED per-customer branch: targets bound to the live selection's route code.
+        children.append(ui.note(
+            mo, "warn", "Per-environment recommender (paid)",
+            "Targets below are bound to your selected ingest route "
+            f"(`route_{ingest_code}`) — what your stack should deploy to close each dark "
+            "spot. Still intent-blind possibilities at trust 0.25, never guarantees."))
+    children.append(mo.md(source_note))
+    return ui.panel(mo, *children)
+
+
 def coverage_panel(mo, ui, records, navigator_json, *, source_note=""):
     """The ATT&CK coverage status table + the Navigator download.
 
