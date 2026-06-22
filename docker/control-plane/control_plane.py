@@ -1835,7 +1835,7 @@ def _(dets, mo, ui):
 
 
 @app.cell(hide_code=True)
-def _(acov, dets, mo, ui):
+def _(acov, dets, mo, paid, sel_catalog, sel_ingest, sel_query, sel_schema, sel_storage, ui):
     # PG-4 — ATT&CK coverage as DESIGN-TIME defensive STRUCTURE (intent-blind), NOT coverage of
     # your telemetry. VISIBILITY (by_class) is computed from the synthetic OCSF preview's class_uids
     # (an aggregate count per class), so the panel doesn't depend on a loaded Iceberg table; the live
@@ -1853,7 +1853,19 @@ def _(acov, dets, mo, ui):
         source_note="*Design-time structure over the synthetic OCSF preview (the same Zeek 4001 sample "
                     "+ planted rows the Detections pane scans); visibility is the per-class count, fired is "
                     "the live scan. Intent-blind — counters≠detects — never coverage of your telemetry.*")
-    return (coverage_panel,)
+
+    # PG-5 — land-this-source recommendations for the dark spots (intent-blind possibilities).
+    # DEFAULT (MOAR_PAID_MODE unset) renders the GENERIC method on synthetic data only; the
+    # per-environment recommender (bound to the live selection's route code) is gated behind
+    # paid.paid_mode(), mirroring the Matrix gate (control_plane.py:1051/:1081).
+    _pg5_selection = {"storage": sel_storage, "catalog": sel_catalog, "ingest": sel_ingest,
+                      "query": sel_query, "schema": sel_schema}
+    recommendation_panel = acov.recommendation_panel(
+        mo, ui, _records, paid=paid.paid_mode(), selection=_pg5_selection,
+        source_note="*Generic land-this-source method over the synthetic OCSF preview; defenses are "
+                    "artifact_cooccurrence intent-blind leads (0.25), never guarantees. Per-environment "
+                    "recommender is paid (MOAR_PAID_MODE).*")
+    return coverage_panel, recommendation_panel
 
 
 @app.cell(hide_code=True)
@@ -1931,6 +1943,7 @@ def _(epv, mo, pivot_pick, ui):
 def _(
     analyze_view_panel,
     coverage_panel,
+    recommendation_panel,
     detections_panel,
     hunt_library_panel,
     config_preview_panel,
@@ -2041,6 +2054,7 @@ def _(
         hunt_library_panel,
         detections_panel,
         coverage_panel,
+        recommendation_panel,
         analyze_view_panel,
         ui.panel(mo,
             ui.header(mo, "Iceberg Metadata Inspector"),
