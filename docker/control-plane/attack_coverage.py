@@ -40,10 +40,13 @@ analyze._safe_key, detections (library_catalog / scan / _class_of), d3fend_bridg
 """
 from __future__ import annotations
 
+import datetime as _dt
 import json
+import os
 
 import detections as dets
 import d3fend_bridge as br
+import decay
 from analyze import _safe_key
 
 # ATT&CK version pin for the Navigator layer metadata. The console names
@@ -587,3 +590,177 @@ def coverage_panel(mo, ui, records, navigator_json, *, source_note=""):
         mo.hstack([download_btn]),
         mo.md(source_note),
     )
+
+
+# ============================================================================
+# PG-7 / CF-ART — the MEASURED-FIRING overlay.
+#
+# The Wall (PG-4 assess) maps where defenses are MAPPED; the lab's ocsf-attack-
+# coverage bench (C5) measures where detections actually FIRE. This overlay joins
+# the two on technique id and surfaces the DISAGREEMENT — the whole point.
+#
+# ISOLATION (CF-ART): this reads ONLY the vendored AGGREGATE verdicts (technique
+# id + DETECTED/MISSED/NOISY + counts + precision + a public Sigma filename), NEVER
+# a raw event. The console computes NO coverage number of its own — every measured
+# value comes from the vendored file the generator copied from coverage.json.
+#
+# FAIL-CLOSED (mirrors decay.py): a technique NOT present in the measured set is
+# `not_measured` — the analog of decay's `stale` ("no measured verdict exists,
+# re-run the bench"), NEVER a bluffed measured-pass and NEVER a green. The same
+# rule applies to the whole import: a stale coverage.json (older than the TTL)
+# decays every measured verdict to not_measured rather than serve an old firing as
+# current.
+# ============================================================================
+
+# Path to the vendored C5 verdicts (emitted by project1/tools/gen_c5_overlay.py).
+_VERDICTS_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "c5_coverage_verdicts.json")
+
+# The measured-state -> emoji legend (kept separate from the design-time _STATUS_EMOJI).
+_MEASURED_EMOJI = {"DETECTED": "🟢", "MISSED": "🔴", "NOISY": "🟠", "not_measured": "⚪"}
+
+# Reconciliation legend — the green/red/amber/grey the disagreement panel renders.
+_RECONCILIATION_EMOJI = {
+    "confirmed_fired": "🟢",            # design-time covered AND measured DETECTED — prediction held
+    "predicted_covered_but_missed": "🔴",  # the exposed gap — the Wall watched it, nothing fired
+    "fired_but_noisy": "🟠",           # fired but with false positives (precision shown)
+    "not_measured": "⚪",              # honest-degrade — no measured verdict, re-run the bench
+    "measured_only": "🟡",             # the bench measured it but no design-time hunt watches it
+}
+
+# The aggregate-safe field allow-list for a reconciled record's measured side — a
+# reconciled record may carry ONLY these measured fields (asserted in prove). No
+# raw-event field can appear.
+MEASURED_FIELD_ALLOWLIST = (
+    "att_ck", "state", "ocsf_class_uid", "rule", "compiled",
+    "matches", "true_positive", "false_positives", "precision",
+    "threshold_T", "stage", "miss_reason",
+)
+
+
+def _norm_tech(technique):
+    """Normalize a technique id for the join. assess() stores _safe_key'd ids and the
+    vendored verdicts are _safe_key'd too, so both sides match on the plain ATT&CK id
+    (sub-technique dotted ids like T1003.001 are preserved — no truncation)."""
+    return str(technique or "").strip()
+
+
+def load_measured_verdicts(path=None):
+    """Load the vendored C5 verdicts -> (meta, {technique_id: verdict}).
+
+    Mirrors br.load_corpus(): pure-stdlib json, reads the AGGREGATE verdicts the
+    generator copied from coverage.json. The console holds NO raw events — this file
+    carries only {technique id, state, counts, precision, Sigma filename, class_uid}.
+    Returns the _meta provenance dict and a dict keyed by technique id.
+    """
+    p = path or _VERDICTS_PATH
+    with open(p) as f:
+        doc = json.load(f)
+    meta = doc.get("_meta", {})
+    measured = {}
+    for v in doc.get("verdicts", []):
+        tech = _norm_tech(v.get("att_ck"))
+        if tech:
+            measured[tech] = v
+    return meta, measured
+
+
+def _import_is_stale(meta, now_iso=None, ttl_seconds=decay.DEFAULT_TTL_SECONDS):
+    """Mirror decay's staleness onto the C5 import: the vendored _meta carries the
+    bench run's timestamp; if that is undatable, future-skewed, or older than the TTL,
+    the WHOLE measured overlay decays to "re-run the bench" rather than serve an old
+    firing as current. Reuses decay.effective_status on a synthetic 'pass'."""
+    now_iso = now_iso or _dt.datetime.now(_dt.timezone.utc).isoformat()
+    stamp = (meta or {}).get("bench_validated_at")
+    # effective_status decays a `pass` to `stale` exactly when the stamp is missing,
+    # future-skewed, or older than the TTL — the same fail-closed contract.
+    return decay.effective_status("pass", stamp, now_iso, ttl_seconds) != "pass"
+
+
+def reconcile(records, measured, meta=None, *, now_iso=None, ttl_seconds=decay.DEFAULT_TTL_SECONDS):
+    """JOIN each design-time CoverageRecord (from assess) to the measured C5 verdict.
+
+    For each record, key on technique id. Produce a reconciled record carrying BOTH
+    the design-time status (fired/covered/dark_spot/blind) AND the measured verdict,
+    plus a `reconciliation` label:
+
+      confirmed_fired              design-time covered/fired AND measured DETECTED
+                                   (the prediction held — a real measured firing)
+      predicted_covered_but_missed design-time covered/fired AND measured MISSED
+                                   (the honest disagreement — the Wall said a hunt
+                                    watches it, the bench says nothing fired; RED)
+      fired_but_noisy              design-time covered/fired AND measured NOISY
+                                   (fired with false positives; precision shown)
+      not_measured                 technique NOT in the measured set (FAIL-CLOSED —
+                                   the decay `stale` analog; NEVER a bluffed pass)
+
+    STALENESS: if the import is stale (meta.bench_validated_at older than the TTL,
+    undatable, or future-skewed), EVERY verdict decays to not_measured — an old
+    firing is never served as current (mirrors decay.effective_status).
+
+    NO number is invented — the measured side comes only from the vendored verdict.
+    The design-time record's weakest_trust_tier is carried THROUGH untouched: the
+    measured join never upgrades an intent-blind 0.25 D3FEND edge.
+    """
+    measured = measured or {}
+    import_stale = _import_is_stale(meta, now_iso=now_iso, ttl_seconds=ttl_seconds)
+
+    out = []
+    for rec in records:
+        tech = _norm_tech(rec.get("technique"))
+        design_status = rec.get("status")
+        verdict = None if import_stale else measured.get(tech)
+
+        if verdict is None:
+            # FAIL-CLOSED: no measured verdict (absent technique, or stale import).
+            reconciliation = "not_measured"
+            measured_state = "not_measured"
+            measured_fields = {}
+        else:
+            measured_state = _safe_key(verdict.get("state", ""))
+            # Project ONLY the aggregate-safe measured fields onto the reconciled record.
+            measured_fields = {k: verdict.get(k) for k in MEASURED_FIELD_ALLOWLIST}
+            if measured_state == "DETECTED":
+                reconciliation = "confirmed_fired"
+            elif measured_state == "MISSED":
+                reconciliation = "predicted_covered_but_missed"
+            elif measured_state == "NOISY":
+                reconciliation = "fired_but_noisy"
+            else:
+                # An unrecognized state honest-degrades rather than bluff a pass.
+                reconciliation = "not_measured"
+                measured_state = "not_measured"
+                measured_fields = {}
+
+        out.append({
+            "technique": _safe_key(tech),
+            "tactic": rec.get("tactic", "—"),
+            "title": rec.get("title", ""),
+            "class_uid": rec.get("class_uid"),
+            "design_status": design_status,        # fired/covered/dark_spot/blind
+            "measured_state": measured_state,       # DETECTED/MISSED/NOISY/not_measured
+            "reconciliation": reconciliation,
+            "precision": measured_fields.get("precision"),
+            "true_positive": measured_fields.get("true_positive"),
+            "false_positives": measured_fields.get("false_positives"),
+            "matches": measured_fields.get("matches"),
+            "rule": measured_fields.get("rule", ""),
+            "measured_ocsf_class_uid": measured_fields.get("ocsf_class_uid"),
+            "threshold_T": measured_fields.get("threshold_T"),
+            # weakest_trust_tier carried THROUGH from the design-time record, untouched —
+            # the measured join NEVER upgrades a 0.25 intent-blind D3FEND edge.
+            "weakest_trust_tier": rec.get("weakest_trust_tier"),
+            "import_stale": import_stale,
+            "caveat": rec.get("caveat", br.COOCCURRENCE_CAVEAT),
+        })
+    return out
+
+
+def reconcile_summarize(reconciled):
+    """Pure-aggregate tally of the reconciliation buckets. No labels — counts only."""
+    out = {k: 0 for k in _RECONCILIATION_EMOJI}
+    out["total"] = 0
+    for r in reconciled:
+        out[r["reconciliation"]] = out.get(r["reconciliation"], 0) + 1
+        out["total"] += 1
+    return out
+
