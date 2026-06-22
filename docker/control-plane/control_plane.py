@@ -1869,6 +1869,36 @@ def _(acov, dets, mo, paid, sel_catalog, sel_ingest, sel_query, sel_schema, sel_
 
 
 @app.cell(hide_code=True)
+def _(acov, mo, ui):
+    # PG-6a — the 27 zero-defense techniques as a standing fair-broker WARN surface.
+    # DESIGN-TIME STRUCTURE (band==zero_defense sentinels in the vendored corpus), NOT
+    # coverage of your telemetry. Derived at render time via br._zero_ids(load_corpus()).
+    zero_defense_panel = acov.zero_defense_panel(mo, ui,
+        source_note="*Design-time structure over the vendored D3FEND corpus; the 27 "
+                    "band==zero_defense sentinels. Not coverage of your telemetry.*")
+    return (zero_defense_panel,)
+
+
+@app.cell(hide_code=True)
+def _(acov, dets, mo, ui):
+    # PG-6b — each FIRED detection → the D3FEND defense it instantiates, at the curated
+    # 0.70 ontology_curated tier (NEVER the inferred 0.25). Reuses the same scan→assess
+    # path the Detections / Coverage panes run; only fired records surface.
+    _f = dets.scan(dets.demo_records())
+    _bc = {}
+    for _r in dets.demo_records():
+        _cu = _r.get("class_uid")
+        if _cu is not None:
+            _bc[_cu] = _bc.get(_cu, 0) + 1
+    _recs = acov.assess(_f, _bc)
+    detection_defense_panel = acov.detection_defense_panel(mo, ui, _recs,
+        source_note="*Only detections that FIRED over the synthetic preview; the detect-defense "
+                    "is the hand-authored 0.70 ontology_curated map, NOT the 0.25 intent-blind "
+                    "inferred matrix.*")
+    return (detection_defense_panel,)
+
+
+@app.cell(hide_code=True)
 def _(cpv, mo):
     # PB-1: the Configuration value moment — pick a source, watch its raw event become OCSF.
     config_preview_source = mo.ui.dropdown(
@@ -1944,6 +1974,8 @@ def _(
     analyze_view_panel,
     coverage_panel,
     recommendation_panel,
+    detection_defense_panel,
+    zero_defense_panel,
     detections_panel,
     hunt_library_panel,
     config_preview_panel,
@@ -2053,7 +2085,9 @@ def _(
         entity_pivot_panel,
         hunt_library_panel,
         detections_panel,
+        detection_defense_panel,
         coverage_panel,
+        zero_defense_panel,
         recommendation_panel,
         analyze_view_panel,
         ui.panel(mo,
