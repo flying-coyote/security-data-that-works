@@ -18,6 +18,10 @@ rebuilding from scratch. Two extensions this kit adds and an opt-in incumbent fo
 Presets are named by the SOC ingest scale they map to (10× steps); the old RAM-budget names
 (`laptop`/`workstation`/`server`/`compare`) still work as aliases.
 
+The marimo control plane that drives all of this — the operator views, the data-health gate, and the
+extensively-documented catalog of integration problems between these components (plus direct links to each
+tool's vendor docs) — is documented in [`control-plane/README.md`](control-plane/README.md).
+
 ## Why this exists (the four things nobody else ships)
 
 OCSF + Iceberg + Parquet on object storage is now table stakes — Databricks Lakewatch, AWS Security Lake,
