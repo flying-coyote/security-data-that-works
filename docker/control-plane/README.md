@@ -67,8 +67,9 @@ OCSF → Iceberg) actually writes, and where the mapping fidelity the gate later
 ![Health](flipthrough/img/health.png)
 
 The data-health gate is the console's center of gravity. It refuses to certify the foundation GREEN until each
-measurable layer actually passes: source health (L1), mapping fidelity (L2), data quality (L3), ontology
-grounding (L4). The honesty of the gate is in its vocabulary — a layer with no data to run against reads
+measurable layer actually passes: source health (L1), stack reachable (L2, catalog live), data quality (L3 —
+freshness, small-files, orphans, schema-conformance), and cross-tool gap (L4, exact-match entity reconciliation
+across sources). The honesty of the gate is in its vocabulary — a layer with no data to run against reads
 `unmeasured`, a check with no machinery reads `unwired`, a proven layer whose TTL elapsed decays to `stale`, and
 none of those is ever shown as a pass. A clean foundation reads AMBER by design until the audits have something
 real to measure. The full per-layer contract is in [`CONTRACT.md`](CONTRACT.md).
