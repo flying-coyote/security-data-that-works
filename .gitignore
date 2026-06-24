@@ -8,3 +8,6 @@ __pycache__/
 __marimo__/
 docker/control-plane/temp_test_config.yaml
 docker/control-plane/temp_config/
+
+# local agent notes (operate from project1; keep public repo minimized)
+CLAUDE.md
