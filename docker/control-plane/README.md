@@ -22,6 +22,25 @@ flip-through below is a real screenshot of each view captured from the live app 
 `bash flipthrough/build.sh` after a console change); with the demo stack down, the data-driven panels honestly
 show their pre-audit states, because the gate never bluffs a pass.
 
+### Launching the console
+
+To drive the console live rather than read the static flip-through, run it as a marimo app against a Python
+environment that carries the console's dependencies (marimo, pandas, pyiceberg, duckdb, and pulumi for the
+deploy panel) — the same venv the flip-through build uses:
+
+```bash
+# from docker/control-plane/
+"$HOME/sdw-lab-benchmarks/.venv/bin/marimo" run control_plane.py
+# or, with your own environment on PATH:  marimo run control_plane.py
+```
+
+marimo prints the local URL it is serving on (by default `http://localhost:2718`); open that to drive the
+console. There is no `./moar` verb for this yet, so the launch is manual. One caveat from the deploy panel:
+`flipthrough/build.sh` stubs `pulumi` on `PYTHONPATH` because the screenshot export only imports the deploy
+module, so a live run needs `pulumi` actually installed (or the same stub on `PYTHONPATH`). Set
+`MOAR_PAID_MODE=1` before launching if you want the gated Matrix and per-customer panels; with the demo stack
+down the data-driven panels honestly show their pre-audit states, the same as the flip-through.
+
 ### The guided walkthrough — the golden path
 
 ![Walkthrough](flipthrough/img/walkthrough.png)
