@@ -615,6 +615,16 @@ def coverage_panel(mo, ui, records, navigator_json, *, source_note=""):
 # Path to the vendored C5 verdicts (emitted by project1/tools/gen_c5_overlay.py).
 _VERDICTS_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "c5_coverage_verdicts.json")
 
+# The C5 verdicts are a STATIC, reproducible LAB ARTIFACT — the generator copies them
+# from the bench's coverage.json, and they only change when the bench is RE-RUN (a
+# cadence of weeks), not minute-to-minute like live telemetry. So the import gets an
+# artifact-scale TTL rather than decay.DEFAULT_TTL_SECONDS (one day, which is right for
+# a live data-health verdict but wrong for a vendored bench result — at one day the
+# whole measured overlay decayed to not_measured a single day after each bench run).
+# The fail-closed contract is unchanged: an undatable, future-skewed, or genuinely
+# past-cadence stamp still decays every verdict to not_measured.
+C5_ARTIFACT_TTL_SECONDS = 30 * 86400  # 30 days — roughly one bench re-run cadence
+
 # The measured-state -> emoji legend (kept separate from the design-time _STATUS_EMOJI).
 _MEASURED_EMOJI = {"DETECTED": "🟢", "MISSED": "🔴", "NOISY": "🟠", "not_measured": "⚪"}
 
@@ -664,7 +674,7 @@ def load_measured_verdicts(path=None):
     return meta, measured
 
 
-def _import_is_stale(meta, now_iso=None, ttl_seconds=decay.DEFAULT_TTL_SECONDS):
+def _import_is_stale(meta, now_iso=None, ttl_seconds=C5_ARTIFACT_TTL_SECONDS):
     """Mirror decay's staleness onto the C5 import: the vendored _meta carries the
     bench run's timestamp; if that is undatable, future-skewed, or older than the TTL,
     the WHOLE measured overlay decays to "re-run the bench" rather than serve an old
@@ -676,7 +686,7 @@ def _import_is_stale(meta, now_iso=None, ttl_seconds=decay.DEFAULT_TTL_SECONDS):
     return decay.effective_status("pass", stamp, now_iso, ttl_seconds) != "pass"
 
 
-def reconcile(records, measured, meta=None, *, now_iso=None, ttl_seconds=decay.DEFAULT_TTL_SECONDS):
+def reconcile(records, measured, meta=None, *, now_iso=None, ttl_seconds=C5_ARTIFACT_TTL_SECONDS):
     """JOIN each design-time CoverageRecord (from assess) to the measured C5 verdict.
 
     For each record, key on technique id. Produce a reconciled record carrying BOTH
