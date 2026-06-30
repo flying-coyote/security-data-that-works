@@ -164,7 +164,7 @@ def _spoke_repo():
     candidate = os.path.dirname(os.path.dirname(os.path.dirname(_HERE)))
     if os.path.isdir(os.path.join(candidate, ".git")):
         return candidate
-    return "/home/USER/security-data-that-works"
+    return os.path.expanduser("~/security-data-that-works")
 
 
 def run_bench(name, timeout):

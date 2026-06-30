@@ -55,7 +55,7 @@ from analyze import _safe_key
 HERE = os.path.dirname(os.path.abspath(__file__))
 VERDICTS = os.path.join(HERE, "c5_coverage_verdicts.json")
 COVERAGE_JSON = os.path.normpath(
-    os.path.join("/home/USER/sdw-lab-benchmarks", "ocsf-attack-coverage", "results", "coverage.json")
+    os.path.join(os.path.expanduser("~/sdw-lab-benchmarks"), "ocsf-attack-coverage", "results", "coverage.json")
 )
 GENERATOR = os.path.normpath(os.path.join(HERE, "..", "..", "..", "project1", "tools", "gen_c5_overlay.py"))
 
