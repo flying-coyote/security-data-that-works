@@ -32,7 +32,7 @@
   "results_path": "results/results.json",
   "results_sha256": "69e588250eb3afd93529f95795865eb0f89853570f0c6ed3ab324eb15e0b8f09",
   "results_md_present": true,
-  "stdout_excerpt": "determinism_verified=True  asset_corpus_integrity=True  identity_corpus_integrity=True  duckdb=1.5.3  results_sha256[:16]=407539e5be7b6e92\n[v1 assets]  best single (cmdb): 47.7%  |  cross-tool: 75.6%  (+27.9%)  |  residual: 24.4%  |  lever: 25.1%\n[EXT-1 sweep 9 pts]  cross-tool 69.4%-78.5%  |  residual 21.5%-30.6%  |  lever 17.0%-28.6%  |  order_holds=True (min cross-best=19.4%, min lever=17.0%)\n[EXT-2 identities]  clean-key oracle: 96.3%  |  contested-key: 86.2%  |  resolution tax: -10.1%  |  naive single-key: 60.0%\nwrote /home/USER/sdw-lab-benchmarks/ocsf-data-health/results/results.json\nwrote /home/USER/sdw-lab-benchmarks/ocsf-data-health/results/RESULTS.md",
+  "stdout_excerpt": "determinism_verified=True  asset_corpus_integrity=True  identity_corpus_integrity=True  duckdb=1.5.3  results_sha256[:16]=407539e5be7b6e92\n[v1 assets]  best single (cmdb): 47.7%  |  cross-tool: 75.6%  (+27.9%)  |  residual: 24.4%  |  lever: 25.1%\n[EXT-1 sweep 9 pts]  cross-tool 69.4%-78.5%  |  residual 21.5%-30.6%  |  lever 17.0%-28.6%  |  order_holds=True (min cross-best=19.4%, min lever=17.0%)\n[EXT-2 identities]  clean-key oracle: 96.3%  |  contested-key: 86.2%  |  resolution tax: -10.1%  |  naive single-key: 60.0%\nwrote ~/sdw-lab-benchmarks/ocsf-data-health/results/results.json\nwrote ~/sdw-lab-benchmarks/ocsf-data-health/results/RESULTS.md",
   "stderr_excerpt": "",
   "ran_at": "2026-06-19T18:43:22Z",
   "log_path": "ocsf-data-health-20260619T184322Z.log",

@@ -35,7 +35,7 @@
   "results_path": "results/results.json",
   "results_sha256": "b42cca2ec6e65fd3034b9e9c5fa7708b04ad87d7b6deabb0acf909a64abc962c",
   "results_md_present": true,
-  "stdout_excerpt": "corpus_deterministic=True  answers_agree_all=True  duckdb=1.5.3  chdb=4.1.9  verify_sha256[:16]=9b0c05208f0fb6d7\nwrote /home/USER/sdw-lab-benchmarks/clickhouse-vs-duckdb/results/results.json\nwrote /home/USER/sdw-lab-benchmarks/clickhouse-vs-duckdb/results/RESULTS.md",
+  "stdout_excerpt": "corpus_deterministic=True  answers_agree_all=True  duckdb=1.5.3  chdb=4.1.9  verify_sha256[:16]=9b0c05208f0fb6d7\nwrote ~/sdw-lab-benchmarks/clickhouse-vs-duckdb/results/results.json\nwrote ~/sdw-lab-benchmarks/clickhouse-vs-duckdb/results/RESULTS.md",
   "stderr_excerpt": "",
   "ran_at": "2026-06-19T19:57:55Z",
   "log_path": "clickhouse-vs-duckdb-20260619T195754Z.log",

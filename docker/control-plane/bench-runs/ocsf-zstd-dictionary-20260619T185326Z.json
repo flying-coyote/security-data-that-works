@@ -33,7 +33,7 @@
   "results_sha256": "12f4231da6231a64934cf3036f13672d4853c138d6cc374ac24e421f866da29a",
   "results_md_present": true,
   "stdout_excerpt": "block=1    (100000 blocks)  best ratio: zstd-19+dict 3.72x  | zstd-19 1.36x  zstd-19+dict 3.72x\n  block=10   (10000 blocks)  best ratio: zstd-19+dict 6.41x  | zstd-19 4.51x  zstd-19+dict 6.41x\n  block=100  (1000 blocks)  best ratio: zstd-19+dict 7.69x  | zstd-19 7.33x  zstd-19+dict 7.69x\n  block=1000 (100 blocks)  best ratio: zstd-19+dict 8.13x  | zstd-19 7.95x  zstd-19+dict 8.13x\nwrote results/results.json + RESULTS.md",
-  "stderr_excerpt": "/home/USER/sdw-lab-benchmarks/ocsf-zstd-dictionary/run.py:111: DeprecationWarning: fetch_arrow_table() is deprecated, use to_arrow_table() instead.\n  tbl = con.execute(test_sel).fetch_arrow_table()",
+  "stderr_excerpt": "~/sdw-lab-benchmarks/ocsf-zstd-dictionary/run.py:111: DeprecationWarning: fetch_arrow_table() is deprecated, use to_arrow_table() instead.\n  tbl = con.execute(test_sel).fetch_arrow_table()",
   "ran_at": "2026-06-19T18:53:26Z",
   "log_path": "ocsf-zstd-dictionary-20260619T185326Z.log",
   "notes": "Mechanical well-formedness only. Promotion to hypothesis evidence is a separate human gate (karen-evaluator -> hypothesis-validator -> contradiction-detector). Tier-2/3 timing on a non-power-planned host is invalid-environment, not a result."

@@ -33,7 +33,7 @@
   "results_sha256": "7192bb234aa73d14be48539c725742481f12e0ea85f4b9f9e98846f71bf7e771",
   "results_md_present": true,
   "stdout_excerpt": "compression 4.62\u00d7  compaction-factor 2.0\u00d7  write-amp 0.4325\n  0.1 TB/day -> 4TB drive: 0.0108 DWPD, 8TB drive: 0.0054 DWPD\n  0.5 TB/day -> 4TB drive: 0.0541 DWPD, 8TB drive: 0.027 DWPD\n  1.0 TB/day -> 4TB drive: 0.1081 DWPD, 8TB drive: 0.0541 DWPD\n  5.0 TB/day -> 4TB drive: 0.5406 DWPD, 8TB drive: 0.2703 DWPD\nwrote results/results.json + RESULTS.md",
-  "stderr_excerpt": "/home/USER/sdw-lab-benchmarks/ocsf-storage-endurance/run.py:57: DeprecationWarning: fetch_arrow_table() is deprecated, use to_arrow_table() instead.\n  logical = con.execute(f\"SELECT * FROM ({sel})\").fetch_arrow_table().nbytes",
+  "stderr_excerpt": "~/sdw-lab-benchmarks/ocsf-storage-endurance/run.py:57: DeprecationWarning: fetch_arrow_table() is deprecated, use to_arrow_table() instead.\n  logical = con.execute(f\"SELECT * FROM ({sel})\").fetch_arrow_table().nbytes",
   "ran_at": "2026-06-19T18:45:56Z",
   "log_path": "ocsf-storage-endurance-20260619T184556Z.log",
   "notes": "Mechanical well-formedness only. Promotion to hypothesis evidence is a separate human gate (karen-evaluator -> hypothesis-validator -> contradiction-detector). Tier-2/3 timing on a non-power-planned host is invalid-environment, not a result."

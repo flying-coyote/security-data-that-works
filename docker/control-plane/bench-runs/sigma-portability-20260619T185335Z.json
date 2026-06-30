@@ -32,7 +32,7 @@
   "results_path": "results/results.json",
   "results_sha256": "800cfc0c75a32a0a6e6587a70525395b66bdc58eb541837e8b1c4224a253f763",
   "results_md_present": true,
-  "stdout_excerpt": "determinism_verified=True  pySigma=1.3.3  results_sha256[:16]=781bdf2bc46a0cc8\nsingle-event rules: 6 | correlation rules: 5\n  Splunk SPL             single 6/6  corr full 4  partial 0  refused 1  silent-window-drop 0\n  Elasticsearch ES|QL    single 6/6  corr full 4  partial 0  refused 1  silent-window-drop 0\n  Elasticsearch Lucene   single 6/6  corr full 0  partial 0  refused 5  silent-window-drop 0\n  OpenSearch PPL         single 6/6  corr full 2  partial 3  refused 0  silent-window-drop 3\nwrote /home/USER/sdw-lab-benchmarks/sigma-portability/results/results.json\nwrote /home/USER/sdw-lab-benchmarks/sigma-portability/results/RESULTS.md",
+  "stdout_excerpt": "determinism_verified=True  pySigma=1.3.3  results_sha256[:16]=781bdf2bc46a0cc8\nsingle-event rules: 6 | correlation rules: 5\n  Splunk SPL             single 6/6  corr full 4  partial 0  refused 1  silent-window-drop 0\n  Elasticsearch ES|QL    single 6/6  corr full 4  partial 0  refused 1  silent-window-drop 0\n  Elasticsearch Lucene   single 6/6  corr full 0  partial 0  refused 5  silent-window-drop 0\n  OpenSearch PPL         single 6/6  corr full 2  partial 3  refused 0  silent-window-drop 3\nwrote ~/sdw-lab-benchmarks/sigma-portability/results/results.json\nwrote ~/sdw-lab-benchmarks/sigma-portability/results/RESULTS.md",
   "stderr_excerpt": "",
   "ran_at": "2026-06-19T18:53:35Z",
   "log_path": "sigma-portability-20260619T185335Z.log",

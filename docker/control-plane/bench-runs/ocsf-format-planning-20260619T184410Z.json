@@ -33,7 +33,7 @@
   "results_sha256": "277847da12ca9a69adea1c8d88b089ce9a1aeef2efa554a5572a5a7d9431922a",
   "results_md_present": true,
   "stdout_excerpt": "commits=10   files ice/dl 10/10  e2e ice 22ms / dl 16ms  plan ice 12.4ms / dl 3.87ms  agree=True\n  commits=50   files ice/dl 50/50  e2e ice 42ms / dl 17ms  plan ice 65.6ms / dl 4.84ms  agree=True\n  commits=200  files ice/dl 200/200  e2e ice 115ms / dl 22ms  plan ice 226.4ms / dl 4.77ms  agree=True\nwrote results/results.json + RESULTS.md",
-  "stderr_excerpt": "/home/USER/sdw-lab-benchmarks/ocsf-format-planning/run.py:53: DeprecationWarning: fetch_arrow_table() is deprecated, use to_arrow_table() instead.\n  FROM range({start},{start+n}) t(i)\"\"\").fetch_arrow_table()\n/home/USER/sdw-lab-benchmarks/ocsf-format-planning/run.py:53: DeprecationWarning: fetch_arrow_table() is deprecated, use to_arrow_table() instead.\n  FROM range({start},{start+n}) t(i)\"\"\").fetch_arrow_table()",
+  "stderr_excerpt": "~/sdw-lab-benchmarks/ocsf-format-planning/run.py:53: DeprecationWarning: fetch_arrow_table() is deprecated, use to_arrow_table() instead.\n  FROM range({start},{start+n}) t(i)\"\"\").fetch_arrow_table()\n~/sdw-lab-benchmarks/ocsf-format-planning/run.py:53: DeprecationWarning: fetch_arrow_table() is deprecated, use to_arrow_table() instead.\n  FROM range({start},{start+n}) t(i)\"\"\").fetch_arrow_table()",
   "ran_at": "2026-06-19T18:44:12Z",
   "log_path": "ocsf-format-planning-20260619T184410Z.log",
   "notes": "Mechanical well-formedness only. Promotion to hypothesis evidence is a separate human gate (karen-evaluator -> hypothesis-validator -> contradiction-detector). Tier-2/3 timing on a non-power-planned host is invalid-environment, not a result."
