@@ -19,6 +19,7 @@
 #   ./moar pipeline                                   end-to-end: raw Okta -> route -> Iceberg -> brute-force detection
 #   ./moar observe                                    G-tier check: metrics flow push->pushgateway->prometheus; grafana/loki up
 #   ./moar healthcheck                                data-health gate over the live lakehouse (subset of the Foundation checks)
+#   ./moar console [--edit]                           launch the marimo control-plane on the host (http://localhost:2718; reads vendored artifacts, richer with the stack up)
 #   ./moar bench [rows]                               workload × engine latency matrix (no single engine wins; default 1M rows)
 #   ./moar bench-lab <name|tier1|tier2|tier3|all>     gated unattended lab-bench runs → control-plane/bench-runs/ manifests
 #   ./moar correlate                                  federated cross-source correlation over the open OCSF store (well-connected)
@@ -509,10 +510,44 @@ cmd_concurrency_sweep() {
   $DC exec -T lab python /lab/concurrency_sweep.py
 }
 
+cmd_console() {
+  # Launch the marimo control-plane console on the HOST (every other verb runs in the stack;
+  # this one does not). Reproducible env: a dedicated control-plane/.venv built from
+  # requirements.txt, auto-created on first run (override with MARIMO_VENV). pulumi is stubbed
+  # so the deploy module imports with deploy DISABLED — deploy/swap run via ./moar swap-*.
+  # The console reads vendored artifacts, so it runs without `./moar up`; live panes show
+  # unwired/not_measured until the stack is up.
+  local here cp req venv mode=run stub
+  here="$(cd "$(dirname "$0")" && pwd)"; cp="$here/control-plane"; req="$cp/requirements.txt"
+  [ "${1:-}" = "--edit" ] && mode=edit
+  if [ -n "${MARIMO_VENV:-}" ]; then
+    venv="$MARIMO_VENV"
+  else
+    venv="$cp/.venv"
+    if [ ! -x "$venv/bin/marimo" ]; then
+      echo "→ first run: building $venv from requirements.txt (one-time; needs network)…"
+      python3 -m venv "$venv" || { echo "✗ venv create failed (install python3-venv)"; return 1; }
+      "$venv/bin/pip" install -q --upgrade pip >/dev/null 2>&1
+      "$venv/bin/pip" install -q -r "$req" || { echo "✗ pip install -r $req failed"; return 1; }
+    fi
+  fi
+  [ -x "$venv/bin/marimo" ] || { echo "✗ marimo not in $venv (set MARIMO_VENV or check $req)"; return 1; }
+  stub="$(mktemp -d)"; mkdir -p "$stub/pulumi"
+  printf 'def export(*a,**k):\n pass\nclass ResourceOptions:\n def __init__(self,*a,**k): pass\n' > "$stub/pulumi/__init__.py"
+  printf "def create_or_select_stack(*a,**k):\n raise RuntimeError('pulumi stub - deploy disabled in console mode')\n" > "$stub/pulumi/automation.py"
+  printf '# stub for console mode\n' > "$stub/pulumi_docker.py"
+  trap 'rm -rf "$stub"' RETURN
+  echo "→ MOAR console (marimo $mode) → http://localhost:2718   PAID_MODE=${MOAR_PAID_MODE:-off}, VAULT_PATH=${VAULT_PATH:-$HOME/project1}"
+  echo "  Reads vendored artifacts; run './moar up' alongside for the live panes. Ctrl-C to stop."
+  ( cd "$cp" && PYTHONPATH="$stub" VAULT_PATH="${VAULT_PATH:-$HOME/project1}" MOAR_PAID_MODE="${MOAR_PAID_MODE:-}" \
+      "$venv/bin/marimo" "$mode" control_plane.py -p 2718 )
+}
+
 case "${1:-}" in
   up) shift; cmd_up "$@";;
   down) shift; cmd_down "$@";;
   status) cmd_status;;
+  console) shift; cmd_console "$@";;
   verify) cmd_verify;;
   verify-dremio) cmd_verify_dremio;;
   swap-store) cmd_swap_store;;
