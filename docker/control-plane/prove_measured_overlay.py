@@ -45,6 +45,11 @@ import tempfile
 
 import attack_coverage as acov
 import ui_helpers as ui
+
+# Pin "now" to within the vendored C5 bench window so the happy-path proofs test
+# freshness deterministically and do not rot when real-clock drifts past the TTL.
+# (The (g) decay cases below intentionally keep their own skewed metas.)
+_PIN = "2026-06-22T12:00:00+00:00"
 from analyze import _safe_key
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -118,7 +123,7 @@ def main():
     # reconciled records:
     recs = acov.assess(__import__("detections").scan(__import__("detections").demo_records()),
                        {1007: 3, 3002: 1, 4001: 2, 4003: 1, 6003: 1})
-    reconciled = acov.reconcile(recs, measured, meta)
+    reconciled = acov.reconcile(recs, measured, meta, now_iso=_PIN)
     stray = set()
     for r in reconciled:
         stray |= (set(r.keys()) - _RECORD_ALLOWLIST)
@@ -129,7 +134,7 @@ def main():
 
     print("\n=== (b) FAIL-CLOSED: a technique NOT in C5 honest-degrades to not_measured ===\n")
     # T9999 is not in the bench — must reconcile not_measured, never a measured pass.
-    absent = acov.reconcile([_mk_record("T9999", "covered")], measured, meta)[0]
+    absent = acov.reconcile([_mk_record("T9999", "covered")], measured, meta, now_iso=_PIN)[0]
     check("a not-in-C5 technique reconciles to not_measured", absent["reconciliation"] == "not_measured")
     check("not_measured claims NO measured firing (state == not_measured)",
           absent["measured_state"] == "not_measured")
@@ -144,7 +149,7 @@ def main():
     check(f"vendored _meta techniques_total == coverage.json (8): {meta.get('techniques_total')}",
           meta.get("techniques_total") == c5["techniques_total"] == 8)
     # The console computes NO number of its own — reconcile copies the verdict state, never a count.
-    detected_recon = acov.reconcile([_mk_record("T1059.001", "covered")], measured, meta)[0]
+    detected_recon = acov.reconcile([_mk_record("T1059.001", "covered")], measured, meta, now_iso=_PIN)[0]
     check("reconcile reads DETECTED from the vendored verdict, computes no count",
           detected_recon["measured_state"] == "DETECTED"
           and detected_recon["reconciliation"] == "confirmed_fired")
@@ -167,19 +172,19 @@ def main():
 
     print("\n=== (e) DISAGREEMENT SURFACED: covered+MISSED -> predicted_covered_but_missed ===\n")
     # T1110 is measured MISSED in C5; a design-time `covered` over it is the honest disagreement.
-    miss = acov.reconcile([_mk_record("T1110", "covered")], measured, meta)[0]
+    miss = acov.reconcile([_mk_record("T1110", "covered")], measured, meta, now_iso=_PIN)[0]
     check("design-time covered + measured MISSED -> predicted_covered_but_missed (the exposed gap)",
           miss["reconciliation"] == "predicted_covered_but_missed")
     # and it renders in the panel as a RED row (mock mo/ui collect the markdown).
-    rendered = _render_panel([miss], meta)
+    rendered = _render_panel([miss], meta, now_iso=_PIN)
     check("the disagreement renders in the panel (predicted-covered-but-missed row present)",
           "predicted covered, MISSED" in rendered and "T1110" in rendered)
     # the upgrade direction: T1059.001 is DETECTED -> confirmed_fired.
-    up = acov.reconcile([_mk_record("T1059.001", "covered")], measured, meta)[0]
+    up = acov.reconcile([_mk_record("T1059.001", "covered")], measured, meta, now_iso=_PIN)[0]
     check("design-time covered + measured DETECTED -> confirmed_fired (the upgrade)",
           up["reconciliation"] == "confirmed_fired")
     # noisy: T1021 is NOISY -> fired_but_noisy with precision shown.
-    noisy = acov.reconcile([_mk_record("T1021", "covered")], measured, meta)[0]
+    noisy = acov.reconcile([_mk_record("T1021", "covered")], measured, meta, now_iso=_PIN)[0]
     check("design-time covered + measured NOISY -> fired_but_noisy with precision",
           noisy["reconciliation"] == "fired_but_noisy" and noisy["precision"] is not None)
 
@@ -195,8 +200,8 @@ def main():
                                 "precision": 0.0, "ocsf_class_uid": 4003, "threshold_T": 0.9,
                                 "matches": 0, "true_positive": 0, "false_positives": 0,
                                 "compiled": None, "stage": payload, "miss_reason": ""}}
-    nrec = acov.reconcile([_mk_record("T1071", "covered")], nasty_measured, meta)[0]
-    rendered_nasty = _render_panel([nrec], meta)
+    nrec = acov.reconcile([_mk_record("T1071", "covered")], nasty_measured, meta, now_iso=_PIN)[0]
+    rendered_nasty = _render_panel([nrec], meta, now_iso=_PIN)
     check("nasty state/rule rendered inert through reconcile+panel (no raw '<', no backtick)",
           "<img" not in rendered_nasty and "`</code>" not in rendered_nasty)
 
@@ -221,7 +226,7 @@ def main():
 
     print("\n=== (h) TRUST PRESERVED: the measured join never upgrades a 0.25 intent-blind edge ===\n")
     rec_025 = _mk_record("T1059.001", "covered", trust=0.25)  # DETECTED in C5
-    joined = acov.reconcile([rec_025], measured, meta)[0]
+    joined = acov.reconcile([rec_025], measured, meta, now_iso=_PIN)[0]
     check("weakest_trust_tier on the reconciled record == the design-time 0.25 (unchanged)",
           joined["weakest_trust_tier"] == 0.25)
     check("even a confirmed_fired upgrade keeps the intent-blind trust at 0.25",
@@ -255,7 +260,7 @@ class _MoShim:
         return _MD(text)
 
 
-def _render_panel(reconciled, meta):
+def _render_panel(reconciled, meta, now_iso=_PIN):
     mo = _MoShim()
     out = ui.disagreement_panel(mo, ui, reconciled, meta, source_note="*src*")
     return getattr(out, "text", str(out))
