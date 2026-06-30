@@ -275,3 +275,16 @@ above are open and may close the way DuckLake #1031 did, so the discipline is th
 the data: re-check the version before you repeat the claim. Where a claim here carries a measured number, the
 number lives in the lab, not in this prose, so the chain from "we found X" to the bench that found it is always
 one click away.
+
+## Launching the console
+
+```bash
+cd docker && ./moar console        # marimo app on http://localhost:2718
+./moar console --edit              # notebook-edit mode (development)
+```
+
+First run auto-builds a dedicated `control-plane/.venv` from `requirements.txt` (one-time,
+needs network); override with `MARIMO_VENV=/path/to/venv ./moar console`. `pulumi` is stubbed
+so deploy is disabled in the console (deploy/swap run via `./moar swap-*`). The console reads
+vendored artifacts, so it runs without `./moar up`; live panes show `unwired`/`not_measured`
+until the stack is up. `MOAR_PAID_MODE=1` and `VAULT_PATH=...` enable the consultant view.

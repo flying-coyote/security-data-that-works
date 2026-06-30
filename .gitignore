@@ -11,3 +11,7 @@ docker/control-plane/temp_config/
 
 # local agent notes (operate from project1; keep public repo minimized)
 CLAUDE.md
+
+# auto-created by ./moar console
+docker/control-plane/.venv/
+docker/control-plane/__marimo__/
