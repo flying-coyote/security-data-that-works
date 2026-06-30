@@ -10,7 +10,7 @@ status: complete
 
 This is the "why" pass, not a presence checklist. For each load-bearing mechanism I asked
 whether it still matches the reason it was added, following the portable intent question bank
-(`/home/USER/claude-code-project-best-practices/analysis/intent-alignment-audit.md`, evidence-tier B).
+(`~/claude-code-project-best-practices/analysis/intent-alignment-audit.md`, evidence-tier B).
 Citations are real file:line read on 2026-06-21. I did not run git and touched no other files.
 
 ## What this repo is FOR (Q1 — goal)

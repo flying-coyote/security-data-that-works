@@ -13,9 +13,10 @@ hypothesis evidence is a separate human gate (karen-evaluator -> hypothesis-vali
 contradiction-detector). A tier-2/3 timing result on a non-power-planned host is
 invalid-environment, not a result.
 """
+import os
 from __future__ import annotations
 
-LAB_ROOT = "/home/USER/sdw-lab-benchmarks"
+LAB_ROOT = os.path.expanduser("~/sdw-lab-benchmarks")
 LAB_VENV_PYTHON = LAB_ROOT + "/.venv/bin/python"
 CV_THRESHOLD_PCT = 5.0
 
