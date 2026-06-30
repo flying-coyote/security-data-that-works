@@ -32,7 +32,7 @@
   "results_path": "results/results.json",
   "results_sha256": "69d892627432497a2d65fec4f98881486dc8eb9e71cd14ca9672d52238c0a811",
   "results_md_present": true,
-  "stdout_excerpt": "determinism_verified=True  duckdb=1.5.3  results_sha256[:16]=4e201f70464eeacb\nwrote /home/USER/sdw-lab-benchmarks/flattening-fidelity/results/results.json\nwrote /home/USER/sdw-lab-benchmarks/flattening-fidelity/results/RESULTS.md",
+  "stdout_excerpt": "determinism_verified=True  duckdb=1.5.3  results_sha256[:16]=4e201f70464eeacb\nwrote ~/sdw-lab-benchmarks/flattening-fidelity/results/results.json\nwrote ~/sdw-lab-benchmarks/flattening-fidelity/results/RESULTS.md",
   "stderr_excerpt": "",
   "ran_at": "2026-06-19T18:32:13Z",
   "log_path": "flattening-fidelity-20260619T183213Z.log",

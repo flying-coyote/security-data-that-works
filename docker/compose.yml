@@ -171,7 +171,7 @@ services:
     restart: "no"
     command: ["migrate"]
     environment: &lakekeeper-env
-      LAKEKEEPER__PG_ENCRYPTION_KEY: CHANGE_ME_local_dev_only
+      LAKEKEEPER__PG_ENCRYPTION_KEY: ${LAKEKEEPER__PG_ENCRYPTION_KEY:-CHANGE_ME_local_dev_only}
       LAKEKEEPER__PG_DATABASE_URL_READ: postgresql://lakekeeper:lakekeeper@lakekeeper-db:5432/lakekeeper
       LAKEKEEPER__PG_DATABASE_URL_WRITE: postgresql://lakekeeper:lakekeeper@lakekeeper-db:5432/lakekeeper
       RUST_LOG: info
@@ -406,7 +406,7 @@ services:
     profiles: ["graph"]
     networks: [moar]
     environment:
-      GF_SECURITY_ADMIN_PASSWORD: ${MINIO_PASSWORD:-moar-dev-secret}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD:-moar-grafana-dev}
       GF_AUTH_ANONYMOUS_ENABLED: "true"
     volumes: ["./config/grafana/provisioning:/etc/grafana/provisioning:ro"]
     ports: ["3001:3000"]
