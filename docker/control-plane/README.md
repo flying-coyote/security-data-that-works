@@ -40,6 +40,9 @@ console. There is no `./moar` verb for this yet, so the launch is manual. One ca
 module, so a live run needs `pulumi` actually installed (or the same stub on `PYTHONPATH`). Set
 `MOAR_PAID_MODE=1` before launching if you want the gated Matrix and per-customer panels; with the demo stack
 down the data-driven panels honestly show their pre-audit states, the same as the flip-through.
+`MOAR_PARTNER_MODE=1` (an independent key — never implied by `MOAR_PAID_MODE` on or off) enables the partner
+enablement mode: the per-customer land-this-source recommender runs over the operator's own Inspector-loaded
+OCSF table, without unlocking any scored-Matrix content (see `partner_mode.py` / `prove_partner_mode.py`).
 
 ### The guided walkthrough — the golden path
 
@@ -287,4 +290,5 @@ First run auto-builds a dedicated `control-plane/.venv` from `requirements.txt` 
 needs network); override with `MARIMO_VENV=/path/to/venv ./moar console`. `pulumi` is stubbed
 so deploy is disabled in the console (deploy/swap run via `./moar swap-*`). The console reads
 vendored artifacts, so it runs without `./moar up`; live panes show `unwired`/`not_measured`
-until the stack is up. `MOAR_PAID_MODE=1` and `VAULT_PATH=...` enable the consultant view.
+until the stack is up. `MOAR_PAID_MODE=1` and `VAULT_PATH=...` enable the consultant view;
+`MOAR_PARTNER_MODE=1` enables the partner-enablement recommender (workflow only, never the scored Matrix).

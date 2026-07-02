@@ -48,10 +48,11 @@ def _():
     import entity_pivot as epv
     import d3fend_bridge as br
     import attack_coverage as acov
+    import partner_mode as pm
 
     # Tolaria convention: point VAULT_PATH at the OKF vault (project1).
     VAULT_PATH = os.environ.get("VAULT_PATH", os.path.expanduser("~/project1"))
-    return P, RestCatalog, VAULT_PATH, acov, antip, az, br, ca, cf, cpv, deployer, dets, dk, dp, epv, ev, fl, gl, l1, l3, l4, le, mig, mo, okf, os, pf, rl, rp, sp, subprocess, textwrap, topo, ui, wt, yaml
+    return P, RestCatalog, VAULT_PATH, acov, antip, az, br, ca, cf, cpv, deployer, dets, dk, dp, epv, ev, fl, gl, l1, l3, l4, le, mig, mo, okf, os, pf, pm, rl, rp, sp, subprocess, textwrap, topo, ui, wt, yaml
 
 
 @app.cell(hide_code=True)
@@ -1835,36 +1836,59 @@ def _(dets, mo, ui):
 
 
 @app.cell(hide_code=True)
-def _(acov, dets, mo, paid, sel_catalog, sel_ingest, sel_query, sel_schema, sel_storage, ui):
+def _(acov, dets, loaded_table, mo, paid, pm, sel_catalog, sel_ingest, sel_query, sel_schema, sel_storage, ui):
     # PG-4 — ATT&CK coverage as DESIGN-TIME defensive STRUCTURE (intent-blind), NOT coverage of
     # your telemetry. VISIBILITY (by_class) is computed from the synthetic OCSF preview's class_uids
     # (an aggregate count per class), so the panel doesn't depend on a loaded Iceberg table; the live
     # version would feed az.analyze_table(loaded_arrow)['by_class']. FIRED comes from the same
     # dets.scan() the Detections pane runs. Every label routes through analyze._safe_key in the module.
+    #
+    # PARTNER MODE (MOAR_PARTNER_MODE — its own key, never implied by MOAR_PAID_MODE on or off):
+    # the dark-spot technique runs over the OPERATOR'S OWN Inspector-loaded table via
+    # pm.operator_coverage_inputs (aggregate inputs only — counts + low-card keys, never raw rows).
+    # Everything else, including the scored-Matrix gate above, is untouched by partner mode.
+    _partner = pm.partner_mode()
     _findings = dets.scan(dets.demo_records())
     _by_class = {}
     for _r in dets.demo_records():
         _cu = _r.get("class_uid")
         if _cu is not None:
             _by_class[_cu] = _by_class.get(_cu, 0) + 1
+    _operator_data = False
+    if _partner and loaded_table is not None:
+        try:
+            _findings, _by_class = pm.operator_coverage_inputs(loaded_table.scan().to_arrow())
+            _operator_data = True
+        except Exception:  # noqa: BLE001 - degrade honestly to the synthetic walkthrough
+            _operator_data = False
     _records = acov.assess(_findings, _by_class)
     _layer = acov.navigator_layer(_records)
     coverage_panel = acov.coverage_panel(mo, ui, _records, _layer,
-        source_note="*Design-time structure over the synthetic OCSF preview (the same Zeek 4001 sample "
-                    "+ planted rows the Detections pane scans); visibility is the per-class count, fired is "
-                    "the live scan. Intent-blind — counters≠detects — never coverage of your telemetry.*")
+        source_note=("*Design-time structure over the operator's Inspector-loaded OCSF table (partner "
+                     "mode); visibility is the per-class count, fired is the live scan. Intent-blind — "
+                     "counters≠detects — never coverage validation of your telemetry.*"
+                     if _operator_data else
+                     "*Design-time structure over the synthetic OCSF preview (the same Zeek 4001 sample "
+                     "+ planted rows the Detections pane scans); visibility is the per-class count, fired is "
+                     "the live scan. Intent-blind — counters≠detects — never coverage of your telemetry.*"))
 
     # PG-5 — land-this-source recommendations for the dark spots (intent-blind possibilities).
-    # DEFAULT (MOAR_PAID_MODE unset) renders the GENERIC method on synthetic data only; the
-    # per-environment recommender (bound to the live selection's route code) is gated behind
-    # paid.paid_mode(), mirroring the Matrix gate (control_plane.py:1051/:1081).
+    # DEFAULT (MOAR_PAID_MODE and MOAR_PARTNER_MODE unset) renders the GENERIC method on synthetic
+    # data only; the per-environment recommender (bound to the live selection's route code) is gated
+    # behind paid.paid_mode() (mirroring the Matrix gate, control_plane.py:1051/:1081) OR the
+    # independent partner enablement gate pm.partner_mode() — which unlocks the workflow, never scores.
     _pg5_selection = {"storage": sel_storage, "catalog": sel_catalog, "ingest": sel_ingest,
                       "query": sel_query, "schema": sel_schema}
     recommendation_panel = acov.recommendation_panel(
-        mo, ui, _records, paid=paid.paid_mode(), selection=_pg5_selection,
-        source_note="*Generic land-this-source method over the synthetic OCSF preview; defenses are "
-                    "artifact_cooccurrence intent-blind leads (0.25), never guarantees. Per-environment "
-                    "recommender is paid (MOAR_PAID_MODE).*")
+        mo, ui, _records, paid=paid.paid_mode(), partner=_partner, operator_data=_operator_data,
+        selection=_pg5_selection,
+        source_note=("*Per-customer land-this-source workflow (partner mode, MOAR_PARTNER_MODE); "
+                     "defenses are artifact_cooccurrence intent-blind leads (0.25), never guarantees. "
+                     "The scored Matrix stays paid (MOAR_PAID_MODE).*"
+                     if _partner else
+                     "*Generic land-this-source method over the synthetic OCSF preview; defenses are "
+                     "artifact_cooccurrence intent-blind leads (0.25), never guarantees. Per-environment "
+                     "recommender is paid (MOAR_PAID_MODE).*"))
     return coverage_panel, recommendation_panel
 
 
