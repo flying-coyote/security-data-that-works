@@ -1,0 +1,159 @@
+# CF-FREE-SHORTLIST's no-scores fixture — the free-mode data path.
+#
+# This is the ONLY data shortlist_from_yaml.py --mode free ever reads. It carries
+# the public component-catalog fields straight off providers.py (category, code,
+# label, pros, cons, swap_cost, claims) for the three Capability-Matrix-scored
+# component categories (query = C3 engines, catalog = C2 catalogs, ingest = C4
+# pipelines). It holds ZERO score, weight, weighted_total, criteria, or delta
+# keys — those are paid SDW IP and live only in the private vault's scored
+# matrix-*.yaml files (see paid_scoring.py), never in this public repo.
+#
+# Regenerate by re-deriving from providers.py QUERY/CATALOG/INGEST if those
+# entries change; keep this file's rows and providers.py in lockstep (checked
+# by prove_free_shortlist.py).
+shortlist:
+- category: query
+  code: datafusion
+  label: DataFusion
+  pros: Embeddable Rust engine, no JVM, zero-copy Arrow-native; reads Polaris-Iceberg via iceberg-rust.
+  cons: 'One narrow edge: additive List<Struct> schema evolution across mixed-version Parquet (#20835).'
+  swap_cost: Low — reads the shared Iceberg tables through the catalog, so swapping engines repoints clients
+    with no data rewrite.
+  claims: []
+- category: query
+  code: clickhouse
+  label: ClickHouse
+  pros: Very fast aggregations and group-by threat hunts, low memory footprint.
+  cons: Reads Iceberg via icebergS3() not the REST catalog, so catalog-less reads can serve a stale snapshot.
+  swap_cost: Medium — base Iceberg tables port, but any MergeTree tables or projections are ClickHouse-specific
+    and don't.
+  claims:
+  - H-CLICKHOUSE-COST-FRAMING-01
+- category: query
+  code: starrocks
+  label: StarRocks
+  pros: Graceful degradation under load, strong multi-table joins, native Arrow Flight SQL.
+  cons: Iceberg REST-catalog integration with Polaris is not yet stable/complete.
+  swap_cost: Medium — base Iceberg tables port, but async materialized views / accelerations are StarRocks-specific
+    and rebuild from scratch.
+  claims:
+  - H-ARROW-SECURITY-STACK-01
+- category: query
+  code: dremio
+  label: Dremio
+  pros: Reflections-based acceleration, semantic layer, Arrow Flight native.
+  cons: Reflections don't persist over an external Nessie catalog on OSS 26.0; DataFusion leads the default
+    reference stack, but Dremio is fully deployable here.
+  swap_cost: Medium-high — base tables port, but Reflections are Dremio-specific acceleration that must
+    be rebuilt on the next engine.
+  claims:
+  - H-TIERED-REALIZATION-01
+  - H-ICEBERG-INTERFACE-01
+- category: query
+  code: duckdb
+  label: DuckDB
+  pros: Zero-config single-process file-query champion; an excellent local correctness oracle.
+  cons: 'Single-process only (~10-analyst ceiling, A-14); DuckLake/Postgres delete-resurrection #1215
+    / wide-schema #1184.'
+  swap_cost: Low for queries (reads Iceberg/Parquet directly); any DuckLake-managed tables carry the catalog-backend's
+    portability caveats.
+  claims:
+  - A-14
+  - H-DUCKLAKE-02
+- category: query
+  code: trino
+  label: Trino
+  pros: Mature distributed MPP SQL with broad connector coverage and federation.
+  cons: JVM coordinator/worker footprint; tuning effort for low-latency hunts.
+  swap_cost: Low — federates the shared catalog, so swapping repoints clients with no data rewrite.
+  claims: []
+- category: catalog
+  code: polaris
+  label: Polaris
+  pros: Multi-vendor-backed Iceberg REST catalog, pluggable RBAC/OPA/Ranger, ASF top-level governance.
+  cons: Needs an external relational backend (Postgres) for persistence.
+  swap_cost: Medium — Iceberg tables re-register against another REST catalog without rewriting data files;
+    the RBAC/OPA policy has to be re-authored.
+  claims: []
+- category: catalog
+  code: nessie
+  label: Nessie
+  pros: 'Git-like data versioning: branch, merge, and tag table snapshots.'
+  cons: Performance limits under heavy concurrent writes; Dremio reflections don't persist on OSS 26.0.
+  swap_cost: Medium-high — the table data is portable, but the Git-style branch/tag history is Nessie-specific
+    and does not migrate to another catalog.
+  claims: []
+- category: catalog
+  code: lakekeeper
+  label: Lakekeeper
+  pros: Rust Iceberg REST catalog with OpenFGA authz and a Vue admin console.
+  cons: Younger, single-origin project; its STS path also fails SeaweedFS multipart (use static keys).
+  swap_cost: Medium — REST-catalog tables re-register elsewhere with no data rewrite; the OpenFGA authz
+    model must be re-authored.
+  claims: []
+- category: catalog
+  code: hive_metastore
+  label: Hive Metastore (HMS)
+  pros: Universally supported by engines; the long-standing default.
+  cons: Thrift/JVM operational overhead; not REST-native.
+  swap_cost: Medium — migrate HMS entries to a REST catalog; data files stay put, but every Thrift client
+    has to be repointed.
+  claims: []
+- category: catalog
+  code: unity_catalog_oss
+  label: Unity Catalog OSS
+  pros: Open-sourced governance catalog with table/volume/function objects and lineage hooks.
+  cons: Self-hosted OSS edition lags the managed Databricks one; Iceberg REST support still maturing.
+  swap_cost: Medium-high — table/volume/function objects and lineage are UC-specific; the lineage graph
+    does not port to another catalog.
+  claims: []
+- category: catalog
+  code: aws_glue
+  label: AWS Glue
+  pros: Managed, zero-ops catalog tightly integrated with the AWS analytics stack.
+  cons: 'AWS-native: expects S3 and AWS IAM; not a fit for local/non-AWS object stores.'
+  swap_cost: Medium — moving off Glue means re-registering tables in a portable REST catalog and leaving
+    IAM-bound policy behind; data files stay.
+  claims: []
+- category: ingest
+  code: vector
+  label: Vector
+  pros: Rust-native, fast, declarative GitOps config, built-in VRL test harness.
+  cons: 'Read-only observability API (no config-push/control API; #24020).'
+  swap_cost: Medium — VRL transforms are Vector-specific, so swapping the ingest engine re-authors every
+    transform. No data rewrite; the landed tables are unaffected.
+  claims: []
+- category: ingest
+  code: fluentbit
+  label: Fluent Bit
+  pros: Tiny footprint (~20MB), ideal for Kubernetes sidecars and edge collection.
+  cons: Parser config is more fiddly than Vector's VRL.
+  swap_cost: Medium — parser/filter configs are Fluent Bit-specific; a swap re-authors them, but landed
+    data is untouched.
+  claims: []
+- category: ingest
+  code: nifi
+  label: Apache NiFi
+  pros: Visual flow canvas, record-level data provenance, native Iceberg REST-catalog writes, preserves
+    nested OCSF.
+  cons: Heavy JVM heap (24-32GB sweet spot); flows live in NiFi's registry, not git config-as-code.
+  swap_cost: High — flows live in NiFi's registry rather than config-as-code, so a swap rebuilds every
+    flow by hand.
+  claims: []
+- category: ingest
+  code: cribl
+  label: Cribl Stream
+  pros: Mature routing/reduction UI with strong enterprise pipeline ergonomics.
+  cons: Commercial licensing; SaaS/agent lock-in relative to open config-as-code.
+  swap_cost: High — pipelines and packs are Cribl-specific and commercially licensed; swapping out re-authors
+    routing/reduction and ends the license.
+  claims: []
+- category: ingest
+  code: tenzir
+  label: Tenzir
+  pros: Security-native pipeline engine with an OCSF-aware data model.
+  cons: OCSF fidelity unaudited at scale (A-03); smaller ecosystem.
+  swap_cost: Medium — Tenzir pipeline definitions are engine-specific; a swap re-authors them. No data
+    rewrite.
+  claims:
+  - A-03
