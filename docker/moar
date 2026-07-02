@@ -537,9 +537,11 @@ cmd_console() {
   printf "def create_or_select_stack(*a,**k):\n raise RuntimeError('pulumi stub - deploy disabled in console mode')\n" > "$stub/pulumi/automation.py"
   printf '# stub for console mode\n' > "$stub/pulumi_docker.py"
   trap 'rm -rf "$stub"' RETURN
-  echo "→ MOAR console (marimo $mode) → http://localhost:2718   PAID_MODE=${MOAR_PAID_MODE:-off}, VAULT_PATH=${VAULT_PATH:-$HOME/project1}"
+  # VAULT_PATH passes through unset so the app resolves it (~/project1 if present, else the
+  # bundled synthetic sample vault — CF-SAMPLEVAULT's public-clone consultant demo).
+  echo "→ MOAR console (marimo $mode) → http://localhost:2718   PAID_MODE=${MOAR_PAID_MODE:-off}, VAULT_PATH=${VAULT_PATH:-auto (~/project1, else bundled sample vault)}"
   echo "  Reads vendored artifacts; run './moar up' alongside for the live panes. Ctrl-C to stop."
-  ( cd "$cp" && PYTHONPATH="$stub" VAULT_PATH="${VAULT_PATH:-$HOME/project1}" MOAR_PAID_MODE="${MOAR_PAID_MODE:-}" \
+  ( cd "$cp" && PYTHONPATH="$stub" VAULT_PATH="${VAULT_PATH:-}" MOAR_PAID_MODE="${MOAR_PAID_MODE:-}" \
       "$venv/bin/marimo" "$mode" control_plane.py -p 2718 )
 }
 
