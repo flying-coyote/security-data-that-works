@@ -1,4 +1,4 @@
-# The MOAR reference stack — a tiered, composable, open security-data lakehouse
+# The MOAR Reference Stack — a tiered, composable, open security-data lakehouse
 
 A runnable reference implementation of the **Modular Open Architecture (MOAR)**: an open, swappable
 security-data lakehouse you stand up in **tiers**, running only the layers your box and your question need.
@@ -26,7 +26,7 @@ tool's vendor docs) — is documented in [`control-plane/README.md`](control-pla
 
 OCSF + Iceberg + Parquet on object storage is now table stakes — Databricks Lakewatch, AWS Security Lake,
 Snowflake, Cribl all write OCSF to your S3. What almost none of them ship is an *open-all-the-way-down*,
-self-hostable stack. MOAR's reference stack leads with the four gaps:
+self-hostable stack. The MOAR Reference Stack leads with the four gaps:
 
 1. **Fully self-hostable / air-gappable.** No cloud control plane, no vendor SaaS — object store, catalog,
    engines, ingestion, detection, and the AI layer all run on your hardware, mirror-able for an air gap.
