@@ -50,9 +50,12 @@ def _():
     import attack_coverage as acov
     import partner_mode as pm
 
-    # Tolaria convention: point VAULT_PATH at the OKF vault (project1).
-    VAULT_PATH = os.environ.get("VAULT_PATH", os.path.expanduser("~/project1"))
-    return P, RestCatalog, VAULT_PATH, acov, antip, az, br, ca, cf, cpv, deployer, dets, dk, dp, epv, ev, fl, gl, l1, l3, l4, le, mig, mo, okf, os, pf, pm, rl, rp, sp, subprocess, textwrap, topo, ui, wt, yaml
+    # Tolaria convention: point VAULT_PATH at the OKF vault (project1). With no VAULT_PATH
+    # and no private vault on disk, resolve_vault_path falls back to the bundled SYNTHETIC
+    # sample vault so consultant mode is demonstrable from a public clone (CF-SAMPLEVAULT).
+    _vp, VAULT_IS_SAMPLE = okf.resolve_vault_path()
+    VAULT_PATH = str(_vp)
+    return P, RestCatalog, VAULT_IS_SAMPLE, VAULT_PATH, acov, antip, az, br, ca, cf, cpv, deployer, dets, dk, dp, epv, ev, fl, gl, l1, l3, l4, le, mig, mo, okf, os, pf, pm, rl, rp, sp, subprocess, textwrap, topo, ui, wt, yaml
 
 
 @app.cell(hide_code=True)
@@ -1142,10 +1145,12 @@ def _(VAULT_PATH, okf):
 
 
 @app.cell(hide_code=True)
-def _(mo, okf, okf_search, paid, ui, vault_error, vault_notes):
+def _(VAULT_IS_SAMPLE, mo, okf, okf_search, paid, ui, vault_error, vault_notes):
     # Consultant overlay gate (T5): the OKF strategy vault is a consultant surface, so it must not
     # frame a public clone's Strategy tab. consultant_mode is true iff PAID_MODE is on OR a readable
-    # private vault with notes is present; it drives both this panel and the strategy_view order.
+    # vault with notes is present; it drives both this panel and the strategy_view order. The bundled
+    # synthetic sample vault (CF-SAMPLEVAULT) satisfies the gate on a public clone — the surface is
+    # then bannered as the fictional sample, and the paid Matrix stays firewalled regardless.
     consultant_mode = paid.consultant_mode(vault_readable=not vault_error, has_notes=bool(vault_notes))
     _mdrs = okf.search([n for n in vault_notes if n.type == "MDR"], okf_search.value)
     _asms = okf.search([n for n in vault_notes if n.type == "Assumption"], okf_search.value)
@@ -1189,8 +1194,15 @@ def _(mo, okf, okf_search, paid, ui, vault_error, vault_notes):
         okf_panel = ui.panel(mo, ui.header(mo, "Strategy Vault (OKF)"),
                              mo.md(f"*Vault unreadable: {vault_error}. Set `VAULT_PATH` to the project1 root.*"))
     else:
+        _sample_note = ([mo.md(
+            "🧪 **Synthetic sample vault** — the notes below are the bundled fictional demo "
+            "bundle (`control-plane/sample-vault/`, the made-up \"Meridian Metals\"), shipped so "
+            "consultant mode is demonstrable from a public clone. It carries no real vault "
+            "content and zero Matrix values; point `VAULT_PATH` at a real OKF vault to replace "
+            "it.")] if VAULT_IS_SAMPLE else [])
         okf_panel = ui.panel(mo,
             ui.header(mo, "Architecture Strategy & OKF Vault"),
+            *_sample_note,
             mo.md(_intro),
             mo.hstack([mo.md("**Search vault:**"), okf_search], align="center", gap=2),
             mo.md(f"**Decision Records (MDRs)** — {len(_mdrs)} match:"),
