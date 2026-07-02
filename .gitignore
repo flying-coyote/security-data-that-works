@@ -9,8 +9,9 @@ __marimo__/
 docker/control-plane/temp_test_config.yaml
 docker/control-plane/temp_config/
 
-# local agent notes (operate from project1; keep public repo minimized)
-CLAUDE.md
+# local agent notes (operate from project1; keep public repo minimized).
+# Root-anchored: .claude/CLAUDE.md is the committed session guidance (SDW-CLAUDE-1).
+/CLAUDE.md
 
 # auto-created by ./moar console
 docker/control-plane/.venv/

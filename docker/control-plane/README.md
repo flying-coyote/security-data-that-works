@@ -1,6 +1,6 @@
-# The MOAR console — documentation
+# The MOAR Reference Stack console — documentation
 
-The console is the marimo control plane that sits over the [MOAR reference stack](../README.md). It is not a
+The console is the marimo control plane inside the [MOAR Reference Stack](../README.md). It is not a
 catalog of every component's features — each tool already has good vendor documentation, and this page links
 you straight to it. What the console documents instead is the part no vendor ships: how an open, swappable
 security-data lakehouse actually behaves once you wire these components together, where the integrations break,
