@@ -19,11 +19,17 @@ protocol mismatch. Point `VAULT_PATH` at the vault (the Tolaria convention).
 """
 from __future__ import annotations
 
+import os
 import re
 from dataclasses import dataclass
 from pathlib import Path
 
 import yaml
+
+# The bundled SYNTHETIC sample vault (fictional notes, realistic OKF shape). It ships with
+# the public kit so consultant mode is demonstrable from a public clone; real vault content
+# never lives here, and prove_sample_vault.py asserts it carries zero scored-Matrix content.
+SAMPLE_VAULT = Path(__file__).resolve().parent / "sample-vault"
 
 # [[name]] / [[name|alias]] / [[name#section]] -> capture the bare basename
 _WIKILINK = re.compile(r"\[\[([^\]|#]+)")
@@ -34,6 +40,22 @@ _MDLINK = re.compile(r"\]\(([^)]+\.md)(?:#[^)]*)?\)")
 _SKIP_PARTS = frozenset(
     {".archive", "05-archives", "automation", "exports", ".venv", "node_modules", ".git"}
 )
+
+
+def resolve_vault_path() -> tuple[Path, bool]:
+    """Resolve the OKF vault root for the console. An explicit `VAULT_PATH` always wins
+    (the Tolaria convention). With no VAULT_PATH set, use the private default (~/project1)
+    when it exists on disk; otherwise fall back to the bundled synthetic sample vault, so a
+    public clone still has a demonstrable consultant surface. Returns (path, is_sample) —
+    is_sample tells the UI to banner the surface as the fictional bundle."""
+    explicit = (os.environ.get("VAULT_PATH") or "").strip()
+    if explicit:
+        p = Path(explicit).expanduser()
+        return p, p.resolve() == SAMPLE_VAULT
+    private = Path.home() / "project1"
+    if private.exists():
+        return private, False
+    return SAMPLE_VAULT, True
 
 
 @dataclass(frozen=True)
