@@ -340,35 +340,54 @@ def recommend(record, corpus=None, *, ingest_code="ingest"):
     return out
 
 
-def recommendation_panel(mo, ui, records, *, paid=False, selection=None, source_note=""):
+def recommendation_panel(mo, ui, records, *, paid=False, partner=False, operator_data=False,
+                         selection=None, source_note=""):
     """The "land-this-source" recommendation table — one row per dark spot.
 
-    PUBLIC / PAID BOUNDARY. The DEFAULT (paid False) renders the GENERIC method on
-    SYNTHETIC data only — "here is how you'd find what to land" over the synthetic
-    stack's route codes / class_uids, every D3FEND defense stamped intent-blind at
-    trust 0.25. The PER-CUSTOMER recommender ("what YOUR stack should deploy")
-    renders ONLY inside the `paid` branch, mirroring the Matrix gate
-    (control_plane.py:1051/:1081). The firing rule (dark_spot only) and the
-    intent-blind stamp hold in BOTH modes; only the per-environment binding is gated.
+    PUBLIC / PARTNER / PAID BOUNDARY. The DEFAULT (paid False, partner False) renders
+    the GENERIC method on SYNTHETIC data only — "here is how you'd find what to land"
+    over the synthetic stack's route codes / class_uids, every D3FEND defense stamped
+    intent-blind at trust 0.25 — byte-for-byte what it rendered before partner mode
+    existed. The PER-CUSTOMER recommender ("what YOUR stack should deploy") renders
+    ONLY inside the `paid` or `partner` branch: paid mirrors the Matrix gate
+    (control_plane.py:1051/:1081, unchanged); partner is the independent
+    MOAR_PARTNER_MODE enablement gate (partner_mode.py) that unlocks the SAME
+    workflow but NEVER any scored-Matrix content. `operator_data` says the records
+    were assessed over the operator's own Inspector-loaded table (partner_mode
+    .operator_coverage_inputs) rather than the synthetic preview, so the copy is
+    honest about which data the dark spots came from. The firing rule (dark_spot
+    only) and the intent-blind stamp hold in ALL modes; only the per-environment
+    binding is gated.
 
     Every surfaced label is already _safe_key'd upstream (assess + defenses_for).
     """
-    # In the paid branch we MAY bind the route target to the live selection's actual
-    # ingest code; in the default branch the route code stays generic.
+    # In the paid/partner branch we MAY bind the route target to the live selection's
+    # actual ingest code; in the default branch the route code stays generic.
+    per_env = paid or partner
     ingest = (selection or {}).get("ingest") if isinstance(selection, dict) else None
     sel_codes = [c for c in (ingest or []) if c]
-    ingest_code = sel_codes[0] if (paid and sel_codes) else "ingest"
+    ingest_code = sel_codes[0] if (per_env and sel_codes) else "ingest"
 
     recs = [r for r in (recommend(rec, ingest_code=ingest_code) for rec in records) if r]
 
     header = ui.header(
         mo, "Land-this-source recommendations — design-time possibilities (intent-blind)")
-    intro = mo.md(
-        "This is the **generic method on synthetic data** — *here is how you'd find what "
-        "to land*. Every D3FEND defense below is an intent-blind `artifact_cooccurrence` "
-        "lead at trust **0.25** (counters≠detects), a design-time possibility, **NOT** a "
-        "guarantee and **NOT** coverage of your telemetry. " + br.COOCCURRENCE_CAVEAT
-    )
+    if per_env and operator_data:
+        intro = mo.md(
+            "This is the **per-customer recommender over the operator's own landed OCSF "
+            "data** — dark spots below come from YOUR table's per-class counts, not the "
+            "synthetic preview. Every D3FEND defense below is an intent-blind "
+            "`artifact_cooccurrence` lead at trust **0.25** (counters≠detects), a "
+            "design-time possibility, **NOT** a guarantee and **NOT** coverage of your "
+            "telemetry. " + br.COOCCURRENCE_CAVEAT
+        )
+    else:
+        intro = mo.md(
+            "This is the **generic method on synthetic data** — *here is how you'd find what "
+            "to land*. Every D3FEND defense below is an intent-blind `artifact_cooccurrence` "
+            "lead at trust **0.25** (counters≠detects), a design-time possibility, **NOT** a "
+            "guarantee and **NOT** coverage of your telemetry. " + br.COOCCURRENCE_CAVEAT
+        )
 
     if not recs:
         return ui.panel(
@@ -399,20 +418,37 @@ def recommendation_panel(mo, ui, records, *, paid=False, selection=None, source_
     )
 
     children = [header, intro, table]
-    if not paid:
+    if not per_env:
         # DEFAULT / public surface: generic-on-synthetic only. NO per-customer content.
         children.append(ui.note(
             mo, "info", "Generic method (public)",
             "This shows HOW to find what to land on synthetic data. The per-environment "
             "recommender — the one that binds these targets to a specific ingest route — is "
             "consultant IP; run with MOAR_PAID_MODE=1."))
-    else:
+    elif paid:
         # GATED per-customer branch: targets bound to the live selection's route code.
         children.append(ui.note(
             mo, "warn", "Per-environment recommender (paid)",
             "Targets below are bound to your selected ingest route "
             f"(`route_{ingest_code}`) — what your stack should deploy to close each dark "
             "spot. Still intent-blind possibilities at trust 0.25, never guarantees."))
+    else:
+        # PARTNER branch (MOAR_PARTNER_MODE): the same recommender workflow under the
+        # integrator-enablement agreement. NO scored-Matrix content renders here — the
+        # scored Capability Matrix stays behind MOAR_PAID_MODE and is not part of this mode.
+        children.append(ui.note(
+            mo, "warn", "Per-environment recommender (partner)",
+            "Enabled under a partner enablement agreement (MOAR_PARTNER_MODE). Targets below "
+            f"are bound to your selected ingest route (`route_{ingest_code}`) — what your "
+            "stack should deploy to close each dark spot. Still intent-blind possibilities "
+            "at trust 0.25, never guarantees. The scored Capability Matrix is not part of "
+            "partner mode."))
+        if not operator_data:
+            children.append(ui.note(
+                mo, "info", "No operator table loaded",
+                "Showing the workflow over the synthetic preview. Load your landed OCSF "
+                "table in the Iceberg Metadata Inspector to run the dark-spot technique "
+                "over your own data."))
     children.append(mo.md(source_note))
     return ui.panel(mo, *children)
 

@@ -118,6 +118,10 @@ owner-gated upgrade, not the reason for amber.
   `prove_reference_presets.py` — the book-decision-framework engines.
 - `prove_flow_reconcile.py`, `prove_ocsf_roundtrip.py` — the cluster-5 deepening engines.
 - `prove_panels_smoke.py` — headless construction of the Startup-tab panels.
+- `prove_partner_mode.py` — the KIT-4 partner-mode gate: `MOAR_PARTNER_MODE` is never implied
+  by `MOAR_PAID_MODE` (off or on), the public surface is byte-identical with both keys off,
+  partner-on exposes the per-customer recommender workflow with zero scored-Matrix content,
+  and the operator-data feed stays aggregates-only under a poisoned row.
 
 ## Cluster-5 deepening (2026-06-20) — all three deepenings wired live (answer-equality, OCSF round-trip, flow reconciliation)
 
