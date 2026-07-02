@@ -1,0 +1,130 @@
+# scoring-template.yaml — KIT-3 (CF-SCORING-SCHEMA): the public Capability Matrix
+# scoring SCHEMA, shipped EMPTY.
+#
+# This file is the machinery, not the content. It defines the three scored Matrix
+# categories (mirroring paid_scoring._CATEGORY_FILE: query = C3 engines, catalog =
+# C1/C2 formats + catalogs, ingest = C4 pipelines) and, per category, the generic
+# method-level dimensions a vendor/candidate would be scored against — a name, an
+# integer weight, and a one-line description of what the dimension measures.
+#
+# It carries ZERO scores and ZERO vendor/candidate rows on purpose:
+#   - every dimension's `score` is `null` — nothing has been graded here.
+#   - there is no `candidates:` / `candidate_pairs:` list anywhere — no product or
+#     vendor is named in this file.
+# The actual scored Matrix instances (per-vendor 1-5 criterion scores, weighted
+# totals, claim-vs-shipped deltas) are paid Security Data Works IP. They live ONLY
+# in the private vault, outside this repo (see docker/control-plane/paid_scoring.py,
+# the PaidScoreLeak firewall, which refuses to load them from anywhere inside this
+# repo). This template is what a scored Matrix file is checked against before it's
+# trusted: docker/control-plane/scoring_lint.py enforces the shape below — a 3-14
+# dimension band per category and weights summing to exactly 100 in every mode,
+# plus (in the default public mode used here) no numeric scores and no vendor rows.
+
+categories:
+  query:
+    # C3: query engines.
+    dimensions:
+      - name: mapping_fidelity
+        weight: 15
+        description: How faithfully the engine's execution model preserves the target schema without lossy flattening.
+        score: null
+      - name: answer_correctness
+        weight: 20
+        description: Correctness of query results against a known-good oracle run over the same dataset.
+        score: null
+      - name: performance_at_scale
+        weight: 15
+        description: Query latency and throughput as data volume and concurrent analysts grow.
+        score: null
+      - name: operational_footprint
+        weight: 10
+        description: Deployment and runtime cost — process model, memory/CPU profile, ops burden.
+        score: null
+      - name: swap_reversibility
+        weight: 10
+        description: How cheaply the engine can be swapped out — config change vs. a data rewrite.
+        score: null
+      - name: ecosystem_maturity
+        weight: 10
+        description: Breadth of connector/driver support and the health of the surrounding community.
+        score: null
+      - name: failure_transparency
+        weight: 10
+        description: How clearly the engine surfaces partial failures and degraded/stale results.
+        score: null
+      - name: concurrency_headroom
+        weight: 10
+        description: How gracefully the engine scales across simultaneous analysts and workloads.
+        score: null
+
+  catalog:
+    # C1/C2: table formats + catalogs.
+    dimensions:
+      - name: schema_evolution_safety
+        weight: 15
+        description: How safely the catalog handles additive/breaking schema changes over time.
+        score: null
+      - name: governance_model_strength
+        weight: 15
+        description: Depth of the RBAC/policy model available for controlling table access.
+        score: null
+      - name: mapping_fidelity
+        weight: 10
+        description: How faithfully the catalog's metadata model preserves the source table shape.
+        score: null
+      - name: operational_footprint
+        weight: 10
+        description: Backend/dependency burden required to run the catalog in production.
+        score: null
+      - name: swap_reversibility
+        weight: 15
+        description: How cheaply tables can be re-registered against a different catalog with no data rewrite.
+        score: null
+      - name: multi_engine_interop
+        weight: 15
+        description: Breadth of query engines that can read/write the catalog's tables concurrently.
+        score: null
+      - name: persistence_durability
+        weight: 10
+        description: Durability and recoverability guarantees of the catalog's own metadata store.
+        score: null
+      - name: ecosystem_maturity
+        weight: 10
+        description: Project governance, release cadence, and community health.
+        score: null
+
+  ingest:
+    # C4: ingest pipelines.
+    dimensions:
+      - name: mapping_fidelity
+        weight: 15
+        description: How faithfully the pipeline's transforms preserve the target schema without lossy flattening.
+        score: null
+      - name: transform_expressiveness
+        weight: 15
+        description: Power and clarity of the transform/config language for real-world parsing logic.
+        score: null
+      - name: operational_footprint
+        weight: 10
+        description: Deployment cost — process model, memory/CPU profile, ops burden per node.
+        score: null
+      - name: throughput_headroom
+        weight: 10
+        description: Sustained events-per-second throughput before backpressure or drops appear.
+        score: null
+      - name: swap_reversibility
+        weight: 15
+        description: How cheaply the pipeline engine can be swapped out without re-landing historical data.
+        score: null
+      - name: observability_depth
+        weight: 10
+        description: Visibility into per-stage drops, errors, and backpressure while the pipeline runs.
+        score: null
+      - name: failure_recovery
+        weight: 10
+        description: How the pipeline behaves under sink/source failure — buffering, retry, data loss.
+        score: null
+      - name: config_as_code_maturity
+        weight: 15
+        description: How cleanly pipeline config lives in git vs. a UI-only or registry-only state.
+        score: null
