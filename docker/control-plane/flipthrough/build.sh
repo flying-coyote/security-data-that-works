@@ -15,7 +15,7 @@ printf '# stub for screenshot mode\n' > "$STUB/pulumi_docker.py"
 
 # 2. export the app to a static HTML with baked outputs (hydrating JS, so tabs still work).
 EXPORT_LOG="$(mktemp)"
-( cd "$CP" && PYTHONPATH="$STUB" VAULT_PATH="${VAULT_PATH:-$HOME/project1}" \
+( cd "$CP" && PYTHONPATH="$STUB" VAULT_PATH="${VAULT_PATH:-$CP/sample-vault}" \
     "$VENV/bin/marimo" export html --no-include-code control_plane.py -o /tmp/cp_app.html ) >"$EXPORT_LOG" 2>&1 || true
 rm -rf "$STUB"
 [ -s /tmp/cp_app.html ] || { echo "marimo export failed — no /tmp/cp_app.html"; cat "$EXPORT_LOG"; rm -f "$EXPORT_LOG"; exit 1; }
@@ -30,6 +30,14 @@ if grep -qE "failed to execute|MarimoExceptionRaisedError" "$EXPORT_LOG"; then
   rm -f "$EXPORT_LOG"; exit 1
 fi
 rm -f "$EXPORT_LOG"
+
+# 2b. leak guard — the exported HTML must carry ONLY sample-vault (9xx-namespace) IDs.
+# A real-vault marker means VAULT_PATH pointed at the private strategy vault (the P0-1 leak);
+# refuse to capture. The sample vault uses MDR-9xxx / A-9xx / H-9xx, so these cannot false-positive.
+if grep -qE 'MDR-0[0-9]{3}|H3-PERFORMANCE|145x|StarRocks 5-30s|Cribl 70-90' /tmp/cp_app.html; then
+  echo "ERROR: exported HTML contains private-vault markers — VAULT_PATH must point at sample-vault; refusing to capture."
+  exit 1
+fi
 
 # 3. screenshot each view (Playwright/Chromium) + assemble the annotated HTML.
 ( cd "$CP" && python3 "$HERE/capture.py" )
