@@ -9,6 +9,7 @@ Pure stdlib.
 """
 from __future__ import annotations
 
+import os
 import sys
 
 import cost_advisor as ca
@@ -48,6 +49,44 @@ def main():
     check("zero volume → zero cost, no divide-by-zero", z["warm_lakehouse_monthly"] == 0 and z["warm_multiple"] == 0)
     check("summary_md handles the zero case", "Set a non-zero" in ca.summary_md(z))
     check("summary_md renders the reference read", "14.8x" in ca.summary_md(e30) or "14.8" in ca.summary_md(e30))
+
+    print("\n=== CF-COST: per-source event weight + retention presets + named-SIEM list foil ===\n")
+    import config_preview as _cpv
+    import json as _json
+    _zpath = os.path.join(_cpv._DEFAULT_SAMPLES, "zeek_conn.sample.tsv")
+    _zeek_n = len(_cpv._read_zeek_tsv(_zpath))
+    zbe = ca.sample_bytes_per_event("zeek")
+    check("zeek raw bytes/event == file_size / n_events (measured, not guessed)",
+          near(zbe["raw_bytes_per_event"], os.path.getsize(_zpath) / _zeek_n, 1e-9))
+    check("zeek OCSF bytes/event is populated and positive", zbe["ocsf_bytes_per_event"] > 0)
+    check("unknown source degrades to {error}, no raise", "error" in ca.sample_bytes_per_event("nope"))
+    check("FINRA_7yr preset == 2555 days", ca.RETENTION_PRESETS["FINRA_7yr"] == 2555)
+    check("estimate_per_source annotates the per-source event weight",
+          ca.estimate_per_source("zeek", 1, 365)["per_source"]["raw_bytes_per_event"] > 0)
+
+    p = ca.NAMED_SIEM_LIST_PRICE
+    check("Splunk price is dated 2024-04-23", p["published"] == "2024-04-23")
+    check("Splunk price sources G-Cloud 14", "G-Cloud 14" in p["source"])
+    check("Splunk price vendor is Splunk", p["vendor"] == "Splunk")
+    check("Splunk price is labeled a list price (never a score)", "list price" in p["basis"])
+    cmp = ca.named_siem_compare(ca.estimate(2, 365))
+    check("named_siem_compare carries provenance + basis='list price'",
+          cmp["basis"] == "list price" and cmp["provenance"]["published"] == "2024-04-23")
+    check("Splunk list scales with ingest volume (2 TB/day = 2000 GB/day)",
+          near(cmp["ingest_gb_day"], 2000.0, 1e-9))
+
+    _e = ca.estimate(1, 30)
+    check("estimate carries NO compute/license/egress/labor key (storage floor only)",
+          not ({"compute_monthly", "license_monthly", "egress_monthly", "labor_monthly"} & set(_e.keys())))
+    _sps = ca.summary_md_per_source(ca.estimate_per_source("zeek", 1, 30))
+    check("summary_md_per_source keeps the storage-floor-not-TCO disclaimer",
+          "Storage floor" in _sps and "not a TCO" in _sps)
+    # Firewall: the price surface must carry list prices only — never a 0-5 Matrix-style
+    # score. Every numeric provenance value is a $/GB-day list price (hundreds), so none
+    # falls in the 0-5 band a paid per-vendor score would occupy.
+    _price_nums = [v for v in p.values() if isinstance(v, (int, float))]
+    check("price provenance carries list prices only, no 0-5 Matrix-style score",
+          bool(_price_nums) and all(v > 5 for v in _price_nums))
 
     if _failures:
         print(f"\n\033[91m{len(_failures)} assertion(s) FAILED\033[0m")

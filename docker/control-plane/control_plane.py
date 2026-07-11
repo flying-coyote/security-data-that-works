@@ -414,17 +414,24 @@ def _(mo):
     cost_tb = mo.ui.number(start=0.0, stop=1000.0, step=0.5, value=1.0, label="Raw ingest TB/day")
     cost_days = mo.ui.dropdown(options=["30 days", "90 days", "1 year", "7 years"],
                                value="7 years", label="Retention window")
-    return cost_days, cost_tb
+    cost_source = mo.ui.dropdown(options=["zeek", "sysmon", "cloudtrail"],
+                                 value="zeek", label="Sample source (event weight)")
+    return cost_days, cost_source, cost_tb
 
 
 @app.cell(hide_code=True)
-def _(ca, cost_days, cost_tb, mo, ui):
+def _(ca, cost_days, cost_source, cost_tb, mo, ui):
+    # CF-COST — the storage-floor estimate for this volume, annotated with the selected
+    # source's measured event weight (raw + OCSF bytes/event, from the sample library) and a
+    # DATED Splunk G-Cloud 14 list-price anchor. summary_md_per_source keeps the
+    # storage-floor-not-TCO disclaimer; the Splunk line is a list-price magnitude anchor, not
+    # a scored comparison.
     _days = {"30 days": 30, "90 days": 90, "1 year": 365, "7 years": 2555}.get(cost_days.value, 365)
-    _est = ca.estimate(cost_tb.value or 0.0, _days)
+    _est = ca.estimate_per_source(cost_source.value, cost_tb.value or 0.0, _days)
     cost_panel = ui.panel(mo,
         ui.header(mo, "Cost-to-serve — storage floor for this volume"),
-        mo.hstack([cost_tb, cost_days], gap=1, justify="start"),
-        mo.md(ca.summary_md(_est)),
+        mo.hstack([cost_tb, cost_days, cost_source], gap=1, justify="start"),
+        mo.md(ca.summary_md_per_source(_est)),
     )
     return (cost_panel,)
 

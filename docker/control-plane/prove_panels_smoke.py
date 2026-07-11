@@ -118,9 +118,12 @@ def build_cost_panel():
     tb = mo.ui.number(start=0.0, stop=1000.0, step=0.5, value=1.0, label="Raw ingest TB/day")
     days = mo.ui.dropdown(options=["30 days", "90 days", "1 year", "7 years"],
                           value="7 years", label="Retention window")
-    est = ca.estimate(1.0, 2555)
-    return ui.panel(mo, ui.header(mo, "Cost-to-serve"), mo.hstack([tb, days], gap=1, justify="start"),
-                    mo.md(ca.summary_md(est)))
+    source = mo.ui.dropdown(options=["zeek", "sysmon", "cloudtrail"], value="zeek",
+                            label="Sample source (event weight)")
+    est = ca.estimate_per_source("zeek", 1.0, 2555)  # CF-COST per-source + Splunk foil path
+    return ui.panel(mo, ui.header(mo, "Cost-to-serve"),
+                    mo.hstack([tb, days, source], gap=1, justify="start"),
+                    mo.md(ca.summary_md_per_source(est)))
 
 
 def build_gap_countermeasures_panel():
