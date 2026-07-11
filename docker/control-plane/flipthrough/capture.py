@@ -80,7 +80,7 @@ VIEWS = [
      "thesis-evidence verbs re-prove the program's claims live against the stack."),
     ("config", "Startup › Configuration", ["Startup", "Configuration"],
      "Configure the stack spec, validate the OCSF transform (VRL) before provisioning, and "
-     "deploy / tear-down the MOAr stack locally via Pulumi. The deploy is authorized by the "
+     "deploy / tear-down the MOAR stack locally via Pulumi. The deploy is authorized by the "
      "data-health gate (shown here as a compact verdict chip; the full breakdown lives in "
      "Flow &rsaquo; Health) &mdash; you can't deploy onto an incoherent selection without "
      "logging an override. Before deploy, the pre-flight checks (Docker, ports, object store), "
@@ -98,13 +98,6 @@ VIEWS = [
      "answer-equality, OCSF round-trip mapping fidelity, and flow reconciliation. Unproven "
      "layers are labeled, never shown as a pass; a proven layer decays to 'stale' if it isn't "
      "re-run. A GREEN gate is the deploy authorization, not a slide."),
-    ("migrate", "Flow › Migrate", ["Flow", "Migrate"],
-     "The intent-driven migration cockpit. Pick one of six migration intents and the panel "
-     "expands to focused, verifiable direction: the steps, the real swap-cost and how to back "
-     "out (read off each component's reversibility), and the live data-health check that proves "
-     "the move didn't change the answer &mdash; cross-engine answer-equality for an engine swap, "
-     "the swap-store/catalog/router checks for those tiers, flow reconciliation for a route "
-     "change. The open architecture makes being wrong cheap; this makes that concrete."),
     ("analyze", "Analyze", ["Analyze"],
      "Aggregate-only analysis over the loaded OCSF table &mdash; row and per-class/activity "
      "counts, top-N sources, field population, time span &mdash; plus the Iceberg metadata "
@@ -118,6 +111,13 @@ VIEWS = [
      "real security data is a prompt-injection and control-char surface, so only counts and "
      "low-cardinality keys leave the query, and source values are control-char-stripped and "
      "length-bounded."),
+    ("migrate", "Migrate", ["Migrate"],
+     "The intent-driven migration cockpit. Pick one of six migration intents and the panel "
+     "expands to focused, verifiable direction: the steps, the real swap-cost and how to back "
+     "out (read off each component's reversibility), and the live data-health check that proves "
+     "the move didn't change the answer &mdash; cross-engine answer-equality for an engine swap, "
+     "the swap-store/catalog/router checks for those tiers, flow reconciliation for a route "
+     "change. The open architecture makes being wrong cheap; this makes that concrete."),
 ]
 
 MAX_H = 12000  # safety cap on a runaway content-height measurement

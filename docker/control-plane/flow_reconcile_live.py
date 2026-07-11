@@ -3,7 +3,7 @@ per-OCSF-class event counts hop to hop (emitted → ingested → landed).
 
 `flow_reconcile.py` is the pure reconciliation logic; this is its live collector. The
 routers are one-shot emitters and the land hop is `docker/lab/flow_counts.py` (which reuses
-promote.py's land idiom). This runs the router, pipes its OCSF into the lab's land+count
+promote.py's land pattern). This runs the router, pipes its OCSF into the lab's land+count
 helper, and feeds three per-class counts into `flow_reconcile.reconcile()`:
   - emitted  — ground truth from the raw sample (not a meter): what the source put in.
   - ingested — the router's OCSF output by class_uid: did the transform drop a raw event?

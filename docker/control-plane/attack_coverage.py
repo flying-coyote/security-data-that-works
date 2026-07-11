@@ -422,9 +422,9 @@ def recommendation_panel(mo, ui, records, *, paid=False, partner=False, operator
         # DEFAULT / public surface: generic-on-synthetic only. NO per-customer content.
         children.append(ui.note(
             mo, "info", "Generic method (public)",
-            "This shows HOW to find what to land on synthetic data. The per-environment "
-            "recommender — the one that binds these targets to a specific ingest route — is "
-            "consultant IP; run with MOAR_PAID_MODE=1."))
+            "This shows HOW to find what to land on synthetic data. Binding these targets to a "
+            "specific ingest route for your own environment is the services engagement "
+            "(assess, design, migrate, operate) that runs when a company deploys MOAR."))
     elif paid:
         # GATED per-customer branch: targets bound to the live selection's route code.
         children.append(ui.note(

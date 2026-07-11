@@ -1,21 +1,22 @@
-"""Paid Capability Matrix scoring for the MOAr console — PAID_MODE only.
+"""Capability Matrix scoring for the MOAR console.
 
-The per-criterion 1-5 scores, weighted archetype totals, and claim-vs-shipped
-deltas ARE paid SDW IP. They must never live in this public repo. This module loads
-them at runtime ONLY when `MOAR_PAID_MODE` is set, and ONLY from a path OUTSIDE this
-repository (default: the private project1 vault's `scoring/` dir). A pre-flight
-assertion refuses to read scores from anywhere inside the public repo, so a paid
-score can never be sourced from a committed file.
+The scored Matrix is a public flagship-evidence asset: the per-criterion 1-5 scores, the
+weighted archetype totals, and the claim-vs-shipped deltas surface by default, so
+`MOAR_PAID_MODE` now defaults on and an unset var means the scored view is shown. What a
+company pays for is the services engagement (assess, design, migrate, operate) that runs
+against a Matrix finding when it deploys MOAR, not the scores.
 
-The public console (PAID_MODE off — what any clone gets) shows zero scores: method,
-pros/cons, and provenance chips only, and links to /matrix for the scored version.
-This is the §5 owner decision in MOAR-CONTROL-PLANE-EXTENSION-DESIGN.md, made
-operational: a runtime flag that physically loads a different data file.
+The per-criterion scoring FILES still live in the project1 vault's `scoring/` dir rather
+than in this repo, and this module reads them from that authored source at runtime. A
+pre-flight assertion refuses to read scores from anywhere inside this public repo, so a
+score is always sourced from its vault file and never from a stale copy committed here.
+Set `MOAR_PAID_MODE` to a falsy value (0/false/off) to render the public component-model
+half without the scored view (the free counterpart is `public_context`).
 
 Env:
-  MOAR_PAID_MODE      truthy (1/true/yes/on) to enable the scored view
+  MOAR_PAID_MODE      defaults on; set falsy (0/false/off) to hide the scored view
   MOAR_SCORING_PATH   override the scoring dir; default $VAULT_PATH/02-projects/securitydataworks/scoring
-  VAULT_PATH          the private project1 vault root (default ~/project1)
+  VAULT_PATH          the project1 vault root that holds the scoring files (default ~/project1)
 """
 from __future__ import annotations
 
@@ -45,7 +46,7 @@ def _public_repo_root() -> Path:
 
 
 def paid_mode() -> bool:
-    return os.environ.get("MOAR_PAID_MODE", "").strip().lower() in {"1", "true", "yes", "on"}
+    return os.environ.get("MOAR_PAID_MODE", "on").strip().lower() in {"1", "true", "yes", "on"}
 
 
 def consultant_mode(*, vault_readable: bool, has_notes: bool) -> bool:
@@ -159,15 +160,16 @@ def load_scores(archetype: str = "A") -> dict:
 
 
 # The Matrix-scored component categories: query = C3 engines, catalog = C1/C2 formats +
-# catalogs, ingest = C4 pipelines. The PUBLIC view shows the component model + reversibility
-# for these; the per-criterion 1-5 scores + weighted ranking stay paid (load_scores above).
+# catalogs, ingest = C4 pipelines. public_context shows the component model + reversibility
+# for these; the per-criterion 1-5 scores + weighted ranking come from load_scores above (the
+# public scored view, sourced from the vault scoring files).
 _PUBLIC_CATEGORIES = ("query", "catalog", "ingest")
 
 
 def public_context(picks: dict) -> list[dict]:
     """The PUBLIC-safe Capability Matrix context — the free counterpart to load_scores().
 
-    Where load_scores() yields the paid per-criterion 1-5 scores (PAID_MODE only), this
+    Where load_scores() yields the per-criterion 1-5 scores (the scored view), this
     yields the half the public console gives away: the component model + reversibility for
     the picked scored components. picks: {category: code | [codes]} from the picker. Returns
     one row per picked scored component with ONLY public fields — category, label, pros,

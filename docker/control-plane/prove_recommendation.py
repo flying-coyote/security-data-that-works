@@ -17,9 +17,10 @@ THE INVARIANTS this asserts:
   d) TOPOLOGY TARGET HONEST    : each route_target matches ^route_ and the action text
                                  invents no named customer source.
   e) NO PER-CUSTOMER IN DEFAULT: recommendation_panel(paid=False) renders the generic
-                                 note + the MOAR_PAID_MODE=1 hint and NOT a per-env
-                                 "your stack should deploy" claim; paid=True is the
-                                 only path that can.
+                                 note + the services-engagement framing (no run-
+                                 MOAR_PAID_MODE=1 hint; the scored Matrix is public now)
+                                 and NOT a per-env "your stack should deploy" claim;
+                                 paid=True is the only path that can.
   f) AGGREGATE-SAFE            : a control-char + backtick + <script> payload comes out
                                  inert (no raw '<', no backtick, '&lt;' present).
   g) HONEST DEGRADE            : a zero-defense / not-in-corpus dark_spot yields
@@ -137,7 +138,10 @@ def main():
     records = acov.assess([{"technique": "T1071", "match_count": 0}], {}, corpus)
     default_text = str(acov.recommendation_panel(mo, ui, records, paid=False))
     check("default panel renders the generic-method note", "Generic method (public)" in default_text)
-    check("default panel renders the MOAR_PAID_MODE=1 hint", "MOAR_PAID_MODE=1" in default_text)
+    check("default panel frames per-environment binding as the services engagement",
+          "services engagement" in default_text)
+    check("default panel drops the run-MOAR_PAID_MODE=1 hint (scored Matrix is public now)",
+          "MOAR_PAID_MODE=1" not in default_text)
     check("default panel does NOT render a per-environment 'your stack should deploy' claim",
           "what your stack should deploy" not in default_text.lower())
     check("default panel does NOT render the paid per-environment banner",

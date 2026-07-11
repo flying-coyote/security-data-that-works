@@ -37,9 +37,10 @@ deploy panel) — the same venv the flip-through build uses:
 marimo prints the local URL it is serving on (by default `http://localhost:2718`); open that to drive the
 console. There is no `./moar` verb for this yet, so the launch is manual. One caveat from the deploy panel:
 `flipthrough/build.sh` stubs `pulumi` on `PYTHONPATH` because the screenshot export only imports the deploy
-module, so a live run needs `pulumi` actually installed (or the same stub on `PYTHONPATH`). Set
-`MOAR_PAID_MODE=1` before launching if you want the gated Matrix and per-customer panels; with the demo stack
-down the data-driven panels honestly show their pre-audit states, the same as the flip-through.
+module, so a live run needs `pulumi` actually installed (or the same stub on `PYTHONPATH`). The scored
+Capability Matrix surfaces by default (it's a public evidence asset); set `MOAR_PAID_MODE=off` before launching
+if you want to hide it and see only the component view. With the demo stack down the data-driven panels honestly
+show their pre-audit states, the same as the flip-through.
 `MOAR_PARTNER_MODE=1` (an independent key — never implied by `MOAR_PAID_MODE` on or off) enables the partner
 enablement mode: the per-customer land-this-source recommender runs over the operator's own Inspector-loaded
 OCSF table, without unlocking any scored-Matrix content (see `partner_mode.py` / `prove_partner_mode.py`).
@@ -65,9 +66,10 @@ constraints actually reach.
 
 ![Vault and Matrix](flipthrough/img/vault.png)
 
-Two consultant-mode surfaces plus the evidence runner: the Strategy Vault (typed OKF notes) and the
-per-criterion scored Capability Matrix loaded from the private vault — never the repo, so the paid scoring stays
-paid. The evidence runner ties a recommendation back to the lab result that supports it.
+The Strategy Vault (typed OKF notes), the public scored Capability Matrix, and the evidence runner. The
+per-criterion scores load from the vault's scoring files rather than this repo, so a score always traces to its
+authored source; the scored Matrix itself is public flagship evidence, and the Strategy Vault stays the
+consultant working surface. The evidence runner ties a recommendation back to the lab result that supports it.
 
 ### Startup › Configuration
 
@@ -96,7 +98,7 @@ across sources). The honesty of the gate is in its vocabulary — a layer with n
 none of those is ever shown as a pass. A clean foundation reads AMBER by design until the audits have something
 real to measure. The full per-layer contract is in [`CONTRACT.md`](CONTRACT.md).
 
-### Flow › Migrate
+### Migrate
 
 ![Migrate](flipthrough/img/migrate.png)
 
@@ -290,5 +292,6 @@ First run auto-builds a dedicated `control-plane/.venv` from `requirements.txt` 
 needs network); override with `MARIMO_VENV=/path/to/venv ./moar console`. `pulumi` is stubbed
 so deploy is disabled in the console (deploy/swap run via `./moar swap-*`). The console reads
 vendored artifacts, so it runs without `./moar up`; live panes show `unwired`/`not_measured`
-until the stack is up. `MOAR_PAID_MODE=1` and `VAULT_PATH=...` enable the consultant view;
-`MOAR_PARTNER_MODE=1` enables the partner-enablement recommender (workflow only, never the scored Matrix).
+until the stack is up. The scored Matrix surfaces by default; point `VAULT_PATH=...` at the project1 vault to
+load the strategy-vault overlay and the per-criterion scoring files, and set `MOAR_PAID_MODE=off` to hide the
+scored view. `MOAR_PARTNER_MODE=1` enables the partner-enablement recommender (workflow only, never scores).

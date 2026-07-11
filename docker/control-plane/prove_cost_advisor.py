@@ -50,7 +50,7 @@ def main():
     check("summary_md handles the zero case", "Set a non-zero" in ca.summary_md(z))
     check("summary_md renders the reference read", "14.8x" in ca.summary_md(e30) or "14.8" in ca.summary_md(e30))
 
-    print("\n=== CF-COST: per-source event weight + retention presets + named-SIEM list foil ===\n")
+    print("\n=== CF-COST: per-source event weight + retention presets + named-SIEM list anchor ===\n")
     import config_preview as _cpv
     import json as _json
     _zpath = os.path.join(_cpv._DEFAULT_SAMPLES, "zeek_conn.sample.tsv")

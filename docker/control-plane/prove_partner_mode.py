@@ -7,9 +7,9 @@ change to the public surface, never a relaxation of the telemetry-injection boun
 THE INVARIANTS this asserts (the KIT-4 proof battery):
   a) PUBLIC UNCHANGED          : with both keys off, the default panel is byte-identical
                                  to a call that never mentions partner kwargs, and renders
-                                 exactly the pre-existing public surface (generic note +
-                                 MOAR_PAID_MODE=1 hint). (The rest of proof (a) is the
-                                 existing battery staying green — run it.)
+                                 the public surface (generic note + services-engagement
+                                 framing, no run-MOAR_PAID_MODE=1 hint). (The rest of proof
+                                 (a) is the existing battery staying green — run it.)
   b) PARTNER-OFF HIDES ALL     : partner_mode() is False with the key unset/falsy, and is
                                  NEVER implied by MOAR_PAID_MODE — not by paid off, not by
                                  paid on. No partner surface renders when the flag is off.
@@ -59,7 +59,7 @@ def _env(**kv):
             os.environ[k] = v
 
 
-# ---- minimal marimo stub so recommendation_panel renders to text (prove_recommendation idiom) ----
+# ---- minimal marimo stub so recommendation_panel renders to text (prove_recommendation pattern) ----
 class _MoStub:
     class _Node:
         def __init__(self, text=""):
@@ -132,7 +132,8 @@ def main():
                                              operator_data=False, selection=sel))
     check("default call == explicit partner=False call, byte-for-byte", legacy == explicit)
     check("public surface renders the generic-method note", "Generic method (public)" in legacy)
-    check("public surface renders the MOAR_PAID_MODE=1 hint", "MOAR_PAID_MODE=1" in legacy)
+    check("public surface frames per-environment binding as the services engagement",
+          "services engagement" in legacy)
     check("public surface renders NO partner surface at all",
           "partner" not in legacy.lower() and "MOAR_PARTNER_MODE" not in legacy)
     check("public surface renders NO per-environment recommender",
@@ -141,7 +142,7 @@ def main():
           "route_vector" not in legacy)
 
     print("\n=== (c) PARTNER-ON: recommender workflow exposed, scored Matrix stays cold ===\n")
-    _env(MOAR_PARTNER_MODE="1", MOAR_PAID_MODE=None)
+    _env(MOAR_PARTNER_MODE="1", MOAR_PAID_MODE="off")  # explicit-off: paid default is now on
     check("partner on: paid_mode() stays False (partner never unlocks paid)",
           paid.paid_mode() is False)
     check("partner on: consultant_mode() stays False for a public clone",
@@ -198,7 +199,7 @@ def main():
         refused = True
     check("a table without class_uid is refused (ValueError -> honest synthetic fallback)", refused)
     # End-to-end: assess over the poisoned operator inputs, render the partner panel.
-    _env(MOAR_PARTNER_MODE="1")
+    _env(MOAR_PARTNER_MODE="1", MOAR_PAID_MODE="off")  # explicit-off: paid default is now on
     op_records = acov.assess(findings, by_class, corpus)
     op_text = str(acov.recommendation_panel(mo, ui, op_records, paid=paid.paid_mode(),
                                             partner=pm.partner_mode(), operator_data=True,

@@ -26,7 +26,7 @@ Honesty floor (matches layer3_audit / ocsf_roundtrip): if a requested grouping
 field is absent from the table, the corresponding view is skipped — the result is
 partial and says nothing it didn't measure, rather than crashing or fabricating.
 
-duckdb-over-arrow idiom (from lab/promote.py): register the Arrow table as a view
+duckdb-over-arrow pattern (from lab/promote.py): register the Arrow table as a view
 and GROUP BY in SQL. duckdb reads the Arrow table zero-copy; the GROUP BY only
 ever emits the grouping key and its count, never the underlying rows.
 """
@@ -178,7 +178,7 @@ def analyze_table(arrow_table) -> dict:
     }
 
     # Field population needs no SQL; the GROUP BY views do. Register the Arrow
-    # table as a duckdb view (zero-copy) and aggregate in SQL (promote.py idiom).
+    # table as a duckdb view (zero-copy) and aggregate in SQL (promote.py pattern).
     import duckdb
 
     con = duckdb.connect()

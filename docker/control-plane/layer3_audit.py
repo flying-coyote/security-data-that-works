@@ -1,4 +1,4 @@
-"""Layer 3 data-quality audit for the MOAr console — real measured checks.
+"""Layer 3 data-quality audit for the MOAR console — real measured checks.
 
 This is the module that turns the gate's Layer-3 row from a hardcoded
 `unmeasured` into a measured pass/fail. It runs against a deployed Iceberg table

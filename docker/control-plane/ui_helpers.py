@@ -1,4 +1,4 @@
-"""Shared marimo UI helpers for the MOAr control plane.
+"""Shared marimo UI helpers for the MOAR control plane.
 
 Collapses the card/panel `.style({...})` dicts that were copy-pasted across a
 dozen cells into two constants and three helpers, and gives section headers one

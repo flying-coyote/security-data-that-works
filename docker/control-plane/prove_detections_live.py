@@ -98,10 +98,10 @@ def main():
         found[d["id"]] = safe
         evidence["findings"][d["id"]] = len(rows)
 
-    check("the C2 beacon is found over the LANDED table (10.0.1.77 -> 203.0.113.66, 3 connections)",
-          any(r[0] == "10.0.1.77" and r[1] == "203.0.113.66" and r[2] == 3 for r in found.get("c2_beacon", [])))
-    check("exfil is found over the LANDED table (10.0.1.200, total_bytes_out 15000)",
-          any(r[0] == "10.0.1.200" and r[1] == 15000 for r in found.get("exfil_egress", [])))
+    c2_found = any(r[0] == "10.0.1.77" and r[1] == "203.0.113.66" and r[2] == 3 for r in found.get("c2_beacon", []))
+    check("the C2 beacon is found over the LANDED table (10.0.1.77 -> 203.0.113.66, 3 connections)", c2_found)
+    exfil_found = any(r[0] == "10.0.1.200" and r[1] == 15000 for r in found.get("exfil_egress", []))
+    check("exfil is found over the LANDED table (10.0.1.200, total_bytes_out 15000)", exfil_found)
     # the SQL row is (group-key columns..., measure columns...): every group key must be a sanitized
     # string (the live path routes ALL string columns through _safe_key), the measures numeric.
     safe_ok = True
@@ -117,6 +117,10 @@ def main():
                 safe_ok = False
     check("live findings are aggregate-safe (group keys = sanitized strings, measures = numbers)", safe_ok)
 
+    # Mirror the other live arms: stamp an explicit gate status on the recorded evidence so the
+    # detections arm reports pass/fail into the data-health gate like answer_equality / ocsf_roundtrip
+    # / flow_reconcile / schema_drift. Honest, not a bluffed pass: 'pass' only when both detections fired.
+    evidence["status"] = "pass" if (c2_found and exfil_found) else "fail"
     # record the detections arm into the keyed live-evidence.json (read-merge-write — leaves the
     # answer_equality / ocsf_roundtrip / flow_reconcile arms intact).
     le.record_arm("detections", evidence)

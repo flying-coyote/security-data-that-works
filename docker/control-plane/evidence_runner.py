@@ -2,7 +2,7 @@
 
 Each verb re-proves a thesis claim against the live stack — empirical skepticism made
 operational, "challenged with data, not assertion." This module shells out to
-`./moar <verb>` reusing the VRL tester's subprocess + timeout + exit-code idiom,
+`./moar <verb>` reusing the VRL tester's subprocess + timeout + exit-code pattern,
 captures the exit code plus a BOUNDED, SANITIZED summary, UTC-dates and Tier-B-stamps
 the result, and degrades to a labeled `blocked` state when no Docker daemon is
 reachable rather than hanging or faking a pass.

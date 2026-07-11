@@ -38,7 +38,7 @@ STEPS = [
      "value": "the SOC value moment — a detection fires over really-landed OCSF",
      "see": "N rules ran, M triggered, aggregate-safe (counts + the grouping key, never a raw row)"},
     {"n": 6, "key": "migrate", "title": "Swap any component — being wrong is cheap",
-     "tab": "Flow › Migrate",
+     "tab": "Migrate",
      "value": "reversibility: the open architecture makes a wrong pick cheap to undo",
      "see": "the swap-cost, the back-out, and the live check that proves the swap didn't change the answer"},
 ]

@@ -4,7 +4,7 @@ The book argues retention economics, not feature checklists, decide the platform
 scale, and the cost-to-serve-retention lab measured the storage floor: a hot search
 index stores ~4.2x the bytes at ~3.5x the price, so it costs ~14.8x a warm Iceberg-on-S3
 lakehouse for the same events, and ~96.7x against a cold tier. This module reproduces
-that model so the console can price the selected open stack against the hot-index foil
+that model so the console can price the selected open stack against the hot-index anchor
 for a given ingest volume and retention window.
 
 Storage floor ONLY: no compute, license, ops labor, egress, or IOPS add-ons. The byte
@@ -79,7 +79,7 @@ RETENTION_PRESETS = {
     "FINRA_7yr": 2555,
 }
 
-# CF-COST — the named-SIEM list-price FOIL. Verified public rate card, list price NOT a Matrix
+# CF-COST — the named-SIEM list-price ANCHOR. Verified public rate card, list price NOT a Matrix
 # score. Source: reference_splunk_gcloud_pricing (project1 memory) + the UK Digital Marketplace PDF.
 NAMED_SIEM_LIST_PRICE = {
     "vendor": "Splunk",

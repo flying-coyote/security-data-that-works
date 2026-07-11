@@ -1,4 +1,4 @@
-"""Partner-mode gate for the MOAr console — the integrator-enablement third mode (KIT-4).
+"""Partner-mode gate for the MOAR console — the integrator-enablement third mode (KIT-4).
 
 Three modes, three surfaces, and NO implication between the keys:
 

@@ -18,7 +18,7 @@ record and leak it as a key. Absent class/field -> that sub-view is skipped + re
 
 Two paths, one definition (detections.py discipline): scan_entity() runs pure-Python over landed OCSF
 dicts (the proof + the stack-down preview); profile_entity() runs the duckdb-over-arrow GROUP BY over a
-loaded PyArrow table (analyze.py idiom) for the panel; to_sql() emits the BOUND-parameter SQL the live
+loaded PyArrow table (analyze.py pattern) for the panel; to_sql() emits the BOUND-parameter SQL the live
 run-at-scale path uses over the Iceberg table. The proof asserts scan_entity and profile_entity agree on
 the same data, so the pure preview and the SQL path can't drift.
 """

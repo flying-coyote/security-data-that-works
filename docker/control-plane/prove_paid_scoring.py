@@ -48,10 +48,13 @@ def main():
     except paid.PaidScoreLeak:
         check("firewall ALLOWS a path outside the public repo (the private vault)", False)
 
-    print("\n=== PAID_MODE off (the public default, what any clone gets) -> zero scores ===\n")
+    print("\n=== PAID_MODE defaults ON (public scored view); explicit-off hides it -> zero scores ===\n")
     os.environ.pop("MOAR_PAID_MODE", None)
-    check("PAID_MODE defaults OFF", paid.paid_mode() is False)
-    check("PAID_MODE off -> load_scores returns no scores", paid.load_scores("A") == {})
+    check("PAID_MODE defaults ON (an unset var surfaces the public scored view)", paid.paid_mode() is True)
+    os.environ["MOAR_PAID_MODE"] = "off"
+    check("PAID_MODE explicitly off (0/false/off) -> paid_mode() False", paid.paid_mode() is False)
+    check("PAID_MODE explicitly off -> load_scores returns no scores", paid.load_scores("A") == {})
+    os.environ.pop("MOAR_PAID_MODE", None)
     for _v in ("1", "true", "YES", "on"):
         os.environ["MOAR_PAID_MODE"] = _v
         if not paid.paid_mode():
@@ -87,7 +90,7 @@ def main():
           {"Polaris"} <= {r["label"] for r in paid.public_context({"catalog": "polaris"})})
 
     print("\n=== consultant_mode gate (T5): a public clone never leads with the vault ===\n")
-    os.environ.pop("MOAR_PAID_MODE", None)
+    os.environ["MOAR_PAID_MODE"] = "off"  # explicit-off: exercise the vault-driven branch (default is now on)
     check("public clone (PAID_MODE off, no vault) -> NOT consultant",
           paid.consultant_mode(vault_readable=False, has_notes=False) is False)
     check("PAID_MODE off + a readable vault WITH notes -> consultant",

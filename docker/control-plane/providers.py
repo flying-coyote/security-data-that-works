@@ -1,4 +1,4 @@
-"""Single source of truth for MOAr stack component options.
+"""Single source of truth for MOAR stack component options.
 
 Replaces the label<->code maps and the per-tool pros/cons that were duplicated
 across several marimo cells. Each component category is an ordered list of

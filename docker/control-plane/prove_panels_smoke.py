@@ -122,7 +122,7 @@ def build_cost_panel():
                           value="7 years", label="Retention window")
     source = mo.ui.dropdown(options=["zeek", "sysmon", "cloudtrail"], value="zeek",
                             label="Sample source (event weight)")
-    est = ca.estimate_per_source("zeek", 1.0, 2555)  # CF-COST per-source + Splunk foil path
+    est = ca.estimate_per_source("zeek", 1.0, 2555)  # CF-COST per-source + Splunk anchor path
     return ui.panel(mo, ui.header(mo, "Cost-to-serve"),
                     mo.hstack([tb, days, source], gap=1, justify="start"),
                     mo.md(ca.summary_md_per_source(est)))

@@ -146,7 +146,7 @@ same honesty rules every measured layer gets: pass/fail is cert-bearing, blocked
   (emitted → ingested → landed) and fails on a silent drop beyond tolerance, so a pipeline that
   quietly loses a fraction of one class surfaces rather than hiding behind a reachable Layer 2.
   **Wired live (2026-06-20):** the real source→route→land pipeline runs (raw Okta sample → Tenzir
-  router → `ocsf.authentication` Iceberg table, reusing promote.py's land idiom); emitted is
+  router → `ocsf.authentication` Iceberg table, reusing promote.py's land pattern); emitted is
   ground truth from the sample, ingested is the router's OCSF output by class, landed is what
   survived into the table counted through the catalog (not a stale-prone catalog-less read).
   `compute_gate` carries an optional ninth row (`flow_reconcile_status`). Proven live

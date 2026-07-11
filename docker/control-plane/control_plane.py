@@ -188,8 +188,8 @@ def _(branding_styles, header_lockup, mo):
         branding_styles,
         header_lockup,
         mo.md("""
-        ### MOAr Stack Control Plane
-        Reactive administrator cockpit for the Modular Open Architecture (MOAr) Stack.
+        ### MOAR Stack Control Plane
+        Reactive administrator cockpit for the Modular Open Architecture (MOAR) Stack.
         """),
     ])
     return
@@ -280,7 +280,7 @@ def _(P, catalog_provider, mo, pipeline_provider, query_provider, schema_provide
 
     selector_panel = ui.panel(mo,
         mo.md("### Modular Component Selection"),
-        mo.md("Choose the components for your active MOAr stack deployment."),
+        mo.md("Choose the components for your active MOAR stack deployment."),
         mo.hstack([storage_card, catalog_card, ingest_card, query_card, schema_card],
                   gap=2, justify="start", align="start"),
         _map_note,
@@ -1084,20 +1084,16 @@ def _(P, archetype_selector, mo, paid, sel_catalog, sel_ingest, sel_query, ui):
                                  f"{_r['label']} · {_catlbl.get(_r['category'], _r['category'])}",
                                  "<br/>".join(_body) or "—"))
         scorecard_panel = ui.panel(mo,
-            ui.header(mo, "The Capability Matrix — public view"),
+            ui.header(mo, "The Capability Matrix — component view"),
             mo.md(
-                "The console gives you the Matrix's public half for free: the component model, the "
+                "You've turned the scored view off, so this shows the component half: the model, the "
                 "constraint-fit shortlist that **Pick components** computes live from your declared "
-                "constraints, and what swapping each component back out would cost — the reversibility "
-                "a risk-averse team reads before it commits to open architecture. The scored half stays "
-                "paid: the per-criterion 1–5 ratings and the weighted ranking per workload archetype, "
-                "because that scoring is the SDW deliverable. So you can see here which components clear "
-                "your constraints and how reversible each pick is, and the scored ranking that says which "
-                "one fits best is the Capability Matrix at "
+                "constraints, and what swapping each component back out would cost, which is the "
+                "reversibility a risk-averse team reads before it commits to open architecture. The scored "
+                "half, the per-criterion 1–5 ratings and the weighted ranking per workload archetype, is "
+                "public and surfaces by default; it's the flagship Capability Matrix at "
                 "[securitydataworks.com/matrix](https://securitydataworks.com/matrix)."),
             *(_rows or [mo.md("*Pick an engine, catalog, or pipeline to see its reversibility and evidence.*")]),
-            mo.md("*Consultant delivery: run with `MOAR_PAID_MODE=1` for the scored view "
-                  "(scores load from the private vault, never this repo).*"),
             **{"border": "1px solid var(--color-teal-500)"},
         )
     else:
@@ -1129,13 +1125,15 @@ def _(P, archetype_selector, mo, paid, sel_catalog, sel_ingest, sel_query, ui):
                 mo.as_html(_df),
             ]))
         scorecard_panel = ui.panel(mo,
-            ui.header(mo, f"Capability Matrix scores — PAID MODE · archetype {_arch}"),
-            mo.md("⚠️ **Paid IP** — for the consultant's live delivery only; not a public surface. "
-                  "The public Matrix shows codeworded scores; this shows the named detail."),
+            ui.header(mo, f"Capability Matrix scores — archetype {_arch}"),
+            mo.md("The public scored Capability Matrix: the per-criterion 1–5 ratings and the weighted "
+                  "ranking per workload archetype, the flagship evidence behind the component picks. The "
+                  "full published Matrix is at "
+                  "[securitydataworks.com/matrix](https://securitydataworks.com/matrix)."),
             *([mo.md(f"*Score-source error: {_err}*")] if _err else []),
             archetype_selector,
             *_blocks,
-            **{"border": "1px solid var(--color-orange-500)"},
+            **{"border": "1px solid var(--color-teal-500)"},
         )
     return (scorecard_panel,)
 
@@ -1195,14 +1193,13 @@ def _(VAULT_IS_SAMPLE, mo, okf, okf_search, paid, ui, vault_error, vault_notes):
         okf_panel = ui.panel(mo,
             ui.header(mo, "Architecture strategy — the recorded *why*"),
             mo.md(
-                "The full decision graph — Matrix Decision Records and strategic assumptions, read "
-                "from the private strategy vault as an OKF bundle — is the consultant's working surface "
+                "The full decision graph, the Matrix Decision Records and strategic assumptions read "
+                "from the private strategy vault as an OKF bundle, is the consultant's working surface "
                 "and isn't part of the public console. The public console leads with the Matrix's "
-                "public view below: the component model, your constraint-fit shortlist, and how "
-                "reversible each pick is. The scored decision records behind those are the Capability "
-                "Matrix at [securitydataworks.com/matrix](https://securitydataworks.com/matrix); run "
-                "with `MOAR_PAID_MODE=1` and `VAULT_PATH` pointed at the vault for the consultant "
-                "overlay."),
+                "scored public view below: the per-criterion ratings, the component model, your "
+                "constraint-fit shortlist, and how reversible each pick is. The full published Matrix "
+                "is at [securitydataworks.com/matrix](https://securitydataworks.com/matrix); point "
+                "`VAULT_PATH` at the vault to load the decision-record overlay here."),
         )
     elif vault_error:
         okf_panel = ui.panel(mo, ui.header(mo, "Strategy Vault (OKF)"),
@@ -1862,7 +1859,7 @@ def _(dets, mo, ui):
 
 
 @app.cell(hide_code=True)
-def _(acov, dets, loaded_table, mo, paid, pm, sel_catalog, sel_ingest, sel_query, sel_schema, sel_storage, ui):
+def _(acov, dets, loaded_table, mo, pm, sel_catalog, sel_ingest, sel_query, sel_schema, sel_storage, ui):
     # PG-4 — ATT&CK coverage as DESIGN-TIME defensive STRUCTURE (intent-blind), NOT coverage of
     # your telemetry. VISIBILITY (by_class) is computed from the synthetic OCSF preview's class_uids
     # (an aggregate count per class), so the panel doesn't depend on a loaded Iceberg table; the live
@@ -1899,22 +1896,23 @@ def _(acov, dets, loaded_table, mo, paid, pm, sel_catalog, sel_ingest, sel_query
                      "the live scan. Intent-blind — counters≠detects — never coverage of your telemetry.*"))
 
     # PG-5 — land-this-source recommendations for the dark spots (intent-blind possibilities).
-    # DEFAULT (MOAR_PAID_MODE and MOAR_PARTNER_MODE unset) renders the GENERIC method on synthetic
-    # data only; the per-environment recommender (bound to the live selection's route code) is gated
-    # behind paid.paid_mode() (mirroring the Matrix gate, control_plane.py:1051/:1081) OR the
-    # independent partner enablement gate pm.partner_mode() — which unlocks the workflow, never scores.
+    # DEFAULT renders the GENERIC method on synthetic data only. The per-environment recommender
+    # (bound to the live selection's route code) is the services deliverable, so it does not surface
+    # on the public default: it is gated on the independent partner-enablement key pm.partner_mode(),
+    # which unlocks the workflow, never scores. The scored Matrix is public (scorecard_panel above);
+    # binding a recommendation to a specific customer environment is the paid services engagement.
     _pg5_selection = {"storage": sel_storage, "catalog": sel_catalog, "ingest": sel_ingest,
                       "query": sel_query, "schema": sel_schema}
     recommendation_panel = acov.recommendation_panel(
-        mo, ui, _records, paid=paid.paid_mode(), partner=_partner, operator_data=_operator_data,
+        mo, ui, _records, paid=False, partner=_partner, operator_data=_operator_data,
         selection=_pg5_selection,
         source_note=("*Per-customer land-this-source workflow (partner mode, MOAR_PARTNER_MODE); "
                      "defenses are artifact_cooccurrence intent-blind leads (0.25), never guarantees. "
-                     "The scored Matrix stays paid (MOAR_PAID_MODE).*"
+                     "The scored Matrix is public at securitydataworks.com/matrix.*"
                      if _partner else
                      "*Generic land-this-source method over the synthetic OCSF preview; defenses are "
-                     "artifact_cooccurrence intent-blind leads (0.25), never guarantees. Per-environment "
-                     "recommender is paid (MOAR_PAID_MODE).*"))
+                     "artifact_cooccurrence intent-blind leads (0.25), never guarantees. Binding this to "
+                     "your own environment is the services engagement (assess, design, migrate, operate).*"))
     return coverage_panel, recommendation_panel
 
 
@@ -2192,7 +2190,7 @@ def _(
         test_output,
         ui.panel(mo,
             ui.header(mo, "Infrastructure Lifecycle Manager"),
-            mo.md("Spin up or tear down the selected MOAr stack locally in Docker via Pulumi. "
+            mo.md("Spin up or tear down the selected MOAR stack locally in Docker via Pulumi. "
                   "The data-health gate authorizes the deploy — full breakdown in Flow › Health."),
         ),
         gate_chip,
@@ -2215,7 +2213,7 @@ def _(
         "Configuration": tab_config,
     })
 
-    # ── FLOW ── land (topology) · health (source + flow + data-quality) · migrate (intent) ──
+    # ── FLOW ── land (topology) · health (source + flow + data-quality) ──
     tab_land = land_panel
     tab_health = mo.vstack([health_view, tab_metrics])
     tab_migrate = mo.vstack([
@@ -2231,7 +2229,6 @@ def _(
     flow_tabs = mo.ui.tabs({
         "Land": tab_land,
         "Health": tab_health,
-        "Migrate": tab_migrate,
     })
 
     # ── ANALYZE ── a separate pane for log/telemetry analysis (+ catalog inspection) ──
@@ -2259,8 +2256,10 @@ def _(
         inspect_output,
     ])
 
+    # Golden-path order: Startup (pick + configure) → Flow (land + certify) → Analyze (hunt) →
+    # Migrate (swap). Migrate is its own final top-level tab so hunt precedes swap.
     dashboard = mo.ui.tabs({"Walkthrough": walkthrough_panel, "Startup": startup_tabs,
-                            "Flow": flow_tabs, "Analyze": tab_analyze})
+                            "Flow": flow_tabs, "Analyze": tab_analyze, "Migrate": tab_migrate})
     dashboard
     return
 

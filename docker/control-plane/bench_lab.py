@@ -40,7 +40,7 @@ import bench_lab_registry as reg
 _HERE = os.path.dirname(os.path.abspath(__file__))
 BENCH_RUNS_DIR = os.path.join(_HERE, "bench-runs")
 
-# ANSI tally colors (match prove_evidence.py's idiom).
+# ANSI tally colors (match prove_evidence.py's pattern).
 _GREEN, _RED, _YELLOW, _RESET = "\033[92m", "\033[91m", "\033[93m", "\033[0m"
 
 # Hardcoded honesty note stamped into every manifest.
