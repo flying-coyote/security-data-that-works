@@ -27,8 +27,8 @@ import os
 
 PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "live-evidence.json")
 
-# the four trust+verify value-moment arms (declaration order, for readers); record_arm accepts any.
-ARMS = ("detections", "answer_equality", "ocsf_roundtrip", "flow_reconcile")
+# the trust+verify value-moment arms (declaration order, for readers); record_arm accepts any.
+ARMS = ("detections", "answer_equality", "ocsf_roundtrip", "flow_reconcile", "schema_drift")
 
 
 def load(path: str = PATH) -> dict:

@@ -44,6 +44,7 @@ def _():
     import config_preview as cpv
     import deploy_progress as dp
     import detections as dets
+    import schema_drift as sd
     import walkthrough as wt
     import entity_pivot as epv
     import d3fend_bridge as br
@@ -55,7 +56,7 @@ def _():
     # sample vault so consultant mode is demonstrable from a public clone (CF-SAMPLEVAULT).
     _vp, VAULT_IS_SAMPLE = okf.resolve_vault_path()
     VAULT_PATH = str(_vp)
-    return P, RestCatalog, VAULT_IS_SAMPLE, VAULT_PATH, acov, antip, az, br, ca, cf, cpv, deployer, dets, dk, dp, epv, ev, fl, gl, l1, l3, l4, le, mig, mo, okf, os, pf, pm, rl, rp, sp, subprocess, textwrap, topo, ui, wt, yaml
+    return P, RestCatalog, VAULT_IS_SAMPLE, VAULT_PATH, acov, antip, az, br, ca, cf, cpv, deployer, dets, dk, dp, epv, ev, fl, gl, l1, l3, l4, le, mig, mo, okf, os, pf, pm, rl, rp, sd, sp, subprocess, textwrap, topo, ui, wt, yaml
 
 
 @app.cell(hide_code=True)
@@ -694,6 +695,11 @@ def _(P, cat, config_path, deployer, ev, evidence, fl, flow_reconcile, gl, layer
         # land pipeline. Ninth gate row; same optional/decay rules. A silent class drop is a
         # coverage hole Layer 2 can't see, so a fail blocks certification.
         flow_reconcile_status=fl.gate_status(flow_reconcile, now_iso=_now_iso) or le.gate_status("flow_reconcile", _now_iso),
+        # Schema drift — raw->OCSF field coverage: a dropped/renamed source field that leaves a hunt's
+        # required OCSF field unpopulated silences that detection with no error. Tenth gate row, read
+        # from the recorded stack-UP arm (the synthetic drifted-header demo lives in the Analyze panel,
+        # not here — the gate reflects the LIVE field set, never the fixture). None -> row omitted.
+        schema_drift_status=le.gate_status("schema_drift", _now_iso),
     )
 
     _verdict, _vcolor = gl.verdict_line(gate)
@@ -2016,6 +2022,20 @@ def _(acov, dets, mo, ui):
 
 
 @app.cell(hide_code=True)
+def _(mo, sd, ui):
+    # CF-DRIFT — schema drift: an incoming source's raw FIELD SET vs the deployed crosswalk. A
+    # dropped/renamed raw field silently stops populating an OCSF field, and a hunt keying on it goes
+    # quiet with no error (invisible to Layer 2 and the round-trip). This renders a SYNTHETIC drifted
+    # Zeek header (the vendored fixture) so the mechanism is visible with no stack; the LIVE field set
+    # becomes the tenth data-health gate row (Flow › Health), recorded stack-UP. Names + counts only.
+    schema_drift_panel = sd.schema_drift_panel(
+        mo, ui, sd.demo_diff(),
+        source_note="*Synthetic drifted header (orig_bytes dropped, id.orig_h→src_host) — the live "
+                    "router field set drives the gate row.*")
+    return (schema_drift_panel,)
+
+
+@app.cell(hide_code=True)
 def _(cpv, mo):
     # PB-1: the Configuration value moment — pick a source, watch its raw event become OCSF.
     config_preview_source = mo.ui.dropdown(
@@ -2108,6 +2128,7 @@ def _(
     preflight_panel,
     deploy_progress_panel,
     schema_preview_panel,
+    schema_drift_panel,
     deploy_btn,
     deployment_status,
     destroy_btn,
@@ -2143,6 +2164,7 @@ def _(
 
     tab_config = mo.vstack([
         config_preview_panel,
+        schema_drift_panel,
         schema_preview_panel,
         config_panel,
         mo.hstack([save_btn, save_status]),

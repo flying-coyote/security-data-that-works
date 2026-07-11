@@ -50,8 +50,14 @@
   },
   "ocsf_roundtrip": {
     "events_faithful": 8,
-    "ran_at": "2026-06-21T23:38:03Z",
+    "ran_at": "2026-07-11T07:44:09Z",
     "router": "tenzir",
+    "status": "pass"
+  },
+  "schema_drift": {
+    "class_uid": 3002,
+    "populated_ocsf_count": 8,
+    "ran_at": "2026-07-11T07:44:16Z",
     "status": "pass"
   }
 }

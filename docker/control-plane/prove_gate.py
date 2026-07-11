@@ -209,6 +209,20 @@ def main():
         check("flow=unmeasured -> not green, listed unmeasured (no bluff)",
               _g9u["all_green"] is False and "Flow reconciliation (hop counts)" in _g9u["unmeasured"])
 
+        # Part 2f — the optional 10th row: schema drift (raw→OCSF field coverage). Same rules: a hunt
+        # that loses a required field to a silently dropped/renamed source field is a fail that blocks
+        # certification; unmeasured never bluffs a pass.
+        print("\nPart 2f — schema-drift field-coverage row (optional 10th gate row)")
+        _g10p = gate_for(h["status"], **_others, answer_equality_status="pass", ocsf_roundtrip_status="pass",
+                         flow_reconcile_status="pass", schema_drift_status="pass")
+        check("drift=pass -> 10 rows, still GREEN", len(_g10p["layers"]) == 10 and _g10p["all_green"] is True)
+        _g10f = gate_for(h["status"], **_others, schema_drift_status="fail")
+        check("drift=fail -> NOT green, named a cert blocker",
+              _g10f["all_green"] is False and "Schema drift (raw → OCSF field coverage)" in _g10f["cert_blockers"])
+        _g10u = gate_for(h["status"], **_others, schema_drift_status="unmeasured")
+        check("drift=unmeasured -> not green, listed unmeasured (no bluff)",
+              _g10u["all_green"] is False and "Schema drift (raw → OCSF field coverage)" in _g10u["unmeasured"])
+
         # Part 3 — verdict_chip: the compact verdict for secondary surfaces (full breakdown in Health).
         print("\nPart 3 — verdict_chip (compact verdict for secondary surfaces)")
         check("chip GREEN when all_green", gl.verdict_chip(gate_for(h["status"], **_others))[0].startswith("🟢"))

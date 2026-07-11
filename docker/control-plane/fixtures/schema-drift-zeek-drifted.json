@@ -1,0 +1,15 @@
+{
+  "source": "zeek",
+  "note": "Synthetic drifted Zeek conn header — FIELD NAMES ONLY (no telemetry values, per the injection rule). Two drifts vs config_preview.CROSSWALK['zeek']: orig_bytes dropped (vendor removed the field) and id.orig_h renamed to src_host. Expected downstream: bytes_out + src_ip left unpopulated, c2_beacon + exfil_egress at risk.",
+  "incoming_raw_fields": [
+    "src_host",
+    "id.orig_p",
+    "id.resp_h",
+    "id.resp_p",
+    "proto",
+    "resp_bytes",
+    "orig_pkts",
+    "resp_pkts",
+    "conn_state"
+  ]
+}

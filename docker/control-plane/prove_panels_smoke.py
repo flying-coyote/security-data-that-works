@@ -24,6 +24,7 @@ import reference_presets as rp
 import config_preview as cpv
 import detections as dets
 import attack_coverage as acov
+import schema_drift as sd
 
 PASS, FAIL = "\033[92mPASS\033[0m", "\033[91mFAIL\033[0m"
 _failures = []
@@ -158,6 +159,17 @@ def build_gap_countermeasures_panel():
     return ui.panel(mo, ui.header(mo, "Measured-FN countermeasure leads (CF-GAP-D3FEND)"), body)
 
 
+def build_schema_drift_panel():
+    # CF-DRIFT schema-drift renderer — force the fail branch (the drifted-fixture demo) so the
+    # NAMES-only table + at-risk-hunt cell + gate chip all execute; then the pass and unmeasured
+    # branches so every render path a graph-check skips is covered.
+    fail = sd.schema_drift_panel(mo, ui, sd.demo_diff())
+    clean = sd.schema_drift_panel(mo, ui, sd.diff_fields(
+        [rf for rf, _o, _n in cpv.CROSSWALK["zeek"]["fields"]], "zeek"))
+    unmeasured = sd.schema_drift_panel(mo, ui, sd.diff_fields([], "zeek"))
+    return mo.vstack([fail, clean, unmeasured])
+
+
 def main():
     print("\n=== panel construction smoke test ===\n")
     attempt("constraints_input", build_constraints_input)
@@ -170,6 +182,8 @@ def main():
     attempt("cost_panel (+ widgets)", build_cost_panel)
     attempt("gap_countermeasures_panel (CF-GAP-D3FEND — table + degrade path)",
             build_gap_countermeasures_panel)
+    attempt("schema_drift_panel (CF-DRIFT — fail/pass/unmeasured render paths)",
+            build_schema_drift_panel)
     if _failures:
         print(f"\n\033[91m{len(_failures)} panel(s) failed to build:\033[0m " + "; ".join(_failures))
         return 1
