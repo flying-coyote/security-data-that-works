@@ -45,6 +45,7 @@ def _():
     import deploy_progress as dp
     import detections as dets
     import schema_drift as sd
+    import detection_regress as dreg
     import walkthrough as wt
     import entity_pivot as epv
     import d3fend_bridge as br
@@ -56,7 +57,7 @@ def _():
     # sample vault so consultant mode is demonstrable from a public clone (CF-SAMPLEVAULT).
     _vp, VAULT_IS_SAMPLE = okf.resolve_vault_path()
     VAULT_PATH = str(_vp)
-    return P, RestCatalog, VAULT_IS_SAMPLE, VAULT_PATH, acov, antip, az, br, ca, cf, cpv, deployer, dets, dk, dp, epv, ev, fl, gl, l1, l3, l4, le, mig, mo, okf, os, pf, pm, rl, rp, sd, sp, subprocess, textwrap, topo, ui, wt, yaml
+    return P, RestCatalog, VAULT_IS_SAMPLE, VAULT_PATH, acov, antip, az, br, ca, cf, cpv, deployer, dets, dk, dp, dreg, epv, ev, fl, gl, l1, l3, l4, le, mig, mo, okf, os, pf, pm, rl, rp, sd, sp, subprocess, textwrap, topo, ui, wt, yaml
 
 
 @app.cell(hide_code=True)
@@ -2036,6 +2037,19 @@ def _(mo, sd, ui):
 
 
 @app.cell(hide_code=True)
+def _(dreg, mo, ui):
+    # CF-REGRESS — detection-suite regression: persist each hunt's FIRED/SILENT verdict and assert a
+    # later run matches the committed baseline, so a rule edit / mapping drift / corpus shift that
+    # silently flips a verdict is caught here, not in an incident. This renders the PURE comparison
+    # (fresh scan verdicts vs the committed baseline, no stack); the live suite runs via `./moar
+    # regress` over the landed Iceberg table. Verdict labels + counts only.
+    detection_regress_panel = dreg.regress_panel(
+        mo, ui, dreg.demo_regression(),
+        source_note="*Pure verdicts over the demo corpus; run `./moar regress` for the live suite.*")
+    return (detection_regress_panel,)
+
+
+@app.cell(hide_code=True)
 def _(cpv, mo):
     # PB-1: the Configuration value moment — pick a source, watch its raw event become OCSF.
     config_preview_source = mo.ui.dropdown(
@@ -2112,6 +2126,7 @@ def _(
     coverage_panel,
     measured_overlay_panel,
     gap_countermeasures_panel,
+    detection_regress_panel,
     recommendation_panel,
     detection_defense_panel,
     zero_defense_panel,
@@ -2226,6 +2241,7 @@ def _(
         entity_pivot_panel,
         hunt_library_panel,
         detections_panel,
+        detection_regress_panel,
         detection_defense_panel,
         coverage_panel,
         measured_overlay_panel,

@@ -17,6 +17,7 @@
 #   ./moar compare                                    head-to-head: open lakehouse vs the schema-on-read SIEM foil (OpenSearch)
 #   ./moar hunt                                       AI tier: air-gapped agentic hunt over the lakehouse (local Ollama)
 #   ./moar pipeline                                   end-to-end: raw Okta -> route -> Iceberg -> brute-force detection
+#   ./moar regress                                    detection-suite regression: assert every rule's FIRED/SILENT verdict matches the committed baseline
 #   ./moar observe                                    G-tier check: metrics flow push->pushgateway->prometheus; grafana/loki up
 #   ./moar healthcheck                                data-health gate over the live lakehouse (subset of the Foundation checks)
 #   ./moar console [--edit]                           launch the marimo control-plane on the host (http://localhost:2718; reads vendored artifacts, richer with the stack up)
@@ -328,6 +329,44 @@ cmd_pipeline() {
   echo "$ocsf" | $DC exec -T lab python /lab/promote.py
 }
 
+cmd_regress() {
+  # Detection-suite regression guard (CF-REGRESS): run the Sigma detection suite over the LANDED OCSF
+  # table and assert every rule's FIRED/SILENT verdict matches the committed baseline capture
+  # (control-plane/fixtures/run-detections-sample-stdout.txt). A rule edit, a mapping drift, or a
+  # corpus shift that silently flips a verdict — a hunt that used to fire going quiet — is caught here,
+  # not in an incident. Verdict LABELS + match counts only; never a raw event. The verdict-equality
+  # logic is the same detection_regress.assert_equality the console panel and prove exercise.
+  echo "Detection-suite regression over the landed lakehouse (verdict equality vs committed baseline):"
+  if ! $DC ps --status running --services 2>/dev/null | grep -qx detection; then
+    echo "  detection tier not up — bring it up: ./moar up core detection"; return 1
+  fi
+  local cp tmp; cp="$(cd "$(dirname "$0")" && pwd)/control-plane"; tmp=$(mktemp)
+  trap 'rm -f "$tmp"' RETURN
+  if ! $DC exec -T detection python /detection/run_detections.py > "$tmp" 2>/dev/null; then
+    # run_detections exits non-zero if a rule didn't fire; keep going only if we captured verdict lines
+    grep -q 'matches=' "$tmp" || { echo "  run_detections produced no verdicts (is ocsf.network_activity seeded? './moar verify' seeds it)"; return 1; }
+  fi
+  grep 'matches=' "$tmp" | sed 's/^/  live: /'
+  python3 - "$cp" "$tmp" <<'PY'
+import sys
+cp, tmp = sys.argv[1], sys.argv[2]
+sys.path.insert(0, cp)
+import detection_regress as dr
+live = dr.verdicts_from_run(open(tmp).read())
+base = dr.verdicts_from_run(dr.load_run_fixture())
+eq = dr.assert_equality(base, live)
+c = dr.counts(live)
+print(f"  current: {c['fired']} FIRED / {c['silent']} SILENT over {c['total']} rule(s)")
+if eq["status"] == "pass":
+    print("  ✓ regression guard clean — every rule's verdict matches the committed baseline"); sys.exit(0)
+if eq["status"] == "unmeasured":
+    print("  ⚠ unmeasured — no baseline or no live verdicts (never a bluffed pass)"); sys.exit(1)
+for ch in eq["changed"]:
+    print(f"  ✗ REGRESSION: {ch['rule']} — baseline {ch['before']} -> current {ch['after']}")
+sys.exit(1)
+PY
+}
+
 cmd_observe() {
   # G-tier functional check: prove the observability pipeline actually works, not just that containers are up.
   # Prometheus is scraping (>=1 up target), Grafana's DB is ok, Loki is ready, and a metric pushed to the
@@ -559,6 +598,7 @@ case "${1:-}" in
   compare) cmd_compare;;
   hunt) cmd_hunt;;
   pipeline) cmd_pipeline;;
+  regress) cmd_regress;;
   observe) cmd_observe;;
   healthcheck) cmd_healthcheck;;
   bench) shift; cmd_bench "$@";;

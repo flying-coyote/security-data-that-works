@@ -25,6 +25,7 @@ import config_preview as cpv
 import detections as dets
 import attack_coverage as acov
 import schema_drift as sd
+import detection_regress as dreg
 
 PASS, FAIL = "\033[92mPASS\033[0m", "\033[91mFAIL\033[0m"
 _failures = []
@@ -170,6 +171,19 @@ def build_schema_drift_panel():
     return mo.vstack([fail, clean, unmeasured])
 
 
+def build_detection_regress_panel():
+    # CF-REGRESS renderer — the clean (baseline-holds) path plus a forced-regression path (a flipped
+    # verdict) so the flip-table render executes, and the unmeasured (no-baseline) path.
+    clean = dreg.regress_panel(mo, ui, dreg.demo_regression())
+    fresh = dreg.verdicts_from_scan()
+    flipped = [dict(v, verdict=("SILENT" if v["verdict"] == "FIRED" else "FIRED")) for v in fresh[:1]] + fresh[1:]
+    regressed = dreg.regress_panel(mo, ui, {"equality": dreg.assert_equality(fresh, flipped),
+                                            "current_counts": dreg.counts(flipped), "corpus_fingerprint": "test"})
+    unmeasured = dreg.regress_panel(mo, ui, {"equality": dreg.assert_equality([], fresh),
+                                             "current_counts": dreg.counts([]), "corpus_fingerprint": "—"})
+    return mo.vstack([clean, regressed, unmeasured])
+
+
 def main():
     print("\n=== panel construction smoke test ===\n")
     attempt("constraints_input", build_constraints_input)
@@ -184,6 +198,8 @@ def main():
             build_gap_countermeasures_panel)
     attempt("schema_drift_panel (CF-DRIFT — fail/pass/unmeasured render paths)",
             build_schema_drift_panel)
+    attempt("detection_regress_panel (CF-REGRESS — clean/regressed/unmeasured render paths)",
+            build_detection_regress_panel)
     if _failures:
         print(f"\n\033[91m{len(_failures)} panel(s) failed to build:\033[0m " + "; ".join(_failures))
         return 1

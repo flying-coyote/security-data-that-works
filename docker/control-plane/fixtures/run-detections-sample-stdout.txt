@@ -1,0 +1,3 @@
+  RDP Network Connection (OCSF Network Activity) matches=125    [attack.lateral_movement,attack.t1021.001]
+
+1/1 Sigma rules fired over 1000 OCSF events on the open lakehouse

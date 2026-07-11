@@ -27,6 +27,16 @@
     "ran_at": "2026-06-21T23:37:42Z",
     "status": "pass"
   },
+  "detection_regress": {
+    "corpus_fingerprint": "ocsf.network_activity (landed, live run_detections.py)",
+    "counts": {
+      "fired": 1,
+      "silent": 0,
+      "total": 1
+    },
+    "ran_at": "2026-07-11T07:53:43Z",
+    "status": "pass"
+  },
   "detections": {
     "catalog": "http://localhost:8181",
     "findings": {
@@ -50,14 +60,14 @@
   },
   "ocsf_roundtrip": {
     "events_faithful": 8,
-    "ran_at": "2026-07-11T07:44:09Z",
+    "ran_at": "2026-07-11T07:55:31Z",
     "router": "tenzir",
     "status": "pass"
   },
   "schema_drift": {
     "class_uid": 3002,
     "populated_ocsf_count": 8,
-    "ran_at": "2026-07-11T07:44:16Z",
+    "ran_at": "2026-07-11T07:55:37Z",
     "status": "pass"
   }
 }
