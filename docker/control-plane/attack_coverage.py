@@ -810,3 +810,85 @@ def reconcile_summarize(reconciled):
         out["total"] += 1
     return out
 
+
+def gap_countermeasures(reconciled_record, corpus=None):
+    """For a MEASURED-FN reconciled record, the design-time detect-band D3FEND leads.
+
+    FIRING RULE (measured-honest): fires ONLY when reconciliation ==
+    'predicted_covered_but_missed' — the honest disagreement where the Wall said a
+    hunt watches the technique but the bench measured a miss. Returns None for every
+    other bucket (confirmed_fired / fired_but_noisy / not_measured); the firing rule
+    IS the filter, exactly as recommend() gates on dark_spot.
+
+    WHAT IT BUILDS, all re-derived from the corpus (invents nothing):
+      - the detect-band D3FEND leads via br.defenses_for(technique, "detect"), the
+        reason-only honest-degrade sentinels filtered as recommend does (:296). Each
+        surviving lead is STAMPED intent-blind: proxy_quality "artifact_cooccurrence",
+        trust 0.25, intent_blind True, the literal "artifact_cooccurrence —
+        intent-blind possibility" stamp — trust/proxy_quality verbatim from the edge,
+        never recomputed. These are design-time LEADS for the measured miss, NOT
+        coverage of the operator's telemetry.
+      - ocsf_classes_to_land = the union of br.required_ocsf_classes over the leads,
+        asserted a subset of the closed {1007,3002,4001,6003}.
+      - weakest_trust_tier carried THROUGH from the reconciled record untouched — the
+        measured-FN join never upgrades the 0.25 intent-blind edge (reconcile :795-797).
+
+    Honest degrade: a measured-FN technique that is not-in-corpus / zero-defense
+    yields countermeasures=[] with a degrade note carrying the sentinel reason —
+    never a fabricated defense. Counts + technique/countermeasure IDs ONLY; NO ratio
+    and no detected/total framed as environment coverage. Pure (no marimo).
+    """
+    if reconciled_record.get("reconciliation") != "predicted_covered_but_missed":
+        return None  # NEVER fires for confirmed_fired / fired_but_noisy / not_measured
+
+    corpus = corpus if corpus is not None else br.load_corpus()
+    technique = reconciled_record["technique"]
+
+    edges = br.defenses_for(technique, band="detect", corpus=corpus)
+    leads = [e for e in edges if "reason" not in e]  # drop honest-degrade sentinels (as recommend :296)
+
+    classes = sorted({cu for e in leads for cu in br.required_ocsf_classes(e)})
+    assert all(cu in br._OCSF_ALLOWED for cu in classes), "fabricated class_uid"
+
+    countermeasures = [{
+        "d3fend_id": e["d3fend_id"],
+        "def_tech": e["def_tech"],
+        "phase": e["phase"],
+        "shared_artifact_names": e["shared_artifact_names"],
+        "proxy_quality": "artifact_cooccurrence",
+        "trust": 0.25,
+        "intent_blind": True,
+        "stamp": "artifact_cooccurrence — intent-blind possibility",
+    } for e in leads]
+
+    out = {
+        "technique": technique,
+        "tactic": reconciled_record.get("tactic", "—"),
+        "measured_state": reconciled_record.get("measured_state"),
+        "reconciliation": reconciled_record.get("reconciliation"),
+        "countermeasures": countermeasures,
+        "countermeasure_count": len(countermeasures),
+        "ocsf_classes_to_land": classes,
+        "weakest_trust_tier": reconciled_record.get("weakest_trust_tier"),
+        "caveat": reconciled_record.get("caveat", br.COOCCURRENCE_CAVEAT),
+    }
+    if not leads:
+        # Honest "no detect-band lead": carry the sentinel reason, never a fake defense.
+        out["degrade"] = edges[0]["reason"] if edges else "no detect-band lead"
+    return out
+
+
+def gap_countermeasures_summarize(reconciled):
+    """Pure-aggregate headline for the measured-FN countermeasure panel. Counts only."""
+    out = {"measured_fn": 0, "with_lead": 0, "honest_degrade": 0}
+    for r in reconciled:
+        g = gap_countermeasures(r)
+        if g is None:
+            continue
+        out["measured_fn"] += 1
+        if g["countermeasure_count"] > 0:
+            out["with_lead"] += 1
+        else:
+            out["honest_degrade"] += 1
+    return out
+

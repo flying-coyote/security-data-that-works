@@ -1964,6 +1964,51 @@ def _(acov, dets, mo, ui):
 
 
 @app.cell(hide_code=True)
+def _(acov, dets, mo, ui):
+    # CF-GAP-D3FEND — for the MEASURED misses (predicted_covered_but_missed: the Wall
+    # said a hunt watches the technique but the C5 bench measured nothing fired), the
+    # design-time detect-band D3FEND countermeasure LEADS. Re-derived from the vendored
+    # corpus; each lead is an intent-blind 0.25 artifact-cooccurrence possibility, NOT
+    # coverage of the operator's telemetry. Counts + technique/OCSF-class IDs only, and
+    # an honest degrade (no fabricated defense) when a miss has no detect-band lead.
+    _f2 = dets.scan(dets.demo_records())
+    _bc2 = {}
+    for _r2 in dets.demo_records():
+        _cu2 = _r2.get("class_uid")
+        if _cu2 is not None:
+            _bc2[_cu2] = _bc2.get(_cu2, 0) + 1
+    _recs2 = acov.assess(_f2, _bc2)
+    _meta2, _measured2 = acov.load_measured_verdicts()
+    _reconciled2 = acov.reconcile(_recs2, _measured2, _meta2)
+    _gaps = [g for g in (acov.gap_countermeasures(r) for r in _reconciled2) if g]
+    _summ2 = acov.gap_countermeasures_summarize(_reconciled2)
+    if _gaps:
+        _rows = "\n".join(
+            "| {t} | {tac} | {leads} | {cls} | {tier} |".format(
+                t=g["technique"], tac=g["tactic"],
+                leads=(g["countermeasure_count"] if g["countermeasure_count"]
+                       else "— " + str(g.get("degrade", "no lead"))),
+                cls=(", ".join(str(c) for c in g["ocsf_classes_to_land"]) or "—"),
+                tier=g["weakest_trust_tier"])
+            for g in _gaps)
+        _table = ("| Technique | Tactic | D3FEND detect leads | OCSF classes to land | Weakest trust |\n"
+                  "|---|---|---|---|---|\n" + _rows)
+        _gap_body = mo.md(
+            f"**{_summ2['measured_fn']}** measured miss(es) · **{_summ2['with_lead']}** with a "
+            f"detect-band lead · **{_summ2['honest_degrade']}** with no lead (honest gap). "
+            "These are design-time countermeasure *leads* for the measured misses — intent-blind "
+            "0.25 artifact-cooccurrence possibilities, **NOT** coverage of your telemetry.\n\n"
+            + _table)
+    else:
+        _gap_body = mo.md("*No `predicted_covered_but_missed` techniques in the reconciled set — "
+                          "nothing the Wall predicted covered that the bench measured as missed.*")
+    gap_countermeasures_panel = ui.panel(mo,
+        ui.header(mo, "Measured-FN countermeasure leads (CF-GAP-D3FEND)"),
+        _gap_body)
+    return (gap_countermeasures_panel,)
+
+
+@app.cell(hide_code=True)
 def _(cpv, mo):
     # PB-1: the Configuration value moment — pick a source, watch its raw event become OCSF.
     config_preview_source = mo.ui.dropdown(
@@ -2039,6 +2084,7 @@ def _(
     analyze_view_panel,
     coverage_panel,
     measured_overlay_panel,
+    gap_countermeasures_panel,
     recommendation_panel,
     detection_defense_panel,
     zero_defense_panel,
@@ -2154,6 +2200,7 @@ def _(
         detection_defense_panel,
         coverage_panel,
         measured_overlay_panel,
+        gap_countermeasures_panel,
         zero_defense_panel,
         recommendation_panel,
         analyze_view_panel,

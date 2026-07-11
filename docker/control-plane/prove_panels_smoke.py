@@ -23,6 +23,7 @@ import cost_advisor as ca
 import reference_presets as rp
 import config_preview as cpv
 import detections as dets
+import attack_coverage as acov
 
 PASS, FAIL = "\033[92mPASS\033[0m", "\033[91mFAIL\033[0m"
 _failures = []
@@ -122,6 +123,38 @@ def build_cost_panel():
                     mo.md(ca.summary_md(est)))
 
 
+def build_gap_countermeasures_panel():
+    # CF-GAP-D3FEND measured-FN countermeasure leads renderer — the pipe-table + degrade
+    # path a graph-check doesn't execute. Force the table branch with a synthetic gap so a
+    # row-format bug surfaces here even when the demo data yields no measured-FN.
+    _f = dets.scan(dets.demo_records())
+    _bc = {}
+    for _r in dets.demo_records():
+        _cu = _r.get("class_uid")
+        if _cu is not None:
+            _bc[_cu] = _bc.get(_cu, 0) + 1
+    _meta, _measured = acov.load_measured_verdicts()
+    reconciled = acov.reconcile(acov.assess(_f, _bc), _measured, _meta)
+    # a synthetic predicted_covered_but_missed record guarantees the table path runs
+    synth = {"reconciliation": "predicted_covered_but_missed", "technique": "T1003.001",
+             "tactic": "TA0006", "measured_state": "MISSED", "weakest_trust_tier": 0.25}
+    gaps = [g for g in (acov.gap_countermeasures(x) for x in (list(reconciled) + [synth])) if g]
+    summ = acov.gap_countermeasures_summarize(list(reconciled) + [synth])
+    rows = "\n".join(
+        "| {t} | {tac} | {leads} | {cls} | {tier} |".format(
+            t=g["technique"], tac=g["tactic"],
+            leads=(g["countermeasure_count"] if g["countermeasure_count"]
+                   else "— " + str(g.get("degrade", "no lead"))),
+            cls=(", ".join(str(c) for c in g["ocsf_classes_to_land"]) or "—"),
+            tier=g["weakest_trust_tier"])
+        for g in gaps)
+    table = ("| Technique | Tactic | D3FEND detect leads | OCSF classes to land | Weakest trust |\n"
+             "|---|---|---|---|---|\n" + rows)
+    body = mo.md(f"**{summ['measured_fn']}** measured miss(es) · **{summ['with_lead']}** with a "
+                 f"detect-band lead · **{summ['honest_degrade']}** with no lead.\n\n" + table)
+    return ui.panel(mo, ui.header(mo, "Measured-FN countermeasure leads (CF-GAP-D3FEND)"), body)
+
+
 def main():
     print("\n=== panel construction smoke test ===\n")
     attempt("constraints_input", build_constraints_input)
@@ -132,6 +165,8 @@ def main():
     attempt("reference_presets_panel", build_presets_panel)
     attempt("anti_patterns_panel", build_anti_panel)
     attempt("cost_panel (+ widgets)", build_cost_panel)
+    attempt("gap_countermeasures_panel (CF-GAP-D3FEND — table + degrade path)",
+            build_gap_countermeasures_panel)
     if _failures:
         print(f"\n\033[91m{len(_failures)} panel(s) failed to build:\033[0m " + "; ".join(_failures))
         return 1

@@ -25,6 +25,10 @@ THE INVARIANTS this asserts:
   h) HONEST DEGRADE     : a not-in-corpus / zero-defense technique still gets a
                           record with the correct status and an honest tier (0.0
                           when no edge), never a fabricated defense.
+  i) CF-GAP-D3FEND      : gap_countermeasures fires ONLY for predicted_covered_but_missed
+                          (None for every other bucket), stamps each detect-band lead
+                          intent-blind 0.25, carries weakest_trust_tier through, emits
+                          NO coverage %/ratio, honest-degrades a not-in-corpus miss.
 
 Run:  /tmp/pyice-venv/bin/python prove_attack_coverage.py   (exit 0 = all hold)
 Pure stdlib; runs with cwd = this control-plane dir (imports the modules directly).
@@ -211,6 +215,63 @@ def main():
     check("T1530 inferred_edges == 0 (no fabricated defense)", r1530["inferred_edges"] == 0)
     check("T1530 curated_defense is None (honest gap)", r1530["curated_defense"] is None)
     check("T1530 required_classes is [] (no fabricated OCSF class)", r1530["required_classes"] == [])
+
+    print("\n=== (i) CF-GAP-D3FEND: measured-FN countermeasure leads ===\n")
+    # gap_countermeasures reads only reconciliation / technique / tactic /
+    # measured_state / weakest_trust_tier / caveat, so build minimal reconciled
+    # records by hand and let it re-derive the detect-band leads from the real corpus.
+    # The technique arrives already through the _safe_key boundary (reconcile :781).
+    def _rr(tech, reconciliation="predicted_covered_but_missed", tier=0.25):
+        return {"reconciliation": reconciliation, "technique": tech, "tactic": "TA0006",
+                "measured_state": "MISSED", "weakest_trust_tier": tier,
+                "caveat": br.COOCCURRENCE_CAVEAT}
+
+    # T1003.001 is in corpus with detect-band leads (real corpus join → OCSF 1007).
+    gap = acov.gap_countermeasures(_rr("T1003.001"), corpus)
+    check("fires for a predicted_covered_but_missed record", gap is not None)
+    check("countermeasure_count == derived lead count (>=1 for T1003.001)",
+          gap["countermeasure_count"] == len(gap["countermeasures"]) >= 1)
+    check("every countermeasure stamped intent-blind trust 0.25",
+          all(c["trust"] == 0.25 and c["proxy_quality"] == "artifact_cooccurrence"
+              and c["intent_blind"] is True
+              and c["stamp"] == "artifact_cooccurrence — intent-blind possibility"
+              for c in gap["countermeasures"]))
+    check("every ocsf_classes_to_land value is a real OCSF class (no fabrication)",
+          all(cu in {1007, 3002, 4001, 6003} for cu in gap["ocsf_classes_to_land"]))
+    check("weakest_trust_tier carried THROUGH untouched (never upgraded)",
+          gap["weakest_trust_tier"] == 0.25)
+    _gap_strings = list(_all_strings(gap))
+    check("gap output carries NO '%' (not framed as coverage of telemetry)",
+          all("%" not in s for s in _gap_strings))
+    check("gap output has NO detected/total/coverage/ratio key (counts + IDs only)",
+          not ({"detected", "total", "coverage", "coverage_pct", "ratio"} & set(gap.keys())))
+
+    for _bucket in ("confirmed_fired", "fired_but_noisy", "not_measured"):
+        check(f"returns None for {_bucket} (firing rule IS the filter)",
+              acov.gap_countermeasures(_rr("T1003.001", reconciliation=_bucket), corpus) is None)
+
+    gap_deg = acov.gap_countermeasures(_rr("T1530"), corpus)  # not in corpus
+    check("not-in-corpus measured-FN -> countermeasures == [] (no fabricated defense)",
+          gap_deg["countermeasures"] == [] and gap_deg["countermeasure_count"] == 0)
+    check("not-in-corpus measured-FN carries an honest degrade reason",
+          "degrade" in gap_deg and bool(gap_deg["degrade"]))
+
+    _mixed = [_rr("T1003.001"), _rr("T1530"), _rr("T1071", reconciliation="confirmed_fired")]
+    summ_gap = acov.gap_countermeasures_summarize(_mixed)
+    check("summarize counts only measured-FN records (confirmed_fired ignored)",
+          summ_gap["measured_fn"] == 2)
+    check("summarize measured_fn == with_lead + honest_degrade",
+          summ_gap["measured_fn"] == summ_gap["with_lead"] + summ_gap["honest_degrade"])
+
+    # AGGREGATE-SAFE: the technique arrives already _safe_key'd (the reconcile boundary);
+    # gap_countermeasures must not reintroduce a raw '<' or backtick.
+    gap_nasty = acov.gap_countermeasures(
+        _rr(_safe_key("T1071\n\x00`</span><script>alert(1)</script>")), corpus)
+    _nasty_gap_strings = list(_all_strings(gap_nasty)) if gap_nasty else []
+    check("nasty technique label -> no raw '<script'/'</span>' in gap output",
+          all("<script" not in s and "</span>" not in s for s in _nasty_gap_strings))
+    check("nasty technique label -> no markdown backtick in gap output",
+          all("`" not in s for s in _nasty_gap_strings))
 
     if _failures:
         print(f"\n\033[91m{len(_failures)} assertion(s) FAILED\033[0m")
