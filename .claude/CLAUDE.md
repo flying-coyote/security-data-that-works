@@ -25,3 +25,5 @@ who clones it, so the rules below gate every commit.
   are paid SDW IP and never live in this repo. The firewall is `docker/control-plane/
   paid_scoring.py` (`MOAR_PAID_MODE` + the `PaidScoreLeak` guard); its proofs are the
   `prove_*.py` battery. Builds may widen the public half, but no score crosses the line.
+
+Portfolio-review program (2026-07): see `.claude/review-protocol.md` before any review-program session.
