@@ -46,7 +46,13 @@ def _public_repo_root() -> Path:
 
 
 def paid_mode() -> bool:
-    return os.environ.get("MOAR_PAID_MODE", "on").strip().lower() in {"1", "true", "yes", "on"}
+    # Fail CLOSED (default "off", 2026-07-19 red-team): an UNSET var must never
+    # expose per-criterion scores. The ./moar wrapper already forces off (empty
+    # string), so this changes only non-wrapper launches (direct `marimo run`,
+    # IDE/debug, systemd, CI, the compose detection service) that previously
+    # inherited "on" and leaked the private scoring YAMLs. Scores-public is now a
+    # deliberate MOAR_PAID_MODE=on, not an accident of an unset environment.
+    return os.environ.get("MOAR_PAID_MODE", "off").strip().lower() in {"1", "true", "yes", "on"}
 
 
 def consultant_mode(*, vault_readable: bool, has_notes: bool) -> bool:

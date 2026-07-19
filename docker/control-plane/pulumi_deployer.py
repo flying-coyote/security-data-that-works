@@ -1,4 +1,5 @@
 import os
+import textwrap
 import yaml
 import pulumi
 import pulumi_docker as docker
@@ -138,6 +139,11 @@ def create_moar_program(config_dict):
         )
 
     if "vector" in pipeline_providers:
+        # Indent the operator-supplied VRL to the `source: |` block column before
+        # interpolation (2026-07-19 red-team): a value with a dedenting newline
+        # otherwise injects sibling top-level YAML keys (an `exec` source, an
+        # exfil sink) at column 0. Mirrors the validate path's textwrap.indent.
+        vrl_indented = textwrap.indent(vrl_transform, "      ")
         vector_config_content = f"""
 sources:
   in_syslog:
@@ -152,7 +158,7 @@ transforms:
     type: remap
     inputs: ["in_syslog"]
     source: |
-{vrl_transform}
+{vrl_indented}
 
 sinks:
   out_iceberg:

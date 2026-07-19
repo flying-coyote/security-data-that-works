@@ -329,7 +329,7 @@ services:
       ICEBERG_REST_URI: http://iceberg-rest:8181
       S3_ENDPOINT: ${S3_INTERNAL_ENDPOINT:-http://minio:9000}
     volumes: ["./detection:/detection"]
-    ports: ["2718:2718"]   # marimo edit/app UI when run interactively
+    ports: ["127.0.0.1:2718:2718"]   # marimo UI — loopback only (2026-07-19 red-team: never expose the notebook; edit mode = arbitrary code execution)
     command: ["sleep", "infinity"]
 
   # ---- AI (extension): practitioner-owned, air-gappable agentic hunt — LOCAL model, code-action over the lake
