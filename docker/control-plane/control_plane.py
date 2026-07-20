@@ -1167,15 +1167,28 @@ def _(VAULT_IS_SAMPLE, mo, okf, okf_search, paid, ui, vault_error, vault_notes):
     _mdrs = okf.search([n for n in vault_notes if n.type == "MDR"], okf_search.value)
     _asms = okf.search([n for n in vault_notes if n.type == "Assumption"], okf_search.value)
 
+    def _safe_md(value):
+        """Neutralise markdown/HTML control characters in a vault-sourced value
+        (note id/title/claim/frontmatter fields) before it is interpolated into a
+        mo.md() line, so a crafted note can't inject markup. Pure: strips control
+        chars (C0, DEL, C1), drops backticks (code-span breakout), entity-escapes
+        & < > (raw HTML) and [ ] | (link/table syntax); Unicode text passes through."""
+        s = "".join(ch for ch in str(value) if ord(ch) >= 32 and not (127 <= ord(ch) <= 159))
+        s = s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+        s = s.replace("`", "")
+        return s.replace("[", "&#91;").replace("]", "&#93;").replace("|", "&#124;")
+
     def _mdr_line(n):
         fm = n.frontmatter
-        return f"- **{n.id}** — {n.title} (`{fm.get('status', '?')}`, `{fm.get('date', '')}`) · `{n.path.name}`"
+        return (f"- **{_safe_md(n.id)}** — {_safe_md(n.title)} (`{_safe_md(fm.get('status', '?'))}`, "
+                f"`{_safe_md(fm.get('date', ''))}`) · `{_safe_md(n.path.name)}`")
 
     def _asm_line(n):
         fm = n.frontmatter
         claim = str(fm.get("claim", n.title))
         claim = claim[:140] + "…" if len(claim) > 140 else claim
-        return f"- **{n.id}** — {claim} (confidence `{fm.get('confidence', '?')}`, reviewed `{fm.get('last_reviewed', '')}`)"
+        return (f"- **{_safe_md(n.id)}** — {_safe_md(claim)} (confidence `{_safe_md(fm.get('confidence', '?'))}`, "
+                f"reviewed `{_safe_md(fm.get('last_reviewed', ''))}`)")
 
     _intro = (
         "This panel reads the project1 strategy vault as a **Google Open Knowledge Format "

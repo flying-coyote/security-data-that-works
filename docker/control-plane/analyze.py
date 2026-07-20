@@ -103,14 +103,26 @@ def _group_counts(con, field):
     """COUNT(*) grouped by a single categorical field, as a {value: count} dict.
 
     Only the grouping key and its count leave SQL — never a row. NULLs are
-    folded into a "<null>" bucket so the tally is complete.
+    folded into a "<null>" bucket so the tally is complete. The key is also the
+    telemetry-injection boundary, enforced HERE rather than left to the
+    downstream HTML-escape: a low-card categorical is a small enumerated OCSF
+    integer, so an int-coercible key passes through as its int, and anything
+    else (a non-enum value smuggled into the column) is sanitised via _safe_key
+    into a render-safe bucket, the same boundary _top_sources already applies.
     """
     rows = con.execute(
         f'SELECT "{field}" AS k, COUNT(*) AS n FROM t GROUP BY "{field}" ORDER BY n DESC'
     ).fetchall()
     out = {}
     for k, n in rows:
-        out["<null>" if k is None else k] = int(n)
+        if k is None:
+            key = "<null>"
+        else:
+            try:
+                key = int(k)
+            except (TypeError, ValueError):
+                key = _safe_key(k)
+        out[key] = out.get(key, 0) + int(n)
     return out
 
 
