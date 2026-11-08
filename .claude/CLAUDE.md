@@ -26,4 +26,12 @@ who clones it, so the rules below gate every commit.
   paid_scoring.py` (`MOAR_PAID_MODE` + the `PaidScoreLeak` guard); its proofs are the
   `prove_*.py` battery. Builds may widen the public half, but no score crosses the line.
 
-Portfolio-review program (2026-07): see `.claude/review-protocol.md` before any review-program session.
+## Review rules (folded from the retired `.claude/review-protocol.md`, 2026-11-08)
+
+- **apply_now** (edit without staging for Jeremy) requires ALL of: mechanically derivable from a named source; reversible in one commit; no narrative, voice or framing change; no price, tier or taxonomy choice; not touching a settled decision in the hub's DO-NOT-REFLAG list. Anything else is staged for the owner in the hub.
+- **Numbers**: every quantitative claim in agent-drafted, publication-bound prose is re-derived by a different agent from the named source before commit; unverifiable means stage it, never ship it.
+
+## Owner rulings recorded 2026-11-08 (grill bank items 3 and 4)
+
+- **The repo name echoes the venture name on purpose.** "security-data-that-works" next to Security Data Works is a deliberate echo, not drift; do not propose a rename.
+- **The MOAR Reference Stack supersedes `~/zeek-iceberg-demo`.** That repo is formally retired as a working demo, but it stays archived rather than deleted, because book ch02 cites it as provenance (ch02:203). Its archive (git bundle plus a tar of dirty files to the off-disk store) is a hub action recorded in the hub's REPOSITORY-MAPPING.md.
