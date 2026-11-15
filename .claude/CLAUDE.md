@@ -35,3 +35,7 @@ who clones it, so the rules below gate every commit.
 
 - **The repo name echoes the venture name on purpose.** "security-data-that-works" next to Security Data Works is a deliberate echo, not drift; do not propose a rename.
 - **The MOAR Reference Stack supersedes `~/zeek-iceberg-demo`.** That repo is formally retired as a working demo, but it stays archived rather than deleted, because book ch02 cites it as provenance (ch02:203). Its archive (git bundle plus a tar of dirty files to the off-disk store) is a hub action recorded in the hub's REPOSITORY-MAPPING.md.
+
+## Cloud sessions and Claude Code Projects (2026-11-15)
+
+A cloud session, a Claude Code Projects thread or a cloud routine loads this file and `.claude/rules/` only. It does not load this repo's skills, commands, hooks, `settings.json` permission rules or `.mcp.json`, and a fresh clone has no git hooks, so these local gates do not run there: the pre-commit secret scan (`secret-scan.sh`) ([Projects docs](https://code.claude.com/docs/en/claude-projects), "What threads pick up from your repositories"). From a cloud thread, work on a branch and open a draft pull request, never push to `master` and never merge, and say in the pull request which of these local gates still need a local run before merge.
