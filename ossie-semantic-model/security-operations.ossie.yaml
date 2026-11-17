@@ -1,0 +1,631 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/apache/ossie/main/core-spec/ossie-schema.json
+#
+# Security-operations semantic model — Apache Ossie (incubating) core spec
+# Draft 2026-07-23, Security Data Works. Design rationale and the gap it fills:
+# https://securitydataworks.com/writing/ai/security-semantic-layer and this
+# folder's README.md. Copied here unchanged apart from these header comments on
+# 2026-11-08; validated 2026-07-23 against the schemas fetched that day.
+#
+# Version pins this model is written against:
+#   OCSF 1.8.0 (class shapes) · D3FEND 1.4.0 (wall-derived reference tables)
+#   MITRE ATLAS v2026.06 / format 6.0.0 · Sigma spec 2.x + pySigma-pipeline-ocsf v0.1.2
+#   Ossie core spec 0.3.0.dev0 (ossie-schema.json on apache/ossie main a0d15d2; migrated from 0.2.0.dev0 and re-validated 2026-11-17)
+#
+# Source-table status (MOAR docker lab, this repo's docker/ stack):
+#   LIVE today:  moar.ocsf.authentication, moar.ocsf.network_activity (Iceberg)
+#   DECLARED:    moar.ocsf.detection_finding, moar.content.sigma_rules, moar.ref.*
+#   Reference-table content exists as files (wall CSVs, crosswalk, atlas-mitigations
+#   JSON) and would be materialized as tables to make the declared datasets queryable.
+
+version: "0.3.0.dev0"
+
+name: security_operations
+description: >
+  SOC metrics and dimensions over an OCSF 1.8.0 lakehouse, with MITRE ATT&CK,
+  MITRE ATLAS, D3FEND, and Sigma as first-class dimension and bridge datasets.
+  Coverage metrics in this model describe design-time structure (what content
+  and defenses exist), never operational efficacy (what would have stopped an
+  attack). Keep that distinction when consuming any metric here.
+ai_context:
+  instructions: >
+    Use this model for security-operations analytics over OCSF event tables.
+    Rules of interpretation: (1) technique means a MITRE ATT&CK technique id
+    unless the field is atlas_id, which is a MITRE ATLAS technique (AML.T*).
+    (2) Every coverage metric is design-time structure; do not describe any
+    coverage number as proof a technique would be detected or stopped in
+    operation. (3) The technique_defense bridge is derived from D3FEND's
+    shared-digital-artifact join, which is intent-blind inference; treat
+    chains through it as weaker than measured bindings such as
+    technique_class_map. (4) Reference data is version-pinned (OCSF 1.8.0,
+    D3FEND 1.4.0, ATLAS v2026.06); joins across other versions may not hold.
+  synonyms:
+    - "SOC metrics"
+    - "detection coverage"
+    - "security operations analytics"
+  examples:
+    - "Which ATT&CK techniques have no detect-phase D3FEND coverage?"
+    - "What share of alerts were closed as false positives this month?"
+    - "How many Realized-maturity ATLAS techniques do we track?"
+
+datasets:
+  - name: detection_finding
+    source: moar.ocsf.detection_finding
+    primary_key: [finding_uid]
+    description: >
+      OCSF Detection Finding (class_uid 2004) events — one row per finding.
+      Declared target table; not yet materialized in the MOAR lab.
+    ai_context:
+      synonyms: ["alerts", "detections", "findings"]
+    fields:
+      - name: finding_uid
+        expression:
+          dialects:
+            - dialect: ANSI_SQL
+              expression: finding_info_uid
+        description: Unique finding identifier (OCSF finding_info.uid, flattened)
+        dimension:
+          is_time: false
+      - name: event_time
+        expression:
+          dialects:
+            - dialect: ANSI_SQL
+              expression: time
+        dimension:
+          is_time: true
+        description: Finding creation time (OCSF time)
+      - name: first_seen_time
+        expression:
+          dialects:
+            - dialect: ANSI_SQL
+              expression: first_seen_time
+        dimension:
+          is_time: true
+        description: >
+          Earliest observed activity behind the finding (OCSF
+          finding_info.first_seen_time, flattened)
+      - name: severity
+        expression:
+          dialects:
+            - dialect: ANSI_SQL
+              expression: severity
+        description: OCSF severity label (sibling of severity_id)
+        dimension:
+          is_time: false
+      - name: status
+        expression:
+          dialects:
+            - dialect: ANSI_SQL
+              expression: status
+        description: >
+          Finding lifecycle status label (New / In Progress / Suppressed /
+          Resolved, among others)
+        dimension:
+          is_time: false
+      - name: is_false_positive
+        expression:
+          dialects:
+            - dialect: ANSI_SQL
+              expression: CASE WHEN verdict = 'False Positive' THEN 1 ELSE 0 END
+        description: >
+          1 when the analyst verdict label is False Positive. OCSF 1.8.0
+          carries analyst adjudication in verdict/verdict_id (disposition is a
+          different attribute, describing the action taken on the threat).
+          Uses the label column rather than a hard-coded verdict_id enum value,
+          so the definition survives enum additions across OCSF versions.
+      - name: technique_id
+        expression:
+          dialects:
+            - dialect: ANSI_SQL
+              expression: attack_technique_uid
+        description: >
+          Primary ATT&CK technique attributed to the finding (OCSF
+          attacks[].technique.uid, flattened to the first-listed technique).
+          Flattening a repeated group to one value is grain-lossy by design;
+          multi-technique findings keep only their lead attribution here.
+        dimension:
+          is_time: false
+      - name: rule_uid
+        expression:
+          dialects:
+            - dialect: ANSI_SQL
+              expression: analytic_uid
+        description: >
+          Detection rule / analytic identifier (OCSF finding_info.analytic.uid,
+          flattened — metadata.rule existed in earlier OCSF versions but is not
+          a 1.8.0 attribute); joins to sigma_rule
+        dimension:
+          is_time: false
+
+  - name: authentication
+    source: moar.ocsf.authentication
+    description: >
+      OCSF Authentication (class_uid 3002) events. Live Iceberg table in the
+      MOAR lab; three router implementations (Vector/VRL, Tenzir/TQL,
+      Fluent Bit/Lua) emit this contract from raw Okta System Log.
+    ai_context:
+      synonyms: ["logins", "auth events", "sign-ins"]
+    fields:
+      - name: event_time
+        expression:
+          dialects:
+            - dialect: ANSI_SQL
+              expression: time
+        dimension:
+          is_time: true
+        description: Authentication event time (OCSF time)
+      - name: activity_id
+        expression:
+          dialects:
+            - dialect: ANSI_SQL
+              expression: activity_id
+        description: OCSF activity (1 = Logon, 2 = Logoff)
+        dimension:
+          is_time: false
+      - name: status_id
+        expression:
+          dialects:
+            - dialect: ANSI_SQL
+              expression: status_id
+        description: OCSF status (1 = Success, 2 = Failure)
+        dimension:
+          is_time: false
+      - name: user_name
+        expression:
+          dialects:
+            - dialect: ANSI_SQL
+              expression: user_name
+        description: Authenticating user (OCSF user.name, flattened)
+        dimension:
+          is_time: false
+      - name: src_ip
+        expression:
+          dialects:
+            - dialect: ANSI_SQL
+              expression: src_ip
+        description: Source endpoint IP (OCSF src_endpoint.ip, flattened)
+        dimension:
+          is_time: false
+
+  - name: network_activity
+    source: moar.ocsf.network_activity
+    description: >
+      OCSF Network Activity (class_uid 4001) events. Live Iceberg table in the
+      MOAR lab; primary verify and bench target across the lab's engines.
+    ai_context:
+      synonyms: ["flows", "network events", "connections"]
+    fields:
+      - name: event_time
+        expression:
+          dialects:
+            - dialect: ANSI_SQL
+              expression: time
+        dimension:
+          is_time: true
+        description: Network event time (OCSF time)
+      - name: src_ip
+        expression:
+          dialects:
+            - dialect: ANSI_SQL
+              expression: src_ip
+        description: Source endpoint IP (OCSF src_endpoint.ip, flattened)
+        dimension:
+          is_time: false
+      - name: dst_ip
+        expression:
+          dialects:
+            - dialect: ANSI_SQL
+              expression: dst_ip
+        description: Destination endpoint IP (OCSF dst_endpoint.ip, flattened)
+        dimension:
+          is_time: false
+      - name: traffic_bytes
+        expression:
+          dialects:
+            - dialect: ANSI_SQL
+              expression: traffic_bytes
+        description: Total bytes for the flow (OCSF traffic.bytes, flattened)
+        dimension:
+          is_time: false
+
+  - name: sigma_rule
+    source: moar.content.sigma_rules
+    primary_key: [rule_uid]
+    description: >
+      Detection content as data — one row per Sigma rule in the deployed rule
+      set (SigmaHQ DRL-licensed community rules plus local rules). Declared
+      target table; rule YAML frontmatter is the load source.
+    ai_context:
+      synonyms: ["detection rules", "detections content", "rule inventory"]
+    fields:
+      - name: rule_uid
+        expression:
+          dialects:
+            - dialect: ANSI_SQL
+              expression: id
+        description: Sigma rule id (UUID from the rule file)
+        dimension:
+          is_time: false
+      - name: title
+        expression:
+          dialects:
+            - dialect: ANSI_SQL
+              expression: title
+        description: Rule title
+        dimension:
+          is_time: false
+      - name: rule_status
+        expression:
+          dialects:
+            - dialect: ANSI_SQL
+              expression: status
+        description: Sigma rule status (stable / test / experimental / deprecated / unsupported)
+        dimension:
+          is_time: false
+      - name: rule_level
+        expression:
+          dialects:
+            - dialect: ANSI_SQL
+              expression: level
+        description: Sigma severity level (informational / low / medium / high / critical)
+        dimension:
+          is_time: false
+      - name: logsource_category
+        expression:
+          dialects:
+            - dialect: ANSI_SQL
+              expression: logsource_category
+        description: >
+          Sigma logsource category; pySigma-pipeline-ocsf v0.1.2 maps roughly
+          24 of these categories onto OCSF classes (point-in-time 2026-06
+          metadata; version and count will drift).
+        dimension:
+          is_time: false
+      - name: technique_id
+        expression:
+          dialects:
+            - dialect: ANSI_SQL
+              expression: attack_technique_id
+        description: >
+          Primary ATT&CK technique from the rule's attack.t* tag, flattened to
+          the first technique tag. Rules tagging several techniques keep only
+          the lead tag here; a rule_technique bridge table is the fix if that
+          loss starts to matter.
+        dimension:
+          is_time: false
+
+  - name: attack_technique
+    source: moar.ref.attack_techniques
+    primary_key: [technique_id]
+    description: >
+      ATT&CK technique reference dimension — the 435 offense techniques of the
+      D3FEND 1.4.0 wall build (leaf-clustered). Declared target table;
+      content exists at 02-projects/d3fend-wall/data/wall_rows.csv.
+    ai_context:
+      synonyms: ["ATT&CK techniques", "offense techniques", "TTPs"]
+    fields:
+      - name: technique_id
+        expression:
+          dialects:
+            - dialect: ANSI_SQL
+              expression: technique_id
+        description: ATT&CK technique id (T####, sub-techniques T####.###)
+        dimension:
+          is_time: false
+      - name: technique_name
+        expression:
+          dialects:
+            - dialect: ANSI_SQL
+              expression: technique_name
+        description: ATT&CK technique name
+        dimension:
+          is_time: false
+
+  - name: atlas_technique
+    source: moar.ref.atlas_techniques
+    primary_key: [atlas_id]
+    description: >
+      MITRE ATLAS technique reference dimension — 173 techniques at v2026.06
+      (format 6.0.0). Declared target table; content exists at
+      02-projects/atlas-mitigations/data/entities.json.
+    ai_context:
+      synonyms: ["ATLAS techniques", "AI attack techniques", "adversarial ML techniques"]
+    fields:
+      - name: atlas_id
+        expression:
+          dialects:
+            - dialect: ANSI_SQL
+              expression: atlas_id
+        description: ATLAS technique id (AML.T####, sub-techniques AML.T####.###)
+        dimension:
+          is_time: false
+      - name: technique_name
+        expression:
+          dialects:
+            - dialect: ANSI_SQL
+              expression: technique_name
+        description: ATLAS technique name
+        dimension:
+          is_time: false
+      - name: maturity
+        expression:
+          dialects:
+            - dialect: ANSI_SQL
+              expression: maturity
+        description: >
+          ATLAS maturity (Feasible / Demonstrated / Realized). Populated on
+          techniques only in the upstream data; any maturity claim about
+          mitigations or case studies must be derived through this field.
+        dimension:
+          is_time: false
+      - name: attack_technique_id
+        expression:
+          dialects:
+            - dialect: ANSI_SQL
+              expression: attack_technique_id
+        description: >
+          Cross-reference to a classic ATT&CK technique where ATLAS declares
+          one. Sparse by design: 37 of 173 techniques (21.4%) carry it at
+          v2026.06, which is itself a finding — most of the AI attack surface
+          does not reduce to a classic ATT&CK technique.
+        dimension:
+          is_time: false
+
+  - name: d3fend_technique
+    source: moar.ref.d3fend_techniques
+    primary_key: [d3fend_id]
+    description: >
+      D3FEND defensive-technique reference dimension — the wall build's 120
+      leaf-clustered defense columns (200 atomic leaves underneath), D3FEND
+      1.4.0. Declared target table.
+    ai_context:
+      synonyms: ["defenses", "countermeasures", "defensive techniques"]
+    fields:
+      - name: d3fend_id
+        expression:
+          dialects:
+            - dialect: ANSI_SQL
+              expression: d3fend_id
+        description: D3FEND technique id (D3-*)
+        dimension:
+          is_time: false
+      - name: technique_name
+        expression:
+          dialects:
+            - dialect: ANSI_SQL
+              expression: technique_name
+        description: D3FEND technique name
+        dimension:
+          is_time: false
+      - name: d3fend_tactic
+        expression:
+          dialects:
+            - dialect: ANSI_SQL
+              expression: d3fend_tactic
+        description: D3FEND tactic (Model / Harden / Detect / Isolate / Deceive / Evict / Restore)
+        dimension:
+          is_time: false
+
+  - name: technique_defense
+    source: moar.ref.wall_matrix
+    primary_key: [attack_technique_id, d3fend_id]
+    description: >
+      Offense-to-defense bridge derived from D3FEND 1.4.0's shared-digital-artifact
+      join (the wall): 5,616 nonempty cells over 435 attacks and 120 defenses.
+      Intent-blind structural inference — a defense observes an artifact the
+      offense produces — not a claim the defense stops the offense.
+    ai_context:
+      instructions: >
+        Chains through this bridge are inference, not measurement. When both
+        exist, prefer technique_class_map for telemetry reachability.
+    fields:
+      - name: attack_technique_id
+        expression:
+          dialects:
+            - dialect: ANSI_SQL
+              expression: attack_technique_id
+        description: ATT&CK technique id (many side of the wall cell)
+        dimension:
+          is_time: false
+      - name: d3fend_id
+        expression:
+          dialects:
+            - dialect: ANSI_SQL
+              expression: d3fend_id
+        description: D3FEND technique id
+        dimension:
+          is_time: false
+      - name: d3fend_tactic
+        expression:
+          dialects:
+            - dialect: ANSI_SQL
+              expression: d3fend_tactic
+        description: Tactic of the defense in this cell (Detect cells drive detect-phase coverage)
+        dimension:
+          is_time: false
+      - name: shared_artifacts
+        expression:
+          dialects:
+            - dialect: ANSI_SQL
+              expression: shared_artifacts
+        description: Count of distinct offense artifacts the defense gives visibility into (cell weight)
+        dimension:
+          is_time: false
+
+  - name: technique_class_map
+    source: moar.ref.technique_ocsf_map
+    primary_key: [attack_technique_id, ocsf_class_uid]
+    description: >
+      Measured technique-to-telemetry binding: which OCSF class the Sigma rule
+      for a technique actually fires against in the lab (closed 5-class set at
+      present: 1007, 3002, 4001, 4003, 6003). Deliberately separate from the
+      inferred technique_defense bridge.
+    fields:
+      - name: attack_technique_id
+        expression:
+          dialects:
+            - dialect: ANSI_SQL
+              expression: attack_technique_id
+        description: ATT&CK technique id
+        dimension:
+          is_time: false
+      - name: ocsf_class_uid
+        expression:
+          dialects:
+            - dialect: ANSI_SQL
+              expression: ocsf_class_uid
+        description: OCSF class the technique's detection reads (class_uid)
+        dimension:
+          is_time: false
+
+relationships:
+  - name: finding_to_technique
+    from: detection_finding
+    to: attack_technique
+    from_columns: [technique_id]
+    to_columns: [technique_id]
+  - name: finding_to_rule
+    from: detection_finding
+    to: sigma_rule
+    from_columns: [rule_uid]
+    to_columns: [rule_uid]
+  - name: rule_to_technique
+    from: sigma_rule
+    to: attack_technique
+    from_columns: [technique_id]
+    to_columns: [technique_id]
+  - name: atlas_to_attack
+    from: atlas_technique
+    to: attack_technique
+    from_columns: [attack_technique_id]
+    to_columns: [technique_id]
+    ai_context: >
+      Sparse bridge: only 21.4% of ATLAS techniques declare an ATT&CK
+      cross-reference at v2026.06. Absence of a link is signal, not error.
+  - name: defense_bridge_to_attack
+    from: technique_defense
+    to: attack_technique
+    from_columns: [attack_technique_id]
+    to_columns: [technique_id]
+  - name: defense_bridge_to_d3fend
+    from: technique_defense
+    to: d3fend_technique
+    from_columns: [d3fend_id]
+    to_columns: [d3fend_id]
+  - name: class_map_to_attack
+    from: technique_class_map
+    to: attack_technique
+    from_columns: [attack_technique_id]
+    to_columns: [technique_id]
+
+metrics:
+  - name: alert_volume
+    expression:
+      dialects:
+        - dialect: ANSI_SQL
+          expression: COUNT(detection_finding.finding_uid)
+    description: Count of detection findings in the selected window.
+    ai_context:
+      synonyms: ["alert count", "finding count"]
+
+  - name: false_positive_rate
+    expression:
+      dialects:
+        - dialect: ANSI_SQL
+          expression: SUM(detection_finding.is_false_positive) / NULLIF(COUNT(detection_finding.finding_uid), 0)
+    description: >
+      Share of findings with analyst verdict False Positive. Denominator is
+      all findings in the window, including still-open ones; filter to
+      resolved status for a closed-case rate.
+    ai_context:
+      synonyms: ["FP rate"]
+
+  - name: mean_time_to_detect_hours
+    expression:
+      dialects:
+        - dialect: ANSI_SQL
+          expression: AVG(DATEDIFF(HOUR, detection_finding.first_seen_time, detection_finding.event_time))
+    description: >
+      Mean hours from earliest observed activity to finding creation. Depends
+      on the source populating first_seen_time honestly; findings without it
+      fall out of the average rather than pulling it toward zero.
+    ai_context:
+      synonyms: ["MTTD"]
+
+  - name: techniques_with_detection_content
+    expression:
+      dialects:
+        - dialect: ANSI_SQL
+          expression: COUNT(DISTINCT sigma_rule.technique_id)
+    description: >
+      Distinct ATT&CK techniques with at least one Sigma rule in the deployed
+      set. Design-time structure: content existing is not content firing, and
+      a ported rule can silently degrade on a backend without windowed
+      correlation support.
+
+  - name: detection_content_coverage_rate
+    expression:
+      dialects:
+        - dialect: ANSI_SQL
+          expression: COUNT(DISTINCT sigma_rule.technique_id) / NULLIF(COUNT(DISTINCT attack_technique.technique_id), 0)
+    description: >
+      techniques_with_detection_content over the 435-technique reference set.
+      Design-time coverage, never efficacy.
+
+  - name: detect_phase_coverage_rate
+    expression:
+      dialects:
+        - dialect: ANSI_SQL
+          expression: COUNT(DISTINCT CASE WHEN technique_defense.d3fend_tactic = 'Detect' THEN technique_defense.attack_technique_id END) / NULLIF(COUNT(DISTINCT attack_technique.technique_id), 0)
+    description: >
+      Share of ATT&CK techniques with at least one detect-phase D3FEND defense
+      in the wall bridge. The complement is the blind share — 76 of 435
+      techniques (roughly one in six) carry no detect-phase coverage at all in
+      the D3FEND 1.4.0 build.
+
+  - name: detection_blind_technique_count
+    expression:
+      dialects:
+        - dialect: ANSI_SQL
+          expression: COUNT(DISTINCT attack_technique.technique_id) - COUNT(DISTINCT CASE WHEN technique_defense.d3fend_tactic = 'Detect' THEN technique_defense.attack_technique_id END)
+    description: >
+      Techniques with zero detect-phase defenses in the wall bridge (76 at
+      D3FEND 1.4.0). Structural blindness, visible only because the bridge is
+      a graph traversal rather than a list.
+
+  - name: telemetry_reachable_technique_rate
+    expression:
+      dialects:
+        - dialect: ANSI_SQL
+          expression: COUNT(DISTINCT technique_class_map.attack_technique_id) / NULLIF(COUNT(DISTINCT attack_technique.technique_id), 0)
+    description: >
+      Share of techniques whose detection provably reads an OCSF class present
+      in the lakehouse (measured binding, not inferred). Low today by
+      construction — the lab's map is a closed 5-class set.
+
+  - name: atlas_realized_technique_count
+    expression:
+      dialects:
+        - dialect: ANSI_SQL
+          expression: SUM(CASE WHEN atlas_technique.maturity = 'Realized' THEN 1 ELSE 0 END)
+    description: >
+      ATLAS techniques at Realized maturity (64 of 173 at v2026.06) — the
+      AI-attack techniques observed in real-world events, not just papers.
+
+  - name: atlas_attack_bridge_rate
+    expression:
+      dialects:
+        - dialect: ANSI_SQL
+          expression: COUNT(DISTINCT CASE WHEN atlas_technique.attack_technique_id IS NOT NULL THEN atlas_technique.atlas_id END) / NULLIF(COUNT(DISTINCT atlas_technique.atlas_id), 0)
+    description: >
+      Share of ATLAS techniques that reduce to a classic ATT&CK technique
+      (21.4% at v2026.06). The low number is the point: most AI-attack
+      coverage cannot be inherited from an existing ATT&CK program.
+
+  - name: failed_authentication_rate
+    expression:
+      dialects:
+        - dialect: ANSI_SQL
+          expression: SUM(CASE WHEN authentication.status_id = 2 THEN 1 ELSE 0 END) / NULLIF(COUNT(authentication.event_time), 0)
+    description: >
+      Share of authentication events with status Failure (OCSF status_id 2),
+      over the live moar.ocsf.authentication table.
