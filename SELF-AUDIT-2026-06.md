@@ -62,6 +62,9 @@ Two candidates, in priority order.
    turn that prose caveat into a tracked Gap with a named test — e.g. score the layer against a real corpus of
    *confirmed* human mapping errors, not injected ones — so "where am I most wrong" stops being a paragraph and
    becomes a falsifiable item.
+   [Corrected 2026-11-17: 22/22 and 231/231 are true by construction of the injection, since each sound mapping
+   was corrupted to a disjoint artifact; 22 of the 83 fields were type-testable, and the measured result is 0
+   false positives on the 22 sound mappings.]
 
 2. **The "front door to open projects, not a fork" framing vs. the private-vault couplings in the code.**
    Several public `control-plane` modules reference a private filesystem and an uncommitted internal design

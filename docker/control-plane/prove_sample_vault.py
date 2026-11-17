@@ -108,7 +108,7 @@ def main():
             check("PAID_MODE on + VAULT_PATH at the sample vault -> load_scores refuses", False)
         except paid.PaidScoreLeak:
             check("PAID_MODE on + VAULT_PATH at the sample vault -> PaidScoreLeak raised", True)
-        os.environ["MOAR_PAID_MODE"] = "off"  # explicit-off: the default is now on
+        os.environ["MOAR_PAID_MODE"] = "off"  # explicit-off; the default is also off since the 2026-07-19 fail-closed change
         check("PAID_MODE off over the sample vault -> zero scores, no error",
               paid.load_scores("A") == {})
     finally:

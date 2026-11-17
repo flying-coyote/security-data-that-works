@@ -7,7 +7,7 @@ tags: [moar, control-plane, data-health-gate, contract, layer1, layer3, layer4]
 
 # Data-health gate — cross-module contract
 
-The console's spine is a composite data-health verdict that decides whether a deploy
+The console is built around a composite data-health verdict that decides whether a deploy
 is authorized and whether the stack may be certified GREEN. The verdict is a pure
 function (`gate_logic.compute_gate`) so the proof harnesses exercise the exact logic
 the UI renders. This note states the cross-module contract — what each audit returns,

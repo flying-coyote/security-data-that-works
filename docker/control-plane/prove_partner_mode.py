@@ -142,7 +142,7 @@ def main():
           "route_vector" not in legacy)
 
     print("\n=== (c) PARTNER-ON: recommender workflow exposed, scored Matrix stays cold ===\n")
-    _env(MOAR_PARTNER_MODE="1", MOAR_PAID_MODE="off")  # explicit-off: paid default is now on
+    _env(MOAR_PARTNER_MODE="1", MOAR_PAID_MODE="off")  # explicit-off; the paid default is also off since the 2026-07-19 fail-closed change
     check("partner on: paid_mode() stays False (partner never unlocks paid)",
           paid.paid_mode() is False)
     check("partner on: consultant_mode() stays False for a public clone",
@@ -199,7 +199,7 @@ def main():
         refused = True
     check("a table without class_uid is refused (ValueError -> honest synthetic fallback)", refused)
     # End-to-end: assess over the poisoned operator inputs, render the partner panel.
-    _env(MOAR_PARTNER_MODE="1", MOAR_PAID_MODE="off")  # explicit-off: paid default is now on
+    _env(MOAR_PARTNER_MODE="1", MOAR_PAID_MODE="off")  # explicit-off; the paid default is also off since the 2026-07-19 fail-closed change
     op_records = acov.assess(findings, by_class, corpus)
     op_text = str(acov.recommendation_panel(mo, ui, op_records, paid=paid.paid_mode(),
                                             partner=pm.partner_mode(), operator_data=True,

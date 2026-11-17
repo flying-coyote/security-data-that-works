@@ -1,0 +1,71 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 470" width="1000" height="470" role="img" aria-labelledby="gf-title gf-desc">
+  <title id="gf-title">How the OCSF mapping gate decides</title>
+  <desc id="gf-desc">Each mapping row is grounded twice, once by the OCSF path it targets and once by the source field name, each to a D3FEND artifact. The two groundings and the disjointness layer go to the ELK reasoner run through ROBOT. If both groundings can hold, the class is satisfiable and the gate exits 0. If they are disjoint artifacts, the class is unsatisfiable and the gate exits 1. If the reasoner itself fails, the gate exits 2 and reports no verdict.</desc>
+  <defs>
+    <marker id="gf-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#36608f"/>
+    </marker>
+  </defs>
+  <rect width="1000" height="470" fill="#ffffff"/>
+  <g font-family="system-ui,-apple-system,'Segoe UI',Helvetica,Arial,sans-serif">
+    <text x="30" y="44" font-size="24" font-weight="700" fill="#2c4f74">A mapping fails when its two groundings can't both be true</text>
+    <text x="30" y="72" font-size="15" fill="#5b6878">Worked example: the row username → process.name from gate/mappings/wrong.csv</text>
+
+    <!-- column 1: the row -->
+    <rect x="30" y="200" width="170" height="92" rx="8" fill="#eef3f9" stroke="#5c8dc5" stroke-width="1.5"/>
+    <text x="115" y="230" font-size="16" font-weight="700" fill="#243f5b" text-anchor="middle">Mapping row</text>
+    <text x="115" y="256" font-size="14" fill="#243f5b" text-anchor="middle" font-family="ui-monospace,Menlo,Consolas,monospace">username</text>
+    <text x="115" y="276" font-size="14" fill="#243f5b" text-anchor="middle" font-family="ui-monospace,Menlo,Consolas,monospace">→ process.name</text>
+
+    <!-- column 2: two groundings -->
+    <rect x="250" y="120" width="250" height="96" rx="8" fill="#eef3f9" stroke="#5c8dc5" stroke-width="1.5"/>
+    <text x="375" y="148" font-size="16" font-weight="700" fill="#243f5b" text-anchor="middle">Ground the OCSF path</text>
+    <text x="375" y="172" font-size="14" fill="#243f5b" text-anchor="middle" font-family="ui-monospace,Menlo,Consolas,monospace">process.name</text>
+    <text x="375" y="196" font-size="14" fill="#243f5b" text-anchor="middle">is a D3FEND Process</text>
+
+    <rect x="250" y="276" width="250" height="96" rx="8" fill="#eef3f9" stroke="#5c8dc5" stroke-width="1.5"/>
+    <text x="375" y="304" font-size="16" font-weight="700" fill="#243f5b" text-anchor="middle">Ground the source field</text>
+    <text x="375" y="328" font-size="14" fill="#243f5b" text-anchor="middle" font-family="ui-monospace,Menlo,Consolas,monospace">username</text>
+    <text x="375" y="352" font-size="14" fill="#243f5b" text-anchor="middle">is a D3FEND UserAccount</text>
+
+    <path d="M200,232 C225,232 225,168 248,168" fill="none" stroke="#36608f" stroke-width="2" marker-end="url(#gf-arrow)"/>
+    <path d="M200,262 C225,262 225,324 248,324" fill="none" stroke="#36608f" stroke-width="2" marker-end="url(#gf-arrow)"/>
+
+    <!-- column 3: layer + reasoner -->
+    <rect x="550" y="100" width="190" height="104" rx="8" fill="#1f8fe0" stroke="#0f5f9e" stroke-width="2"/>
+    <text x="645" y="130" font-size="16" font-weight="700" fill="#ffffff" text-anchor="middle">Disjointness layer</text>
+    <text x="645" y="154" font-size="14" fill="#ffffff" text-anchor="middle">8 D3FEND artifacts,</text>
+    <text x="645" y="174" font-size="14" fill="#ffffff" text-anchor="middle">pairwise disjoint:</text>
+    <text x="645" y="194" font-size="14" fill="#ffffff" text-anchor="middle">a process is not a user</text>
+
+    <rect x="550" y="240" width="190" height="96" rx="8" fill="#36608f" stroke="#2c4f74" stroke-width="1.5"/>
+    <text x="645" y="270" font-size="16" font-weight="700" fill="#ffffff" text-anchor="middle">OWL reasoner</text>
+    <text x="645" y="294" font-size="14" fill="#dbe6f2" text-anchor="middle">ELK via ROBOT 1.9.6</text>
+    <text x="645" y="316" font-size="14" fill="#dbe6f2" text-anchor="middle">no model in the loop</text>
+
+    <path d="M500,168 C525,168 525,276 548,276" fill="none" stroke="#36608f" stroke-width="2" marker-end="url(#gf-arrow)"/>
+    <path d="M500,324 C525,324 525,300 548,300" fill="none" stroke="#36608f" stroke-width="2" marker-end="url(#gf-arrow)"/>
+    <path d="M645,204 L645,238" fill="none" stroke="#0f5f9e" stroke-width="2.5" marker-end="url(#gf-arrow)"/>
+
+    <!-- column 4: verdicts -->
+    <rect x="790" y="120" width="185" height="72" rx="8" fill="#ffffff" stroke="#6f9a4f" stroke-width="2"/>
+    <text x="882" y="148" font-size="15" font-weight="700" fill="#243f5b" text-anchor="middle">Satisfiable</text>
+    <text x="882" y="172" font-size="14" fill="#243f5b" text-anchor="middle">exit 0, mapping passes</text>
+
+    <rect x="790" y="216" width="185" height="96" rx="8" fill="#ffffff" stroke="#c14a4a" stroke-width="2.5"/>
+    <text x="882" y="244" font-size="15" font-weight="700" fill="#c14a4a" text-anchor="middle">Unsatisfiable</text>
+    <text x="882" y="268" font-size="14" fill="#c14a4a" text-anchor="middle">exit 1, build fails;</text>
+    <text x="882" y="290" font-size="14" fill="#c14a4a" text-anchor="middle">this example lands here</text>
+
+    <rect x="790" y="336" width="185" height="72" rx="8" fill="#f4f6f8" stroke="#67768a" stroke-width="1.5" stroke-dasharray="5 4"/>
+    <text x="882" y="364" font-size="15" font-weight="700" fill="#5b6878" text-anchor="middle">Reasoner failed</text>
+    <text x="882" y="388" font-size="14" fill="#5b6878" text-anchor="middle">exit 2, no verdict</text>
+
+    <path d="M740,276 C765,276 765,156 788,156" fill="none" stroke="#36608f" stroke-width="2" marker-end="url(#gf-arrow)"/>
+    <path d="M740,288 L788,264" fill="none" stroke="#36608f" stroke-width="2" marker-end="url(#gf-arrow)"/>
+    <path d="M740,300 C765,300 765,372 788,372" fill="none" stroke="#67768a" stroke-width="2" stroke-dasharray="5 4" marker-end="url(#gf-arrow)"/>
+
+    <text x="30" y="438" font-size="13" fill="#5b6878">This shows the mechanism rather than a measured rate; without the layer the reasoner has no axiom to</text>
+    <text x="30" y="456" font-size="13" fill="#5b6878">object to, and the same row passes silently.</text>
+  </g>
+</svg>

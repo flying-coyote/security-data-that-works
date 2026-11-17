@@ -1,0 +1,65 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 628" width="1000" height="628" role="img" aria-labelledby="mt-title mt-desc">
+  <title id="mt-title">MOAR Reference Stack tiers by ingest-scale preset</title>
+  <desc id="mt-desc">Four presets, soc-10gb, soc-100gb, soc-1tb and soc-10tb, each bring up a cumulative set of tiers. Every preset includes core plus store (MinIO, an Iceberg REST catalog and DuckDB) and detection. soc-100gb adds Trino and the local AI tier. soc-1tb adds ClickHouse, StarRocks, the route tier and the graph tier. soc-10tb adds the incumbent SIEM baselines. Every tier reads the same Iceberg tables in core. Dremio is opt-in and outside every preset.</desc>
+  <rect width="1000" height="628" fill="#ffffff"/>
+  <g font-family="system-ui,-apple-system,'Segoe UI',Helvetica,Arial,sans-serif">
+    <text x="30" y="44" font-size="24" font-weight="700" fill="#2c4f74">Each preset adds tiers over the same Iceberg tables</text>
+    <text x="30" y="72" font-size="15" fill="#5b6878">./moar up &lt;preset&gt; brings up the shaded tiers; every tier reads the lakehouse in core</text>
+    <text x="560.0" y="124" font-size="15" font-weight="700" fill="#243f5b" text-anchor="middle" font-family="ui-monospace,Menlo,Consolas,monospace">soc-10gb</text>
+    <text x="560.0" y="144" font-size="13" fill="#5b6878" text-anchor="middle">~10 GB/day</text>
+    <text x="560.0" y="161" font-size="13" fill="#5b6878" text-anchor="middle">~6-8 GB RAM</text>
+    <text x="680.0" y="124" font-size="15" font-weight="700" fill="#243f5b" text-anchor="middle" font-family="ui-monospace,Menlo,Consolas,monospace">soc-100gb</text>
+    <text x="680.0" y="144" font-size="13" fill="#5b6878" text-anchor="middle">~100 GB/day</text>
+    <text x="680.0" y="161" font-size="13" fill="#5b6878" text-anchor="middle">~16-24 GB</text>
+    <text x="800.0" y="124" font-size="15" font-weight="700" fill="#243f5b" text-anchor="middle" font-family="ui-monospace,Menlo,Consolas,monospace">soc-1tb</text>
+    <text x="800.0" y="144" font-size="13" fill="#5b6878" text-anchor="middle">~1 TB/day</text>
+    <text x="800.0" y="161" font-size="13" fill="#5b6878" text-anchor="middle">~32-40 GB</text>
+    <text x="920.0" y="124" font-size="15" font-weight="700" fill="#243f5b" text-anchor="middle" font-family="ui-monospace,Menlo,Consolas,monospace">soc-10tb</text>
+    <text x="920.0" y="144" font-size="13" fill="#5b6878" text-anchor="middle">~10 TB/day</text>
+    <text x="920.0" y="161" font-size="13" fill="#5b6878" text-anchor="middle">heavy</text>
+    <rect x="20" y="170" width="960" height="46" fill="#f4f6f8"/>
+    <text x="30" y="190" font-size="15" font-weight="700" fill="#243f5b" font-family="ui-monospace,Menlo,Consolas,monospace">baselines</text>
+    <text x="30" y="208" font-size="13" fill="#5b6878">incumbent SIEM: OpenSearch · Graylog · LogScale</text>
+    <rect x="866" y="177" width="108" height="32" rx="5" fill="#87aacf" stroke="#5c8dc5" stroke-width="1.2"/>
+    <text x="30" y="236" font-size="15" font-weight="700" fill="#243f5b" font-family="ui-monospace,Menlo,Consolas,monospace">graph</text>
+    <text x="30" y="254" font-size="13" fill="#5b6878">Grafana · Prometheus · Loki</text>
+    <rect x="746" y="223" width="108" height="32" rx="5" fill="#87aacf" stroke="#5c8dc5" stroke-width="1.2"/>
+    <rect x="866" y="223" width="108" height="32" rx="5" fill="#87aacf" stroke="#5c8dc5" stroke-width="1.2"/>
+    <rect x="20" y="262" width="960" height="46" fill="#f4f6f8"/>
+    <text x="30" y="282" font-size="15" font-weight="700" fill="#243f5b" font-family="ui-monospace,Menlo,Consolas,monospace">route</text>
+    <text x="30" y="300" font-size="13" fill="#5b6878">Vector · Tenzir · Fluent Bit → OCSF</text>
+    <rect x="746" y="269" width="108" height="32" rx="5" fill="#87aacf" stroke="#5c8dc5" stroke-width="1.2"/>
+    <rect x="866" y="269" width="108" height="32" rx="5" fill="#87aacf" stroke="#5c8dc5" stroke-width="1.2"/>
+    <text x="30" y="328" font-size="15" font-weight="700" fill="#243f5b" font-family="ui-monospace,Menlo,Consolas,monospace">engine-clickhouse, engine-starrocks</text>
+    <text x="30" y="346" font-size="13" fill="#5b6878">ClickHouse · StarRocks</text>
+    <rect x="746" y="315" width="108" height="32" rx="5" fill="#87aacf" stroke="#5c8dc5" stroke-width="1.2"/>
+    <rect x="866" y="315" width="108" height="32" rx="5" fill="#87aacf" stroke="#5c8dc5" stroke-width="1.2"/>
+    <rect x="20" y="354" width="960" height="46" fill="#f4f6f8"/>
+    <text x="30" y="374" font-size="15" font-weight="700" fill="#243f5b" font-family="ui-monospace,Menlo,Consolas,monospace">ai</text>
+    <text x="30" y="392" font-size="13" fill="#5b6878">Ollama (local weights) · stdio MCP</text>
+    <rect x="626" y="361" width="108" height="32" rx="5" fill="#87aacf" stroke="#5c8dc5" stroke-width="1.2"/>
+    <rect x="746" y="361" width="108" height="32" rx="5" fill="#87aacf" stroke="#5c8dc5" stroke-width="1.2"/>
+    <rect x="866" y="361" width="108" height="32" rx="5" fill="#87aacf" stroke="#5c8dc5" stroke-width="1.2"/>
+    <text x="30" y="420" font-size="15" font-weight="700" fill="#243f5b" font-family="ui-monospace,Menlo,Consolas,monospace">engine-trino</text>
+    <text x="30" y="438" font-size="13" fill="#5b6878">Trino over the same Iceberg</text>
+    <rect x="626" y="407" width="108" height="32" rx="5" fill="#87aacf" stroke="#5c8dc5" stroke-width="1.2"/>
+    <rect x="746" y="407" width="108" height="32" rx="5" fill="#87aacf" stroke="#5c8dc5" stroke-width="1.2"/>
+    <rect x="866" y="407" width="108" height="32" rx="5" fill="#87aacf" stroke="#5c8dc5" stroke-width="1.2"/>
+    <rect x="20" y="446" width="960" height="46" fill="#f4f6f8"/>
+    <text x="30" y="466" font-size="15" font-weight="700" fill="#243f5b" font-family="ui-monospace,Menlo,Consolas,monospace">detection</text>
+    <text x="30" y="484" font-size="13" fill="#5b6878">SigmaHQ → pySigma → SQL</text>
+    <rect x="506" y="453" width="108" height="32" rx="5" fill="#87aacf" stroke="#5c8dc5" stroke-width="1.2"/>
+    <rect x="626" y="453" width="108" height="32" rx="5" fill="#87aacf" stroke="#5c8dc5" stroke-width="1.2"/>
+    <rect x="746" y="453" width="108" height="32" rx="5" fill="#87aacf" stroke="#5c8dc5" stroke-width="1.2"/>
+    <rect x="866" y="453" width="108" height="32" rx="5" fill="#87aacf" stroke="#5c8dc5" stroke-width="1.2"/>
+    <text x="30" y="512" font-size="15" font-weight="700" fill="#243f5b" font-family="ui-monospace,Menlo,Consolas,monospace">core + store</text>
+    <text x="30" y="530" font-size="13" fill="#5b6878">MinIO · Iceberg REST catalog · DuckDB</text>
+    <rect x="506" y="499" width="108" height="32" rx="5" fill="#1f8fe0" stroke="#0f5f9e" stroke-width="1.2"/>
+    <rect x="626" y="499" width="108" height="32" rx="5" fill="#1f8fe0" stroke="#0f5f9e" stroke-width="1.2"/>
+    <rect x="746" y="499" width="108" height="32" rx="5" fill="#1f8fe0" stroke="#0f5f9e" stroke-width="1.2"/>
+    <rect x="866" y="499" width="108" height="32" rx="5" fill="#1f8fe0" stroke="#0f5f9e" stroke-width="1.2"/>
+    <line x1="20" y1="538" x2="980" y2="538" stroke="#e2e6ea"/>
+    <text x="30" y="570" font-size="13" fill="#5b6878">Dremio (engine-dremio) is opt-in and outside every preset. Store, catalog, format and router swaps run with ./moar swap-*.</text>
+    <text x="30" y="592" font-size="13" fill="#5b6878">RAM figures are the working-set estimates in docker/moar; ingest scale names the SOC each preset is sized for, not a measured throughput.</text>
+  </g>
+</svg>

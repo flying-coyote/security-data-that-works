@@ -1,8 +1,8 @@
 """Capability Matrix scoring for the MOAR console.
 
 The scored Matrix is a public flagship-evidence asset: the per-criterion 1-5 scores, the
-weighted archetype totals, and the claim-vs-shipped deltas surface by default, so
-`MOAR_PAID_MODE` now defaults on and an unset var means the scored view is shown. What a
+weighted archetype totals, and the claim-vs-shipped deltas. The scored view still fails
+closed: `MOAR_PAID_MODE` defaults off (see `paid_mode()`), so an unset var hides it. What a
 company pays for is the services engagement (assess, design, migrate, operate) that runs
 against a Matrix finding when it deploys MOAR, not the scores.
 
@@ -10,11 +10,12 @@ The per-criterion scoring FILES still live in the project1 vault's `scoring/` di
 than in this repo, and this module reads them from that authored source at runtime. A
 pre-flight assertion refuses to read scores from anywhere inside this public repo, so a
 score is always sourced from its vault file and never from a stale copy committed here.
-Set `MOAR_PAID_MODE` to a falsy value (0/false/off) to render the public component-model
-half without the scored view (the free counterpart is `public_context`).
+Set `MOAR_PAID_MODE` to a truthy value (1/true/yes/on) to show the scored view; unset or
+falsy renders the public component-model half without it (the free counterpart is
+`public_context`).
 
 Env:
-  MOAR_PAID_MODE      defaults on; set falsy (0/false/off) to hide the scored view
+  MOAR_PAID_MODE      defaults off; set truthy (1/true/yes/on) to show the scored view
   MOAR_SCORING_PATH   override the scoring dir; default $VAULT_PATH/02-projects/securitydataworks/scoring
   VAULT_PATH          the project1 vault root that holds the scoring files (default ~/project1)
 """

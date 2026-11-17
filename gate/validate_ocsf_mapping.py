@@ -24,16 +24,23 @@ Usage:
                                                        # can't object to off the shelf
     python3 validate_ocsf_mapping.py --selfcheck       # prove the layer is consistent
 
-Exit code is non-zero if any mapping is type-crossing (CI-friendly).
+Exit codes (CI-friendly): 0 = every type-testable mapping is consistent; 1 = at least one
+mapping is type-crossing (or --selfcheck found the layer inconsistent); 2 = the reasoner
+itself failed (Java missing, corrupt jar, parse error, timeout) or the mapping CSV is
+missing, unreadable or parses to zero rows. A tool or input failure never reports a pass.
 Requires ROBOT (https://robot.obolibrary.org) on $ROBOT_JAR or /tmp/robot.jar, plus Java.
 
-Honest scope (Tier B): the disjointness layer is adjudicated over 8 artifacts and validated
-on a 925-row six-schema corpus (231/231 injected flagged, true by construction of the
-injection, so an end-to-end check rather than a catch rate; 0 over-disjointness false
-positives, ~7 field-typer false alarms) plus an independent 83-field mapping (22/22, 0 FP). Recall is measured on
-*injected* corruptions, not a held-out set of confirmed human errors. The false-positive
-risk rises as the artifact set widens — this is a strong first-pass check, not a
-certification. Offer the layer as a starting set to extend, not a finished ontology.
+Honest scope (Tier B): the disjointness layer is adjudicated over 8 artifacts. On a
+925-row six-schema corpus, 231 of 231 injected crossings were flagged, which is true by
+construction of the injection (each sound mapping was corrupted to a disjoint artifact), so
+it shows the check runs end to end rather than measuring a catch rate; the measured result
+there is 0 over-disjointness false positives, with about 7 false alarms from the
+approximate field-typer. On a separate 83-field mapping it had never seen, 22 of the 83
+fields were type-testable; the 22 injected crossings were again flagged by construction, and the
+measured result is 0 false positives on the 22 sound mappings. Nothing here is measured on a
+held-out set of confirmed human errors. The false-positive risk rises as the artifact set
+widens, so treat this as a strong first-pass check rather than a certification, and the
+layer as a starting set to extend rather than a finished ontology.
 """
 import csv
 import os
@@ -116,18 +123,53 @@ def _prefix(with_layer=True):
     return ttl
 
 
+EXIT_TOOL_ERROR = 2  # the reasoner itself failed; distinct from exit 1 (crossing found)
+
+
+def _tool_error(msg, proc=None):
+    """Fail closed. A broken reasoner must never read as 'nothing flagged'."""
+    detail = ""
+    if proc is not None:
+        lines = [l for l in (proc.stderr + proc.stdout).splitlines()
+                 if l.strip() and not l.startswith("WARNING")]
+        detail = "\n  " + "\n  ".join(lines[-5:]) if lines else ""
+    print(f"ERROR: {msg}{detail}", file=sys.stderr)
+    sys.exit(EXIT_TOOL_ERROR)
+
+
 def reason(ttl):
+    """Return the set of unsatisfiable ocsf-namespace classes, or exit 2 on tool failure.
+
+    ROBOT `reason` exits 0 and writes --output when every class is satisfiable, and exits
+    non-zero and writes --dump-unsatisfiable when some class is not. Anything else (Java
+    missing, a corrupt jar, a parse error, an inconsistent ontology, a timeout) is a tool
+    failure and stops the run with exit 2 rather than reporting a clean pass.
+    """
     if not os.path.exists(ROBOT):
-        sys.exit(f"ROBOT not found at {ROBOT}; set $ROBOT_JAR (https://robot.obolibrary.org)")
+        _tool_error(f"ROBOT not found at {ROBOT}; set $ROBOT_JAR (https://robot.obolibrary.org)")
     with tempfile.TemporaryDirectory() as td:
         inp, dump, out = (os.path.join(td, x) for x in ("in.ttl", "u.owl", "o.owl"))
-        open(inp, "w").write(ttl)
-        subprocess.run(["java", "-jar", ROBOT, "reason", "--reasoner", "ELK",
-                        "--input", inp, "--dump-unsatisfiable", dump, "--output", out],
-                       capture_output=True, text=True, timeout=300)
+        with open(inp, "w") as fh:
+            fh.write(ttl)
+        try:
+            proc = subprocess.run(["java", "-jar", ROBOT, "reason", "--reasoner", "ELK",
+                                   "--input", inp, "--dump-unsatisfiable", dump, "--output", out],
+                                  capture_output=True, text=True, timeout=300)
+        except FileNotFoundError:
+            _tool_error("java not found on PATH; the reasoner did not run")
+        except subprocess.TimeoutExpired:
+            _tool_error("ROBOT reason timed out after 300s; the reasoner did not finish")
+        if proc.returncode == 0:
+            if not os.path.exists(out):
+                _tool_error("ROBOT exited 0 but wrote no reasoned output", proc)
+            return set()
         if os.path.exists(dump):
-            return set(re.findall(r"align#([A-Za-z0-9_]+)", open(dump).read()))
-        return set()
+            with open(dump) as fh:
+                unsat = set(re.findall(r"align#([A-Za-z0-9_]+)", fh.read()))
+            if unsat:
+                return unsat
+            _tool_error("ROBOT reported unsatisfiable classes, none in the mapping namespace", proc)
+        _tool_error(f"ROBOT reason failed (exit {proc.returncode}) without an unsatisfiable-class dump", proc)
 
 
 def selfcheck():
@@ -171,7 +213,15 @@ if __name__ == "__main__":
     with_layer = "--no-layer" not in flags
     if with_layer and not selfcheck():
         sys.exit("STOP: disjointness layer is inconsistent; fix before validating.")
-    with open(args[0]) as fh:
-        rows = [(r[0].strip(), r[1].strip()) for r in csv.reader(fh)
-                if len(r) >= 2 and r[0].strip().lower() not in ("source_field", "source")]
+    # An unreadable or empty mapping file is a tool failure (exit 2), never a pass and never
+    # a "type-crossing found" (exit 1).
+    try:
+        with open(args[0], newline="") as fh:
+            rows = [(r[0].strip(), r[1].strip()) for r in csv.reader(fh)
+                    if len(r) >= 2 and r[0].strip().lower() not in ("source_field", "source")]
+    except (OSError, UnicodeDecodeError, csv.Error) as e:
+        _tool_error(f"could not read mapping CSV {args[0]}: {e}")
+    if not rows:
+        _tool_error(f"no mappings parsed from {args[0]}; expected comma-separated "
+                    "source_field,ocsf_path rows (wrong delimiter, missing columns or empty file?)")
     sys.exit(1 if validate(rows, with_layer=with_layer) else 0)
