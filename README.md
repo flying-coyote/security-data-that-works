@@ -104,8 +104,9 @@ LOCAL=1 python3 gate/validate_ocsf_mapping.py your_mappings.csv
 
 This is a strong first-pass check, not a certification, and it's worth being precise about the
 evidence. It's Tier B: a hand-authored disjointness layer over eight artifacts, validated on a
-925-row six-schema crosswalk corpus (231 of 231 injected type-crossings caught, zero
-over-disjointness false positives) and on a separate 83-field mapping it had never seen (22 of 22
+925-row six-schema crosswalk corpus (231 of 231 injected type-crossings flagged, which follows from how
+the corruptions were built, so it shows the check runs end to end rather than measuring a catch rate;
+zero over-disjointness false positives, about 7 false alarms from the approximate field-typer) and on a separate 83-field mapping it had never seen (22 of 22
 caught, zero false positives). The catch rate is measured on *injected* corruptions, not a
 held-out set of confirmed human errors, so it's a strong first-pass validation rather than a field
 trial. The disjointness adjudication is the hard part and the place this could break at scale: a

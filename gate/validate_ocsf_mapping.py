@@ -28,8 +28,9 @@ Exit code is non-zero if any mapping is type-crossing (CI-friendly).
 Requires ROBOT (https://robot.obolibrary.org) on $ROBOT_JAR or /tmp/robot.jar, plus Java.
 
 Honest scope (Tier B): the disjointness layer is adjudicated over 8 artifacts and validated
-on a 925-row six-schema corpus (231/231 injected catches, 0 over-disjointness false
-positives) plus an independent 83-field mapping (22/22, 0 FP). Recall is measured on
+on a 925-row six-schema corpus (231/231 injected flagged, true by construction of the
+injection, so an end-to-end check rather than a catch rate; 0 over-disjointness false
+positives, ~7 field-typer false alarms) plus an independent 83-field mapping (22/22, 0 FP). Recall is measured on
 *injected* corruptions, not a held-out set of confirmed human errors. The false-positive
 risk rises as the artifact set widens — this is a strong first-pass check, not a
 certification. Offer the layer as a starting set to extend, not a finished ontology.
