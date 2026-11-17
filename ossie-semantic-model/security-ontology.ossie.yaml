@@ -1,0 +1,141 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/apache/ossie/main/ontology/ontology.json
+#
+# Security-operations ontology — Apache Ossie (incubating) ONTOLOGY spec sketch
+#
+# STATUS: sketch against a DRAFT spec. Written against Ossie ontology spec
+# 0.3.0.dev0 (ontology/ontology.md + ontology.json on apache/ossie main a0d15d2),
+# migrated 2026-11-17 from the 0.2.0.dev0 draft of 2026-07-23. The version history
+# upstream still calls the ontology layer "basic support" and the schema may change
+# before release. Migration changes: version 0.3.0.dev0; each ontology item is now
+# flat (`concept` is the concept's name string, and `type`, `description`,
+# `relationships` etc. sit beside it); the embedded `ontology_mappings` block moved
+# to its own mapping document, security-ontology.mapping.ossie.yaml (#458), which
+# references this ontology and security-operations.ossie.yaml by name instead of
+# embedding a slice of the semantic model. This file validates with 0 errors
+# against ontology.json and with apache/ossie validation/validate.py
+# (--schema ontology/ontology.json) at a0d15d2. Treat the derivation expressions as
+# illustrative, since the expression semantics for ontology rules are still a
+# working-group item upstream.
+#
+# The design point this file makes: D3FEND already models defense and offense as
+# verbalizable typed relationships through shared digital artifacts (an OWL
+# ontology, 47,228 triples at v1.4.0). Ossie's ontology layer expresses the same
+# shape natively (concepts, subtyping, verbalized relationships, derivation
+# rules), and its mapping layer binds those concepts to the OCSF tables the
+# core semantic model (security-operations.ossie.yaml) declares. Nothing here
+# invents vocabulary: every concept name traces to a D3FEND or ATT&CK/ATLAS
+# class, per the contribute-don't-own rule.
+
+version: "0.3.0.dev0"
+name: security_operations_ontology
+description: >
+  Offense, defense, and the digital artifacts that join them: the D3FEND 1.4.0
+  relational shape expressed as Ossie ontology concepts. Mappings onto the
+  security_operations semantic model live in security-ontology.mapping.ossie.yaml.
+ai_context:
+  instructions: >
+    Verbalized relationships in this ontology are design-time structure from
+    D3FEND's shared-artifact join. "Counters" means the defense observes an
+    artifact the offense produces; it never means the defense is proven to stop
+    the offense in operation.
+
+ontology:
+  - concept: AttackTechniqueId
+    type: ValueType
+    extends: [String]
+    description: MITRE ATT&CK technique identifier (T####, sub-techniques T####.###)
+
+  - concept: AtlasTechniqueId
+    type: ValueType
+    extends: [String]
+    description: MITRE ATLAS technique identifier (AML.T####, sub-techniques AML.T####.###)
+
+  - concept: D3fendTechniqueId
+    type: ValueType
+    extends: [String]
+    description: MITRE D3FEND technique identifier (D3-*)
+
+  - concept: DigitalArtifact
+    type: EntityType
+    description: >
+      A digital artifact in D3FEND's sense — the observable object (process,
+      file, network traffic, credential, model weight file) that offense
+      produces and defense observes. The crosswalk's computed closure over
+      D3FEND 1.4.0 counts 915 artifact classes (artifact_index.json); this
+      concept stands for the taxonomy's root.
+    identify_by: [nr]
+    relationships:
+      - name: nr
+        roles:
+          - concept: String
+        multiplicity: OneToOne
+        verbalizes: ["{DigitalArtifact} is identified by {String}"]
+
+  - concept: OffensiveTechnique
+    type: EntityType
+    description: An ATT&CK offense technique
+    identify_by: [id]
+    relationships:
+      - name: id
+        roles:
+          - concept: AttackTechniqueId
+        multiplicity: OneToOne
+        verbalizes: ["{OffensiveTechnique} is identified by {AttackTechniqueId}"]
+      - name: produces
+        roles:
+          - concept: DigitalArtifact
+        verbalizes: ["{OffensiveTechnique} produces {DigitalArtifact}"]
+
+  # Subtype with its own preferred identifier (atlas_id) rather than the inherited
+  # OffensiveTechnique.id; ontology.md "Identifying relationships" does not say
+  # whether a subtype may declare a different identify_by from its supertype.
+  - concept: AIOffensiveTechnique
+    type: EntityType
+    extends: [OffensiveTechnique]
+    description: >
+      A MITRE ATLAS technique, modeled as a subtype of offensive technique.
+      117 of 140 D3FEND-ingested ATLAS techniques map onto EXISTING D3FEND
+      artifact vocabulary (the d3fend-atlas-crosswalk result), which is what
+      justifies the subtype rather than a parallel hierarchy.
+    identify_by: [atlas_id]
+    relationships:
+      - name: atlas_id
+        roles:
+          - concept: AtlasTechniqueId
+        multiplicity: OneToOne
+        verbalizes: ["{AIOffensiveTechnique} is identified by {AtlasTechniqueId}"]
+
+  - concept: DefensiveTechnique
+    type: EntityType
+    description: A D3FEND defensive technique (leaf-clustered wall column, 120 at v1.4.0)
+    identify_by: [id]
+    relationships:
+      - name: id
+        roles:
+          - concept: D3fendTechniqueId
+        multiplicity: OneToOne
+        verbalizes: ["{DefensiveTechnique} is identified by {D3fendTechniqueId}"]
+      - name: monitors
+        roles:
+          - concept: DigitalArtifact
+        verbalizes: ["{DefensiveTechnique} monitors {DigitalArtifact}"]
+      # DigitalArtifact appears in the derivation below without playing a role of
+      # counters; the expression relies on it being read as existentially bound
+      # (the shared artifact), which ontology.md "Derivation expressions" does not
+      # define for variables outside the relationship's roles.
+      - name: counters
+        roles:
+          - concept: OffensiveTechnique
+        derived_by:
+          - "DefensiveTechnique.monitors(DigitalArtifact) AND OffensiveTechnique.produces(DigitalArtifact)"
+        verbalizes: ["{DefensiveTechnique} counters {OffensiveTechnique} via a shared artifact"]
+
+  - concept: CoveredTechnique
+    type: EntityType
+    extends: [OffensiveTechnique]
+    derived_by: ["EXISTS ( DefensiveTechnique.counters(OffensiveTechnique) )"]
+    description: >
+      An offense technique with at least one defense countering it through the
+      artifact join. The wall's blind sixth — 76 of 435 techniques with no
+      detect-phase defense at D3FEND 1.4.0 — is the population of
+      OffensiveTechnique minus the detect-tactic slice of this concept.

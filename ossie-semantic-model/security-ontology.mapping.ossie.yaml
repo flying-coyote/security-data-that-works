@@ -1,0 +1,50 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/apache/ossie/main/ontology/mapping.json
+#
+# Security-operations ontology mapping — Apache Ossie (incubating) MAPPING document
+#
+# STATUS: sketch against a DRAFT spec. Written against Ossie 0.3.0.dev0
+# (ontology/mapping.json + ontology/ontology.md "Mapping documents" on apache/ossie
+# main a0d15d2), migrated 2026-11-17 out of the embedded `ontology_mappings` block
+# of the 2026-07-23 security-ontology.ossie.yaml draft. Validates with 0 errors
+# against mapping.json and with apache/ossie validation/validate.py
+# (--schema ontology/mapping.json), which also resolves both references below and
+# checks every concept, relationship and dataset.field the mapping names.
+#
+# What changed in the move: the July draft schema required each ontology map to
+# EMBED a full semantic model, so the draft carried a three-dataset slice of
+# security-operations.ossie.yaml (attack_technique, d3fend_technique,
+# atlas_technique, each with its primary key and one field). That duplication was
+# the upstream feedback the draft flagged for the Ontology WG, and #458 resolved it:
+# a mapping is now its own document that references one ontology and one semantic
+# model by `name` plus a relative `iri`. Every dataset, source, primary key and
+# field the slice declared is present unchanged in security-operations.ossie.yaml,
+# so dropping the slice loses nothing. Upstream notes that parser and converter
+# support for standalone mapping documents is not yet available.
+
+version: "0.3.0.dev0"
+name: security_operations_reference_map
+description: >
+  Binds the technique reference datasets of the security_operations semantic
+  model to the offense/defense concepts of security_operations_ontology.
+ontology_ref:
+  name: security_operations_ontology
+  iri: ./security-ontology.ossie.yaml
+semantic_model_ref:
+  name: security_operations
+  iri: ./security-operations.ossie.yaml
+concept_mappings:
+  - concept: OffensiveTechnique
+    object_mappings:
+      - referent_mappings:
+          - relationship: id
+            expression: ATTACK_TECHNIQUE.TECHNIQUE_ID
+  - concept: DefensiveTechnique
+    object_mappings:
+      - referent_mappings:
+          - relationship: id
+            expression: D3FEND_TECHNIQUE.D3FEND_ID
+  - concept: AIOffensiveTechnique
+    object_mappings:
+      - referent_mappings:
+          - relationship: atlas_id
+            expression: ATLAS_TECHNIQUE.ATLAS_ID
