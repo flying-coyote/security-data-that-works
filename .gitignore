@@ -16,3 +16,6 @@ docker/control-plane/temp_config/
 # auto-created by ./moar console
 docker/control-plane/.venv/
 docker/control-plane/__marimo__/
+
+# gate/test_gate.sh scratch dirs
+gate/.tmp-*/

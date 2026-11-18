@@ -1091,7 +1091,7 @@ def _(P, archetype_selector, mo, paid, sel_catalog, sel_ingest, sel_query, ui):
                 "constraints, and what swapping each component back out would cost, which is the "
                 "reversibility a risk-averse team reads before it commits to open architecture. The scored "
                 "half, the per-criterion 1–5 ratings and the weighted ranking per workload archetype, is "
-                "public and surfaces by default; it's the flagship Capability Matrix at "
+                "public, but this console hides it unless MOAR_PAID_MODE=on; it's the flagship Capability Matrix at "
                 "[securitydataworks.com/matrix](https://securitydataworks.com/matrix)."),
             *(_rows or [mo.md("*Pick an engine, catalog, or pipeline to see its reversibility and evidence.*")]),
             **{"border": "1px solid var(--color-teal-500)"},

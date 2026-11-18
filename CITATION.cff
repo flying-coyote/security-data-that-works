@@ -1,0 +1,27 @@
+cff-version: 1.2.0
+message: >-
+  If you cite this repository, cite the commit SHA you used. There are no tagged
+  releases yet, and the gate, the spec and the demos change between commits;
+  CHANGELOG.md records the dated changes.
+title: "security-data-that-works: a deductive OCSF field-mapping check and a public security-data spec"
+type: software
+authors:
+  - name: "flying-coyote"
+repository-code: "https://github.com/flying-coyote/security-data-that-works"
+url: "https://securitydataworks.com"
+license: Apache-2.0
+abstract: >-
+  A runnable check that flags type-crossing OCSF field mappings with an OWL
+  reasoner (ELK via ROBOT) over a hand-authored D3FEND disjointness layer, with
+  no machine-learning model in the loop, plus a public statement of what good
+  looks like across five categories of security data and runnable demos of a
+  tiered open security-data lakehouse and a four-layer data-health gate.
+keywords:
+  - OCSF
+  - D3FEND
+  - OWL
+  - field mapping
+  - detection engineering
+  - data quality
+  - security data lakehouse
+  - Apache Iceberg

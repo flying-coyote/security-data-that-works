@@ -154,7 +154,7 @@ def main():
 
     print("\n=== paid mode still behaves exactly as paid_scoring.py promises ===\n")
     _saved_paid_mode = os.environ.get("MOAR_PAID_MODE")
-    os.environ["MOAR_PAID_MODE"] = "off"  # explicit-off: the default is now on, so exercise off here
+    os.environ["MOAR_PAID_MODE"] = "off"  # explicit-off; the default is also off since the 2026-07-19 fail-closed change
     _saved_scoring_path = os.environ.pop("MOAR_SCORING_PATH", None)
     try:
         paid_off_text = sl._run_paid("A")

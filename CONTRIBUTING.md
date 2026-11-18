@@ -30,9 +30,19 @@ dropped in as exactly that: a two-column CSV in, a non-zero exit on any type-cro
 ## You want to improve the demo itself
 
 PRs to this repo are welcome for the demo and the validator: clearer examples, better packaging, a
-tighter container, more honest framing. Keep the validator model-independent (no LLM in the
-checking loop, that's the point) and keep the scope claims accurate (it answers "is this mapping
-type-consistent?", per row; it does not score vendors).
+tighter container, more honest framing. Keep the validator model-independent, since having no LLM in
+the checking loop is what makes the verdict the same whoever produced the mapping, and keep the scope
+claims accurate (it answers "is this mapping type-consistent?", per row, and it does not score vendors).
+
+Before you open a PR that touches `gate/`, run `./gate/test_gate.sh` (or `LOCAL=1 ROBOT_JAR=/path/to/robot.jar ./gate/test_gate.sh`
+with a local Java and ROBOT jar; without `ROBOT_JAR` it looks for `/tmp/robot.jar` and every scenario
+check fails closed). It diffs the three demo scenarios against `gate/expected/` and checks
+that a broken reasoner exits 2 rather than reporting a pass. If you change the validator's printed
+output on purpose, regenerate `gate/expected/` with
+`UPDATE=1 ./gate/test_gate.sh` (it writes the exact format the test diffs) and update the samples in the
+README in the same PR. If you edit the disjointness set, run `--selfcheck` too, because a pair that
+looks disjoint but sits in one subclass chain (`NetworkSession` under `Session`) makes the layer
+inconsistent. Any number you add to the docs should name the run or file it comes from.
 
 ## A note on what's not here
 

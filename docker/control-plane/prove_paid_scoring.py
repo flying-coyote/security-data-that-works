@@ -48,9 +48,12 @@ def main():
     except paid.PaidScoreLeak:
         check("firewall ALLOWS a path outside the public repo (the private vault)", False)
 
-    print("\n=== PAID_MODE defaults ON (public scored view); explicit-off hides it -> zero scores ===\n")
+    print("\n=== PAID_MODE fails closed: unset and explicit-off both hide it -> zero scores ===\n")
     os.environ.pop("MOAR_PAID_MODE", None)
-    check("PAID_MODE defaults ON (an unset var surfaces the public scored view)", paid.paid_mode() is True)
+    # paid_mode() defaults OFF since the 2026-07-19 fail-closed change (see its comment), so an
+    # unset var must hide the scored view; this assertion had kept the older default-on contract.
+    check("PAID_MODE unset -> paid_mode() False (fails closed)", paid.paid_mode() is False)
+    check("PAID_MODE unset -> load_scores returns no scores", paid.load_scores("A") == {})
     os.environ["MOAR_PAID_MODE"] = "off"
     check("PAID_MODE explicitly off (0/false/off) -> paid_mode() False", paid.paid_mode() is False)
     check("PAID_MODE explicitly off -> load_scores returns no scores", paid.load_scores("A") == {})
@@ -90,7 +93,7 @@ def main():
           {"Polaris"} <= {r["label"] for r in paid.public_context({"catalog": "polaris"})})
 
     print("\n=== consultant_mode gate (T5): a public clone never leads with the vault ===\n")
-    os.environ["MOAR_PAID_MODE"] = "off"  # explicit-off: exercise the vault-driven branch (default is now on)
+    os.environ["MOAR_PAID_MODE"] = "off"  # explicit-off: exercise the vault-driven branch (the default is also off since the 2026-07-19 fail-closed change)
     check("public clone (PAID_MODE off, no vault) -> NOT consultant",
           paid.consultant_mode(vault_readable=False, has_notes=False) is False)
     check("PAID_MODE off + a readable vault WITH notes -> consultant",

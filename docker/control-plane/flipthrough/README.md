@@ -1,8 +1,9 @@
 # Console flip-through (visual walkthrough)
 
-`MOAR-console-flipthrough.pdf` is a flip-through of each console view — a real screenshot of
-each view captured from the live marimo app, with the intent annotated underneath. Regenerate
-it after a console change (and before pushing a new console version):
+`build.sh` writes `MOAR-console-flipthrough.pdf` here: a flip-through of each console view, with
+a real screenshot of each view captured from the live marimo app and its intent annotated
+underneath. The screenshots (`img/`) and the PDF aren't committed to the repo, so build them
+locally, and rebuild after a console change:
 
 ```bash
 bash flipthrough/build.sh

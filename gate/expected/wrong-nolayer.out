@@ -1,0 +1,3 @@
+checked 3 mappings · 3 type-testable · 0 type-crossing flagged (WITHOUT disjointness layer)
+  (nothing flagged — off the shelf, the reasoner has no basis to object; the wrong mapping passes silently)
+nolayer exit=0
