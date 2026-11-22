@@ -22,20 +22,26 @@ Usage:
     python3 validate_ocsf_mapping.py --no-layer m.csv  # same, WITHOUT the disjointness
                                                        # layer — shows what the reasoner
                                                        # can't object to off the shelf
-    python3 validate_ocsf_mapping.py --selfcheck       # prove the layer is consistent
+    python3 validate_ocsf_mapping.py --selfcheck       # check the layer against the
+                                                       # validator's small D3FEND stub
+    python3 validate_ocsf_mapping.py --allow-untestable m.csv  # accept a file in which
+                                                       # no row is type-testable
 
 Exit codes (CI-friendly): 0 = every type-testable mapping is consistent; 1 = at least one
 mapping is type-crossing (or --selfcheck found the layer inconsistent); 2 = the reasoner
-itself failed (Java missing, corrupt jar, parse error, timeout) or the mapping CSV is
-missing, unreadable or parses to zero rows. A tool or input failure never reports a pass.
+itself failed (Java missing, corrupt jar, parse error, timeout), the layer was inconsistent
+at the start of a mapping run, or the mapping CSV is missing, unreadable, parses to zero
+rows or has no type-testable row (swapped columns or unrecognised field names, unless
+--allow-untestable is given). A tool or input failure never reports a pass.
 Requires ROBOT (https://robot.obolibrary.org) on $ROBOT_JAR or /tmp/robot.jar, plus Java.
 
 Honest scope (Tier B): the disjointness layer is adjudicated over 8 artifacts. On a
 925-row six-schema corpus, 231 of 231 injected crossings were flagged, which is true by
 construction of the injection (each sound mapping was corrupted to a disjoint artifact), so
 it shows the check runs end to end rather than measuring a catch rate; the measured result
-there is 0 over-disjointness false positives, with about 7 false alarms from the
-approximate field-typer. On a separate 83-field mapping it had never seen, 22 of the 83
+there is 15 firings on the 231 presumed-correct mapping classes (6.5%), none traced to a
+bad disjointness axiom: about 7 came from the approximate field-typer and about 8 were
+coarse mappings worth a human look, plausible rather than confirmed wrong. On a separate 83-field mapping it had never seen, 22 of the 83
 fields were type-testable; the 22 injected crossings were again flagged by construction, and the
 measured result is 0 false positives on the 22 sound mappings. Nothing here is measured on a
 held-out set of confirmed human errors. The false-positive risk rises as the artifact set
@@ -60,8 +66,10 @@ NS = "https://schema.ocsf.io/align#"
 # not the file. "executed-from" / "stored-in" / "locates" are relations, not identity, so
 # the disjointness is sound and the "but they overlap" objection is a category error.
 # Session is DELIBERATELY EXCLUDED: D3FEND has NetworkSession ⊑ Session, so asserting
-# Session ⊥ NetworkSession would make NetworkSession unsatisfiable (the selfcheck catches
-# exactly that class of error — run --selfcheck after any edit to this set).
+# Session ⊥ NetworkSession would make NetworkSession unsatisfiable. --selfcheck catches
+# that one trap only, because the validator's stub encodes no other D3FEND subclass
+# axiom; after any edit to this set, also run `./probe_d3fend.sh --layer`, which reasons
+# the set against the real D3FEND release.
 DISJOINT_SET = ["UserAccount", "UserGroup", "Process", "File",
                 "NetworkNode", "NetworkSession", "URL", "ServiceApplication"]
 
@@ -182,7 +190,7 @@ def selfcheck():
     return ok
 
 
-def validate(rows, with_layer=True):
+def validate(rows, with_layer=True, allow_untestable=False):
     ttl, classes = _prefix(with_layer=with_layer), {}
     for i, (src, ocsf) in enumerate(rows):
         tart, sart = ground_path(ocsf), source_type(src)
@@ -190,6 +198,12 @@ def validate(rows, with_layer=True):
             c = f"M{i}_" + re.sub(r"[^A-Za-z0-9]", "_", f"{src}__{ocsf}")
             ttl += f"ocsf:{c} a owl:Class ; rdfs:subClassOf d3f:{tart} ; rdfs:subClassOf d3f:{sart} .\n"
             classes[c] = (src, ocsf, sart, tart)
+    # Zero type-testable rows would otherwise be a vacuous pass: nothing reasoned, nothing
+    # flagged, exit 0. Treat it as an input failure unless the caller opts out.
+    if not classes and not allow_untestable:
+        _tool_error(f"none of the {len(rows)} mappings is type-testable, so a pass would be vacuous; "
+                    "likely causes are swapped columns (expected source_field,ocsf_path) or field "
+                    "names the typer does not recognise. Pass --allow-untestable to accept this.")
     unsat = reason(ttl)
     crossings = [(s, o, sa, ta) for c, (s, o, sa, ta) in classes.items() if c in unsat]
     layer = "with disjointness layer" if with_layer else "WITHOUT disjointness layer"
@@ -212,16 +226,21 @@ if __name__ == "__main__":
         sys.exit(__doc__)
     with_layer = "--no-layer" not in flags
     if with_layer and not selfcheck():
-        sys.exit("STOP: disjointness layer is inconsistent; fix before validating.")
+        # exit 2, not 1: a broken layer is a tool failure, never a caught crossing
+        _tool_error("disjointness layer is inconsistent; fix before validating")
     # An unreadable or empty mapping file is a tool failure (exit 2), never a pass and never
     # a "type-crossing found" (exit 1).
     try:
         with open(args[0], newline="") as fh:
-            rows = [(r[0].strip(), r[1].strip()) for r in csv.reader(fh)
-                    if len(r) >= 2 and r[0].strip().lower() not in ("source_field", "source")]
+            # Skip a header only on the first line, so a data row whose source field is
+            # literally "source" is still checked.
+            rows = [(r[0].strip(), r[1].strip()) for n, r in enumerate(csv.reader(fh))
+                    if len(r) >= 2
+                    and not (n == 0 and r[0].strip().lower() in ("source_field", "source"))]
     except (OSError, UnicodeDecodeError, csv.Error) as e:
         _tool_error(f"could not read mapping CSV {args[0]}: {e}")
     if not rows:
         _tool_error(f"no mappings parsed from {args[0]}; expected comma-separated "
                     "source_field,ocsf_path rows (wrong delimiter, missing columns or empty file?)")
-    sys.exit(1 if validate(rows, with_layer=with_layer) else 0)
+    sys.exit(1 if validate(rows, with_layer=with_layer,
+                           allow_untestable="--allow-untestable" in flags) else 0)

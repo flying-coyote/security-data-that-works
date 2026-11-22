@@ -1,11 +1,15 @@
 #!/usr/bin/env bash
-# Regression test for the gate. It checks four things:
+# Regression test for the gate. It checks six things:
 #   1. the correct mapping passes, and its output matches expected/correct.out
 #   2. the wrong mapping without the layer passes silently (expected/wrong-nolayer.out)
 #   3. the wrong mapping with the layer fails, and its output matches expected/wrong.out
 #   4. a broken reasoner (a corrupt jar, a missing jar) exits 2 and never reports a pass,
 #      both from the validator and from run.sh
-#   5. a bad input file (missing, empty, semicolon-delimited) exits 2
+#   5. a bad input file (missing, empty, semicolon-delimited, or columns swapped so that no
+#      row is type-testable) exits 2, and a data row whose source field is "source" is still
+#      checked rather than dropped as a header
+#   6. a disjointness layer made inconsistent (Session added to the set) stops a mapping run
+#      with exit 2, never exit 1
 #
 # Default runs the reasoner in the sdtw-gate Docker image, like run.sh. With LOCAL=1 it uses
 # a local Java plus $ROBOT_JAR (default /tmp/robot.jar; with that file absent every scenario
@@ -27,11 +31,16 @@ fails=0
 
 run() {  # run <robot_jar_path_or_empty> <args...>
   local jar="$1"; shift
+  run_script validate_ocsf_mapping.py "$jar" "$@"
+}
+
+run_script() {  # run_script <script> <robot_jar_path_or_empty> <args...>
+  local script="$1" jar="$2"; shift 2
   if [ "${LOCAL:-0}" = "1" ]; then
-    ROBOT_JAR="${jar:-${ROBOT_JAR:-/tmp/robot.jar}}" python3 validate_ocsf_mapping.py "$@"
+    ROBOT_JAR="${jar:-${ROBOT_JAR:-/tmp/robot.jar}}" python3 -B "$script" "$@"
   else
     docker run --rm -e ROBOT_JAR="${jar:-/opt/robot.jar}" -v "$PWD:/work" -v "$TMP:/scratch" \
-      -w /work sdtw-gate python3 validate_ocsf_mapping.py "$@"
+      -w /work sdtw-gate python3 -B "$script" "$@"
   fi
 }
 
@@ -96,6 +105,29 @@ for f in does-not-exist.csv empty.csv semicolon.csv; do
   out="$(run "" --no-layer "$p" 2>&1)"; rc=$?
   [ "$rc" = "2" ]; check "input $f exits 2 (got $rc)" $?
 done
+
+# Columns swapped: every row parses, but none is type-testable, which used to print
+# "0 type-testable · 0 type-crossing flagged" and exit 0.
+printf 'ocsf_path,source_field\nprocess.name,username\nsrc_endpoint.ip,file_path\n' > "$TMP/swapped.csv"
+# A data row whose source field is literally "source" (a NetworkNode) mapped to a Process
+# path must be checked and flagged, not skipped as a header.
+printf 'source_field,ocsf_path\nsource,process.name\n' > "$TMP/source-row.csv"
+if [ "${LOCAL:-0}" = "1" ]; then d="$TMP"; else d=/scratch; fi
+out="$(run "" "$d/swapped.csv" 2>&1)"; rc=$?
+[ "$rc" = "2" ]; check "input swapped.csv (no type-testable row) exits 2 (got $rc)" $?
+out="$(run "" "$d/source-row.csv" 2>&1)"; rc=$?
+[ "$rc" = "1" ]; check "a data row with source field \"source\" is checked and flagged (got $rc)" $?
+
+# An inconsistent layer must stop a mapping run with exit 2. The copy adds Session to the
+# disjoint set, which D3FEND's NetworkSession subclass axiom makes inconsistent.
+sed 's/"URL", "ServiceApplication"\]/"URL", "ServiceApplication", "Session"]/' \
+  validate_ocsf_mapping.py > "$TMP/inconsistent_layer.py"
+grep -q '"ServiceApplication", "Session"\]' "$TMP/inconsistent_layer.py"
+check "inconsistent-layer copy was built" $?
+cp -r mappings "$TMP/"
+out="$(run_script "$d/inconsistent_layer.py" "" "$d/mappings/correct.csv" 2>&1)"; rc=$?
+[ "$rc" = "2" ]; check "inconsistent layer stops a mapping run with exit 2 (got $rc)" $?
+grep -q 'layer is inconsistent' <<<"$out"; check "inconsistent layer says so" $?
 
 echo
 if [ "$fails" = "0" ]; then echo "all gate checks passed"; exit 0; fi

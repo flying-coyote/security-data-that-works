@@ -9,7 +9,7 @@ patch. Here's where each kind of fix goes.
 That belongs in **D3FEND**. The disjointness layer in this repo is a proposed extension of
 [d3fend/d3fend-ontology #423](https://github.com/d3fend/d3fend-ontology/issues/423) ("Assert that
 some d3fend core classes are disjoint"), which asserted top-level disjointness and explicitly asked
-to "carefully extend this down the hierarchy in the future." The eight-artifact layer here is one
+to "carefully extend this as it makes sense down the hierarchy in the future." The eight-artifact layer here is one
 step of that extension. If you find an artifact pair that's genuinely disjoint and isn't covered,
 open an issue or PR there referencing #423, and state the scope honestly: disjointness authoring
 gets harder as the set widens, because genuinely-overlapping pairs start to appear (a credential can
@@ -40,9 +40,10 @@ check fails closed). It diffs the three demo scenarios against `gate/expected/` 
 that a broken reasoner exits 2 rather than reporting a pass. If you change the validator's printed
 output on purpose, regenerate `gate/expected/` with
 `UPDATE=1 ./gate/test_gate.sh` (it writes the exact format the test diffs) and update the samples in the
-README in the same PR. If you edit the disjointness set, run `--selfcheck` too, because a pair that
-looks disjoint but sits in one subclass chain (`NetworkSession` under `Session`) makes the layer
-inconsistent. Any number you add to the docs should name the run or file it comes from.
+README in the same PR. If you edit the disjointness set, run `./gate/probe_d3fend.sh --layer` too
+(it needs network access), because a pair that looks disjoint but sits in one subclass chain
+(`NetworkSession` under `Session`, `ExecutableFile` under `File`) makes the layer inconsistent, and
+`--selfcheck` only knows the first of those, since it reasons over a small stub rather than D3FEND. Any number you add to the docs should name the run or file it comes from.
 
 ## A note on what's not here
 

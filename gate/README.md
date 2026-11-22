@@ -17,17 +17,21 @@ UPDATE=1 ./test_gate.sh                                              # rewrite e
 ```
 
 The validator exits 0 when every type-testable row is consistent, 1 when at least one row is a type crossing, and
-2 when the reasoner itself failed or the input CSV is missing, empty or unparseable, so a broken Java or ROBOT
-install stops a CI job instead of reading as a pass.
+2 when the reasoner itself failed, the disjointness layer is inconsistent, or the input CSV is missing, empty,
+unparseable or has no type-testable row (swapped columns, say; `--allow-untestable` accepts such a file), so a
+broken Java or ROBOT install or a broken input stops a CI job instead of reading as a pass.
 
 ## What's here
 
 - `validate_ocsf_mapping.py`: the check (grounding, the eight-artifact disjointness layer, and `--selfcheck`)
 - `run.sh`: runs all three scenarios in Docker, or locally with `LOCAL=1`
 - `test_gate.sh`: diffs the three scenarios against `expected/` and checks that a corrupt or missing ROBOT jar
-  exits 2 from both the validator and `run.sh`, and that a missing, empty or semicolon-delimited CSV exits 2
+  exits 2 from both the validator and `run.sh`, that a missing, empty, semicolon-delimited or column-swapped CSV
+  exits 2, that a data row whose source field is `source` is still checked, and that an inconsistent layer exits 2
 - `probe_d3fend.sh`: re-derives the Scenario 2 claim, that D3FEND's own disjointness axioms separate none of
-  the eight artifacts, against a D3FEND release tag (needs network access)
+  the eight artifacts, against a D3FEND release tag (needs network access); with `--layer` it instead merges the
+  validator's disjointness layer into that release and checks the result is consistent, which is the check to run
+  after editing the set, since `--selfcheck` only knows the `NetworkSession` under `Session` axiom
 - `mappings/`: a correct example and a wrong one
 - `expected/`: captured output for the correct mapping, the wrong mapping with the layer, and the wrong mapping
   without it (`wrong-nolayer.out`)

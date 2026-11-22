@@ -3,7 +3,7 @@
 A small, runnable demo of one idea: the wrong field mapping that silently kills a detection is catchable by a
 reasoner before it reaches production, with no machine-learning model in the loop. Clone it, run one command, and
 watch a correct mapping pass and a deliberately wrong one fail. Around that check sit a public statement of what
-good looks like across five categories of security data ([SPEC.md](SPEC.md)) and three more runnable demos,
+good looks like across five categories of security data ([SPEC.md](SPEC.md)) and the other demos and drafts
 listed under [What's in the repo](#whats-in-the-repo).
 
 ## The problem this is about
@@ -56,10 +56,12 @@ ROBOT_JAR=/path/to/robot.jar python3 gate/validate_ocsf_mapping.py your_mappings
 
 The validator exits 0 when every type-testable row is consistent, 1 when at least one row is a type crossing, and
 2 when the reasoner itself failed or the input could not be used (Java missing, a corrupt jar, a parse error, a
-timeout, a missing or empty CSV), so a broken toolchain
-stops a CI job instead of reading as a pass. `./gate/test_gate.sh` is the regression test: it diffs the three
-scenarios below against [`gate/expected/`](gate/expected/) and checks that a broken jar exits 2 from both the
-validator and `run.sh`.
+timeout, an inconsistent disjointness layer, a missing or empty CSV, or a CSV in which no row is type-testable,
+which usually means swapped columns or field names the typer doesn't recognise), so a broken toolchain or input
+stops a CI job instead of reading as a pass. If a file with no type-testable row is expected, `--allow-untestable`
+accepts it. `./gate/test_gate.sh` is the regression test: it diffs the three scenarios below against
+[`gate/expected/`](gate/expected/) and checks that a broken jar exits 2 from both the validator and `run.sh`, and
+that an inconsistent layer and a missing, empty, semicolon-delimited or column-swapped CSV each exit 2.
 
 ## What you just saw
 
@@ -120,9 +122,13 @@ The disjointness layer lives inside the validator and is proposed upstream (see 
 It asserts eight D3FEND digital artifacts pairwise disjoint at the identity level: a process is not the file it was
 executed from, a credential is not the file it's stored in, and so on. The judgment that "executed-from" and
 "stored-in" are *relations* rather than identity is what makes the disjointness sound rather than an over-claim.
-A `--selfcheck` mode reasons over the layer alone and confirms it is internally consistent, and it catches the one
-real trap, that `NetworkSession` is a subclass of `Session`, which is why those two are deliberately not asserted
-disjoint. Every run with the layer starts with that selfcheck.
+A `--selfcheck` mode reasons over the layer and the validator's small stub of D3FEND, so it catches the one
+subclass trap the stub encodes, that `NetworkSession` is a subclass of `Session`, which is why those two are
+deliberately not asserted disjoint; it does not load D3FEND, so it can't see any other subclass relation. Every run
+with the layer starts with that selfcheck, and a layer it finds inconsistent stops the run with exit 2. The check
+against the real ontology is `./gate/probe_d3fend.sh --layer`, which merges the layer into a D3FEND release and
+expects ROBOT to find the result consistent with no unsatisfiable class; at 1.6.0 it does, and adding
+`ExecutableFile` (a D3FEND subclass of `File`) to the set makes it fail.
 
 The validator does not load D3FEND itself. It declares the artifact classes it needs plus the single
 `NetworkSession ⊑ Session` axiom, which keeps the demo to a few seconds and is why Scenario 2 *models* the
@@ -138,8 +144,9 @@ side is true by construction, for the reason each paragraph gives.
 On a 925-row, six-schema crosswalk corpus, 231 of 231 injected type crossings were flagged. That figure follows
 from how the corruptions were built (each correctly typed mapping was remapped to a disjoint artifact, which the
 layer then rejects by definition), so it shows the check runs end to end rather than measuring a catch rate. The
-measured result on that corpus is zero over-disjointness false positives, with about 7 false alarms from the
-approximate field-typer.
+measured result on that corpus is 15 firings on the 231 presumed-correct mapping classes (6.5%), none of which
+traced to a bad disjointness axiom: about 7 came from the approximate field-typer, and about 8 were coarse mappings
+worth a human look, plausible rather than confirmed wrong.
 
 On a separate 83-field mapping the check had never seen, 22 of the 83 fields were type-testable, because the regex
 typer grounds only field names that match its rules. The 22 injected crossings on those fields were again flagged
@@ -172,11 +179,13 @@ Each demo makes one part of the spec executable, evidence first.
 | [`gate/`](gate/) | the OCSF field-mapping type-consistency check described above, which is the data-health-validation category of [SPEC.md §1](SPEC.md#1-data-health-validation-does-the-data-mean-what-the-schema-says) made executable, with its demo, regression test and captured output |
 | [`docker/`](docker/) | the MOAR Reference Stack: an open, tiered, swappable security-data lakehouse you stand up in layers, with a `verify` command that checks every running engine returns the same answer over the same Iceberg table |
 | [`foundation-healthcheck/`](foundation-healthcheck/) | a scoped demonstrator of the four-layer data-health gate (source health, flow health, data quality, cross-tool gaps) on synthetic data |
+| [`ossie-semantic-model/`](ossie-semantic-model/) | a draft security-operations semantic model in the Apache Ossie core spec (`0.3.0.dev0`), binding SOC metric definitions to OCSF, ATT&CK, ATLAS, D3FEND and Sigma datasets, with its ontology and mapping documents |
 | [`build-your-own-mcp/`](build-your-own-mcp/) | the case, plus curated references, for building your own security-data MCP server rather than adopting a vendor black box |
 | [`SPEC.md`](SPEC.md) | what good looks like across the five categories of security data, the frame the demos grow into |
 | [`glossary.md`](glossary.md) | plain-language definitions of ontology, semantics, grounding, disjointness, reasoner and unsatisfiable |
 | [`docs/READING.md`](docs/READING.md) | the essays on securitydataworks.com that argue each demo in full, mapped per directory |
 | [`SELF-AUDIT-2026-06.md`](SELF-AUDIT-2026-06.md) | a dated intent self-audit of this repo (2026-06-21) |
+| [`scripts/secret-scan.sh`](scripts/secret-scan.sh) | the pre-commit secret scan, which blocks a commit that stages a live credential |
 
 ## Versioning and reproducibility
 

@@ -28,8 +28,8 @@ with the same dependencies, and either install `pulumi` or put the same stub on 
 
 The console reads vendored artifacts, so it runs without `./moar up`; the live panes show `unwired` or
 `not_measured` until the stack is up, because the gate never shows an unrun check as a pass. With no
-`VAULT_PATH` set it reads a vault at `~/project1` if one exists and otherwise the bundled synthetic
-[`sample-vault/`](sample-vault/), so a fresh clone has something to show. Three environment switches change what it shows:
+`VAULT_PATH` set it uses the bundled synthetic [`sample-vault/`](sample-vault/) unless a private vault exists at
+the author's default path (see `docker/moar`), so a fresh clone has something to show. Three environment switches change what it shows:
 
 - `MOAR_PAID_MODE` is off unless set, and `./moar console` passes it through empty, so the scored Capability
   Matrix view stays hidden by default; set `MOAR_PAID_MODE=on` to show it, which also needs the per-criterion
@@ -237,7 +237,7 @@ The console does not re-document these tools; configure each from its own docs. 
 | Catalog | Lakekeeper | [docs.lakekeeper.io](https://docs.lakekeeper.io/) | — |
 | Engine | Trino | [trino.io/docs/current](https://trino.io/docs/current/) | [Iceberg connector](https://trino.io/docs/current/connector/iceberg.html) |
 | Engine | ClickHouse | [clickhouse.com/docs](https://clickhouse.com/docs) | [Iceberg table engine](https://clickhouse.com/docs/engines/table-engines/integrations/iceberg) |
-| Engine | StarRocks | [docs.starrocks.io](https://docs.starrocks.io/) | [Iceberg catalog](https://docs.starrocks.io/docs/data_source/catalog/iceberg/iceberg_catalog/) |
+| Engine | StarRocks | [docs.starrocks.io](https://docs.starrocks.io/) | [Iceberg catalog](https://docs.starrocks.io/docs/data_source/catalog/iceberg/) |
 | Engine | Dremio | [docs.dremio.com](https://docs.dremio.com/) | Iceberg-native (no discrete connector page) |
 | Engine | DuckDB | [duckdb.org/docs/current](https://duckdb.org/docs/current/) | [iceberg extension](https://duckdb.org/docs/current/core_extensions/iceberg/overview) |
 | Route | Vector | [vector.dev/docs](https://vector.dev/docs/) | — |

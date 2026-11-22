@@ -5,6 +5,29 @@ from a dated record that ships in the repo, named in the entry, and an undated c
 a guessed date. The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). The entries
 before 2026-11-17 are dated evidence records that ship in the repo rather than a full history of changes to it.
 
+## 2026-11-22
+
+### Fixed
+
+- `gate/validate_ocsf_mapping.py` still passed vacuously when no row was type-testable: a CSV with its columns
+  swapped printed `0 type-testable · 0 type-crossing flagged` and exited 0. That case now exits 2 unless
+  `--allow-untestable` is given. The header is skipped only on the first line, so a data row whose source field is
+  literally `source` is checked instead of dropped. A disjointness layer found inconsistent at the start of a
+  mapping run now exits 2 rather than 1, so `run.sh` and CI no longer read a broken layer as a caught crossing.
+  `gate/test_gate.sh` covers all three.
+- The corpus result now gives all 15 firings on the 231 presumed-correct mapping classes (6.5%), none traced to the
+  layer, about 7 from the field-typer and about 8 coarse mappings worth review, where it had given only the
+  typer's 7.
+- The README described `--selfcheck` as confirming the layer consistent; it reasons over a small stub that encodes
+  one D3FEND subclass axiom, and the text now says so.
+- `CONTRIBUTING.md` quotes d3fend-ontology #423 exactly, and a dead StarRocks link in
+  `docker/control-plane/README.md` points at the current Iceberg catalog page.
+
+### Added
+
+- `gate/probe_d3fend.sh --layer`, which merges the validator's disjointness layer into a D3FEND release and expects
+  ROBOT to find it consistent; `CONTRIBUTING.md` names it as the check to run after editing the set.
+
 ## 2026-11-17
 
 ### Fixed
@@ -35,6 +58,8 @@ before 2026-11-17 are dated evidence records that ship in the repo rather than a
 - `gate/expected/wrong-nolayer.out`, the captured Scenario 2 output.
 - `docs/img/gate-flow.svg` and `docs/img/moar-tiers.svg`, diagrams of the gate and the MOAR presets.
 - `docs/READING.md` (the essay index, moved out of the README), `CITATION.cff` and this changelog.
+- `ossie-semantic-model/`, a draft Ossie security-operations semantic model with its ontology and mapping
+  documents (commits 4f6e4ca and 613981f).
 
 ### Changed
 
