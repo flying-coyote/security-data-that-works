@@ -17,7 +17,10 @@
 #
 # Usage: ./probe_d3fend.sh [--layer] [tag]        (default tag 1.6.0)
 # Runs in the sdtw-gate Docker image like run.sh; LOCAL=1 uses a local Java and $ROBOT_JAR.
-# Needs network access to raw.githubusercontent.com. Exit 0 when the result is as expected.
+# Needs network access to raw.githubusercontent.com. Exit 0 when the result is as expected,
+# 1 when the reasoner ran and the result is not (with --layer, a clash with D3FEND), and 2 when
+# a download, the DISJOINT_SET read or (with --layer) the reasoner itself failed, so a missing
+# jar or Java never reads as a clash.
 set -uo pipefail
 cd "$(dirname "$0")"
 MODE=pairs
@@ -81,7 +84,9 @@ reason >"$TMP/robot.log" 2>&1
 rc=$?
 if [ "$MODE" = "layer" ]; then
   # ROBOT exits non-zero on an inconsistent ontology or an unsatisfiable class, and writes
-  # the dump only for the latter; either one means the layer clashes with D3FEND.
+  # the dump only for the latter; either one means the layer clashes with D3FEND. Any other
+  # non-zero exit (a missing or corrupt jar, no Java, a Docker failure) means the reasoner did
+  # not run, which is exit 2 and never a clash.
   nunsat=0
   [ -s "$TMP/unsat.owl" ] && nunsat="$(grep -c 'owl:Class' "$TMP/unsat.owl")"
   echo "ROBOT exit $rc; unsatisfiable-class dump entries: $nunsat"
@@ -89,7 +94,10 @@ if [ "$MODE" = "layer" ]; then
     echo "as expected: the layer is consistent with D3FEND $TAG and makes no class unsatisfiable"
     exit 0
   fi
-  echo "the layer clashes with D3FEND $TAG; see the ROBOT log:"; tail -5 "$TMP/robot.log"; exit 1
+  if [ "$nunsat" != "0" ] || grep -q 'The ontology is inconsistent' "$TMP/robot.log"; then
+    echo "the layer clashes with D3FEND $TAG; see the ROBOT log:"; tail -5 "$TMP/robot.log"; exit 1
+  fi
+  echo "reasoner did not run; see the ROBOT log:"; tail -5 "$TMP/robot.log"; exit 2
 fi
 unsat="$(grep -o 'probe#[A-Za-z_]*' "$TMP/unsat.owl" 2>/dev/null | sed 's/probe#//' | sort -u)"
 echo "ROBOT exit $rc; unsatisfiable probes:"
